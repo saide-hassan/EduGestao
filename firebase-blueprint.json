@@ -1,0 +1,61 @@
+{
+  "entities": {
+    "Grades": {
+      "title": "Grades",
+      "description": "Student grades for different assessments",
+      "type": "object",
+      "properties": {
+        "acs1": { "type": "string" },
+        "acs2": { "type": "string" },
+        "acs3": { "type": "string" },
+        "ap": { "type": "string" },
+        "exame": { "type": "string" }
+      },
+      "required": ["acs1", "acs2", "acs3", "ap", "exame"]
+    },
+    "Student": {
+      "title": "Student",
+      "description": "A student in a class",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "studentNumber": { "type": "string" },
+        "name": { "type": "string" },
+        "grades": { "$ref": "#/entities/Grades" },
+        "dob": { "type": "string" },
+        "birthplace": { "type": "string" },
+        "address": { "type": "string" },
+        "parentName": { "type": "string" },
+        "parentProfession": { "type": "string" },
+        "parentAddress": { "type": "string" },
+        "parentContact": { "type": "string" }
+      },
+      "required": ["id", "name", "grades"]
+    },
+    "ClassData": {
+      "title": "ClassData",
+      "description": "A class managed by a teacher",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "school": { "type": "string" },
+        "level": { "type": "string" },
+        "section": { "type": "string" },
+        "subject": { "type": "string" },
+        "isDirector": { "type": "boolean" },
+        "students": {
+          "type": "array",
+          "items": { "$ref": "#/entities/Student" }
+        },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "school", "level", "section", "subject", "isDirector", "students"]
+    }
+  },
+  "firestore": {
+    "/classes/{classId}": {
+      "schema": { "$ref": "#/entities/ClassData" },
+      "description": "Classes managed by teachers"
+    }
+  }
+}

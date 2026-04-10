@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Users, BookOpen, School, GraduationCap, ChevronLeft, Trash2, UserPlus, Save, Search, Download, Pencil, Home } from 'lucide-react';
+import { Plus, Users, BookOpen, School, GraduationCap, ChevronLeft, Trash2, UserPlus, Save, Search, Download, Pencil, Home, LogOut } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,6 +12,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { WelcomeScreen } from '@/components/welcome-screen';
+import { LoginScreen } from '@/components/login-screen';
+import { auth, db, logout } from '@/lib/firebase';
+import { onAuthStateChanged, User } from 'firebase/auth';
+import { collection, onSnapshot, doc, setDoc, deleteDoc, query, where } from 'firebase/firestore';
 
 type Grades = {
   acs1: string;
@@ -37,12 +41,14 @@ type Student = {
 
 type ClassData = {
   id: string;
+  userId: string;
   school: string;
   level: string;
   section: string;
   subject: string;
   isDirector: boolean;
   students: Student[];
+  createdAt?: string;
 };
 
 const calculateAverage = (grades: Grades) => {
@@ -94,9 +100,39 @@ function useLocalStorage<T>(key: string, initialValue: T) {
 }
 
 export default function App() {
-  const [classes, setClasses] = useLocalStorage<ClassData[]>('gestao-turmas-classes', []);
+  const [user, setUser] = useState<User | null>(null);
+  const [isAuthReady, setIsAuthReady] = useState(false);
+  const [classes, setClasses] = useState<ClassData[]>([]);
   const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
   const [hasSeenWelcome, setHasSeenWelcome] = useLocalStorage<boolean>('edugestao-has-seen-welcome', false);
+  
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      setIsAuthReady(true);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (!isAuthReady || !user) {
+      setClasses([]);
+      return;
+    }
+
+    const q = query(collection(db, 'classes'), where('userId', '==', user.uid));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const classesData: ClassData[] = [];
+      snapshot.forEach((doc) => {
+        classesData.push({ id: doc.id, ...doc.data() } as ClassData);
+      });
+      setClasses(classesData);
+    }, (error) => {
+      console.error("Error fetching classes:", error);
+    });
+
+    return () => unsubscribe();
+  }, [user, isAuthReady]);
   
   // Add Class State
   const [isAddClassOpen, setIsAddClassOpen] = useState(false);
@@ -129,36 +165,39 @@ export default function App() {
 
   const selectedClass = classes.find(c => c.id === selectedClassId);
 
-  const handleAddClass = () => {
-    if (!newClass.school || !newClass.level || !newClass.section || !newClass.subject) return;
+  const handleAddClass = async () => {
+    if (!newClass.school || !newClass.level || !newClass.section || !newClass.subject || !user) return;
     
     const newClassData: ClassData = {
       id: crypto.randomUUID(),
+      userId: user.uid,
       ...newClass,
-      students: []
+      students: [],
+      createdAt: new Date().toISOString()
     };
     
-    setClasses([...classes, newClassData]);
-    setIsAddClassOpen(false);
-    setNewClass({ school: '', level: '', section: '', subject: '', isDirector: false });
+    try {
+      await setDoc(doc(db, 'classes', newClassData.id), newClassData);
+      setIsAddClassOpen(false);
+      setNewClass({ school: '', level: '', section: '', subject: '', isDirector: false });
+    } catch (error) {
+      console.error("Error adding class:", error);
+    }
   };
 
-  const handleUpdateClass = () => {
-    if (!editingClass || !editingClass.school || !editingClass.level || !editingClass.section || !editingClass.subject) return;
+  const handleUpdateClass = async () => {
+    if (!editingClass || !editingClass.school || !editingClass.level || !editingClass.section || !editingClass.subject || !user) return;
 
-    const updatedClasses = classes.map(c => {
-      if (c.id === editingClass.id) {
-        return editingClass;
-      }
-      return c;
-    });
-
-    setClasses(updatedClasses);
-    setEditingClass(null);
+    try {
+      await setDoc(doc(db, 'classes', editingClass.id), editingClass);
+      setEditingClass(null);
+    } catch (error) {
+      console.error("Error updating class:", error);
+    }
   };
 
-  const handleAddStudent = () => {
-    if (!selectedClass || !newStudent.name) return;
+  const handleAddStudent = async () => {
+    if (!selectedClass || !newStudent.name || !user) return;
 
     const student: Student = {
       id: crypto.randomUUID(),
@@ -176,79 +215,83 @@ export default function App() {
       } : {})
     };
 
-    const updatedClasses = classes.map(c => {
-      if (c.id === selectedClass.id) {
-        return { ...c, students: [...c.students, student] };
-      }
-      return c;
-    });
+    const updatedClass = { ...selectedClass, students: [...selectedClass.students, student] };
 
-    setClasses(updatedClasses);
-    setIsAddStudentOpen(false);
-    setNewStudent({ studentNumber: '', name: '', dob: '', birthplace: '', address: '', parentName: '', parentProfession: '', parentAddress: '', parentContact: '' });
+    try {
+      await setDoc(doc(db, 'classes', selectedClass.id), updatedClass);
+      setIsAddStudentOpen(false);
+      setNewStudent({ studentNumber: '', name: '', dob: '', birthplace: '', address: '', parentName: '', parentProfession: '', parentAddress: '', parentContact: '' });
+    } catch (error) {
+      console.error("Error adding student:", error);
+    }
   };
 
-  const handleUpdateStudent = () => {
-    if (!selectedClass || !editingStudent || !editingStudent.name) return;
+  const handleUpdateStudent = async () => {
+    if (!selectedClass || !editingStudent || !editingStudent.name || !user) return;
 
-    const updatedClasses = classes.map(c => {
-      if (c.id === selectedClass.id) {
-        return {
-          ...c,
-          students: c.students.map(s => s.id === editingStudent.id ? editingStudent : s)
-        };
-      }
-      return c;
-    });
+    const updatedClass = {
+      ...selectedClass,
+      students: selectedClass.students.map(s => s.id === editingStudent.id ? editingStudent : s)
+    };
 
-    setClasses(updatedClasses);
-    setEditingStudent(null);
+    try {
+      await setDoc(doc(db, 'classes', selectedClass.id), updatedClass);
+      setEditingStudent(null);
+    } catch (error) {
+      console.error("Error updating student:", error);
+    }
   };
 
-  const updateGrade = (studentId: string, field: keyof Grades, value: string) => {
-    if (!selectedClass) return;
+  const updateGrade = async (studentId: string, field: keyof Grades, value: string) => {
+    if (!selectedClass || !user) return;
     
-    const updatedClasses = classes.map(c => {
-      if (c.id === selectedClass.id) {
-        return {
-          ...c,
-          students: c.students.map(s => {
-            if (s.id === studentId) {
-              return { ...s, grades: { ...s.grades, [field]: value } };
-            }
-            return s;
-          })
-        };
-      }
-      return c;
-    });
+    const updatedClass = {
+      ...selectedClass,
+      students: selectedClass.students.map(s => {
+        if (s.id === studentId) {
+          return { ...s, grades: { ...s.grades, [field]: value } };
+        }
+        return s;
+      })
+    };
     
-    setClasses(updatedClasses);
+    try {
+      await setDoc(doc(db, 'classes', selectedClass.id), updatedClass);
+    } catch (error) {
+      console.error("Error updating grade:", error);
+    }
   };
 
   const confirmDeleteStudent = (studentId: string) => {
     setStudentToDelete(studentId);
   };
 
-  const deleteStudent = () => {
-    if (!selectedClass || !studentToDelete) return;
+  const deleteStudent = async () => {
+    if (!selectedClass || !studentToDelete || !user) return;
     
-    const updatedClasses = classes.map(c => {
-      if (c.id === selectedClass.id) {
-        return { ...c, students: c.students.filter(s => s.id !== studentToDelete) };
-      }
-      return c;
-    });
+    const updatedClass = {
+      ...selectedClass,
+      students: selectedClass.students.filter(s => s.id !== studentToDelete)
+    };
     
-    setClasses(updatedClasses);
-    setStudentToDelete(null);
+    try {
+      await setDoc(doc(db, 'classes', selectedClass.id), updatedClass);
+      setStudentToDelete(null);
+    } catch (error) {
+      console.error("Error deleting student:", error);
+    }
   };
 
-  const deleteClass = (classId: string, e: React.MouseEvent) => {
+  const deleteClass = async (classId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!confirm('Tem certeza que deseja remover esta turma? Todos os alunos serão apagados.')) return;
-    setClasses(classes.filter(c => c.id !== classId));
-    if (selectedClassId === classId) setSelectedClassId(null);
+    
+    try {
+      await deleteDoc(doc(db, 'classes', classId));
+      if (selectedClassId === classId) setSelectedClassId(null);
+    } catch (error) {
+      console.error("Error deleting class:", error);
+    }
   };
 
   const filteredStudents = selectedClass?.students.filter(s => 
@@ -308,6 +351,18 @@ export default function App() {
     XLSX.writeFile(wb, fileName);
   };
 
+  if (!isAuthReady) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <LoginScreen />;
+  }
+
   return (
     <div className="min-h-screen text-foreground font-sans">
       {/* Header */}
@@ -332,6 +387,9 @@ export default function App() {
               </Button>
             )}
             <ThemeToggle />
+            <Button variant="ghost" size="icon" onClick={logout} title="Terminar Sessão" className="text-muted-foreground hover:text-destructive">
+              <LogOut className="h-4 w-4" />
+            </Button>
           </div>
         </div>
       </header>
@@ -349,11 +407,9 @@ export default function App() {
               </div>
               
               <Dialog open={isAddClassOpen} onOpenChange={setIsAddClassOpen}>
-                <DialogTrigger asChild>
-                  <Button className="bg-primary hover:bg-primary/90 text-primary-foreground rounded-full px-6 shadow-sm">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Nova Turma
-                  </Button>
+                <DialogTrigger render={<Button className="bg-primary hover:bg-primary/90 text-primary-foreground rounded-full px-6 shadow-sm" />}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Nova Turma
                 </DialogTrigger>
                 <DialogContent className="sm:max-w-[425px]">
                   <DialogHeader>
@@ -569,11 +625,9 @@ export default function App() {
                   <span className="hidden sm:inline">Exportar</span>
                 </Button>
                 <Dialog open={isAddStudentOpen} onOpenChange={setIsAddStudentOpen}>
-                  <DialogTrigger asChild>
-                    <Button className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm shrink-0">
-                      <UserPlus className="h-4 w-4 mr-2" />
-                      Adicionar Aluno
-                    </Button>
+                  <DialogTrigger render={<Button className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm shrink-0" />}>
+                    <UserPlus className="h-4 w-4 mr-2" />
+                    Adicionar Aluno
                   </DialogTrigger>
                   <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
                     <DialogHeader>

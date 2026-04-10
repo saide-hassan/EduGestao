@@ -1,0 +1,58 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: classes
+    // Document ID: auto-generated
+    // Fields:
+    //   - userId: string (required) - The UID of the teacher who owns the class
+    //   - school: string (required)
+    //   - level: string (required)
+    //   - section: string (required)
+    //   - subject: string (required)
+    //   - isDirector: boolean (required)
+    //   - students: array of Student objects (required)
+    //   - createdAt: string (required)
+    //
+    // ===============================================================
+
+    // Helper Functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function isValidClass(data) {
+      return hasRequiredFields(['userId', 'school', 'level', 'section', 'subject', 'isDirector', 'students']) &&
+             data.userId is string &&
+             data.school is string && data.school.size() <= 200 &&
+             data.level is string && data.level.size() <= 100 &&
+             data.section is string && data.section.size() <= 100 &&
+             data.subject is string && data.subject.size() <= 100 &&
+             data.isDirector is bool &&
+             data.students is list;
+    }
+
+    match /classes/{classId} {
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated() && 
+                    isValidClass(request.resource.data) && 
+                    request.resource.data.userId == request.auth.uid;
+      allow update: if isAuthenticated() && 
+                    resource.data.userId == request.auth.uid &&
+                    isValidClass(request.resource.data) &&
+                    request.resource.data.userId == resource.data.userId; // Prevent changing owner
+      allow delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+  }
+}
