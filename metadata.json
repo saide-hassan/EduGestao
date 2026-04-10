@@ -1,0 +1,5 @@
+{
+  "name": "EduGestão",
+  "description": "App de gestão de turmas, alunos e avaliações com suporte para Diretores de Turma.",
+  "requestFramePermissions": []
+}
