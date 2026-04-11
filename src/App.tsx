@@ -359,6 +359,14 @@ export default function App() {
     );
   }
 
+  if (!hasSeenWelcome) {
+    return (
+      <div className="min-h-screen text-foreground font-sans">
+        <WelcomeScreen onStart={() => setHasSeenWelcome(true)} user={user} />
+      </div>
+    );
+  }
+
   if (!user) {
     return <LoginScreen />;
   }
@@ -395,9 +403,7 @@ export default function App() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {!hasSeenWelcome ? (
-          <WelcomeScreen onStart={() => setHasSeenWelcome(true)} />
-        ) : !selectedClassId ? (
+        {!selectedClassId ? (
           // Dashboard - List of Classes
           <div className="space-y-6">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
