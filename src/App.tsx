@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Users, BookOpen, School, GraduationCap, ChevronLeft, Trash2, UserPlus, Save, Search, Download, Pencil, Home, LogOut } from 'lucide-react';
+import { Plus, Users, BookOpen, School, GraduationCap, ChevronLeft, Trash2, UserPlus, Save, Search, Download, Pencil, Home, LogOut, Star } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -354,6 +354,21 @@ export default function App() {
     XLSX.writeFile(wb, fileName);
   };
 
+  const sortedClasses = [...classes].sort((a, b) => {
+    if (a.isDirector && !b.isDirector) return -1;
+    if (!a.isDirector && b.isDirector) return 1;
+
+    const getLevelNum = (levelStr: string) => parseInt(levelStr.replace(/\D/g, '')) || 0;
+    const levelA = getLevelNum(a.level);
+    const levelB = getLevelNum(b.level);
+    
+    if (levelA !== levelB) {
+      return levelA - levelB;
+    }
+
+    return a.section.localeCompare(b.section);
+  });
+
   if (!isAuthReady) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -535,16 +550,23 @@ export default function App() {
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {classes.map((c) => (
+                {sortedClasses.map((c) => (
                   <Card 
                     key={c.id} 
-                    className="cursor-pointer hover:shadow-md transition-all duration-200 border-border hover:border-primary/50 group bg-card"
+                    className={`cursor-pointer hover:shadow-md transition-all duration-200 group ${c.isDirector ? 'border-primary/40 bg-primary/[0.03] shadow-sm' : 'border-border hover:border-primary/50 bg-card'}`}
                     onClick={() => setSelectedClassId(c.id)}
                   >
                     <CardHeader className="pb-3">
                       <div className="flex justify-between items-start">
-                        <div className="bg-primary/10 text-primary px-3 py-1 rounded-full text-xs font-medium mb-3 inline-block">
-                          {c.subject}
+                        <div className="flex gap-2 flex-wrap mb-3">
+                          <div className="bg-primary/10 text-primary px-3 py-1 rounded-full text-xs font-medium inline-block">
+                            {c.subject}
+                          </div>
+                          {c.isDirector && (
+                            <div className="bg-amber-500/10 text-amber-600 dark:text-amber-400 px-3 py-1 rounded-full text-xs font-medium inline-flex items-center gap-1">
+                              <Star className="h-3 w-3 fill-current" /> Diretor
+                            </div>
+                          )}
                         </div>
                         <div className="flex gap-1">
                           <Button 
