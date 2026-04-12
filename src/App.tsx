@@ -553,7 +553,7 @@ export default function App() {
                 {sortedClasses.map((c) => (
                   <Card 
                     key={c.id} 
-                    className={`cursor-pointer hover:shadow-md transition-all duration-200 group ${c.isDirector ? 'border-primary/40 bg-primary/[0.03] shadow-sm' : 'border-border hover:border-primary/50 bg-card'}`}
+                    className={`cursor-pointer hover:shadow-md transition-all duration-200 group ${c.isDirector ? 'border-primary/40 bg-[var(--card-director)] shadow-sm' : 'border-border hover:border-primary/50 bg-card'}`}
                     onClick={() => setSelectedClassId(c.id)}
                   >
                     <CardHeader className="pb-3">

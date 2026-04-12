@@ -53,6 +53,7 @@
     --background: #D4CBEB;
     --foreground: #1C1628;
     --card: #E7DFF8;
+    --card-director: #F4EEFC;
     --card-foreground: #1C1628;
     --popover: #E7DFF8;
     --popover-foreground: #1C1628;
@@ -89,6 +90,7 @@
     --background: #13111A;
     --foreground: #E5DDF5;
     --card: #2A233A;
+    --card-director: #352C48;
     --card-foreground: #E5DDF5;
     --popover: #2A233A;
     --popover-foreground: #E5DDF5;
