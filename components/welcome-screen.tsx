@@ -28,7 +28,7 @@ export function WelcomeScreen({ onStart, user }: WelcomeScreenProps) {
   return (
     <div className="relative flex flex-col items-center justify-center h-screen overflow-hidden px-4 sm:px-6 lg:px-8">
       <motion.div 
-        className="max-w-4xl w-full space-y-12 text-center"
+        className="max-w-4xl w-full space-y-12 text-center mb-16 sm:mb-24"
         variants={containerVariants}
         initial="hidden"
         animate="visible"
