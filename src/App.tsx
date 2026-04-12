@@ -641,8 +641,8 @@ export default function App() {
                 </p>
               </div>
               
-              <div className="flex items-center gap-3 w-full md:w-auto">
-                <div className="relative flex-1 md:w-64">
+              <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3 w-full md:w-auto">
+                <div className="relative flex-1 md:w-64 order-2 md:order-1">
                   <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input 
                     placeholder="Procurar aluno..." 
@@ -651,15 +651,16 @@ export default function App() {
                     onChange={(e) => setSearchQuery(e.target.value)}
                   />
                 </div>
-                <Button variant="outline" onClick={exportToExcel} className="shadow-sm shrink-0" title="Exportar para Excel" disabled={selectedClass.students.length === 0}>
-                  <Download className="h-4 w-4 sm:mr-2" />
-                  <span className="hidden sm:inline">Exportar</span>
-                </Button>
-                <Dialog open={isAddStudentOpen} onOpenChange={setIsAddStudentOpen}>
-                  <DialogTrigger render={<Button className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm shrink-0" />}>
-                    <UserPlus className="h-4 w-4 mr-2" />
-                    Adicionar Aluno
-                  </DialogTrigger>
+                <div className="flex items-center gap-2 sm:gap-3 order-1 md:order-2 w-full md:w-auto justify-end">
+                  <Button variant="outline" onClick={exportToExcel} className="shadow-sm shrink-0 flex-1 md:flex-none" title="Exportar para Excel" disabled={selectedClass.students.length === 0}>
+                    <Download className="h-4 w-4 sm:mr-2" />
+                    <span className="inline">Exportar</span>
+                  </Button>
+                  <Dialog open={isAddStudentOpen} onOpenChange={setIsAddStudentOpen}>
+                    <DialogTrigger render={<Button className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm shrink-0 flex-1 md:flex-none" />}>
+                      <UserPlus className="h-4 w-4 mr-2" />
+                      Adicionar Aluno
+                    </DialogTrigger>
                   <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                       <DialogTitle>Adicionar Novo Aluno</DialogTitle>
@@ -811,6 +812,7 @@ export default function App() {
                     </DialogFooter>
                   </DialogContent>
                 </Dialog>
+              </div>
               </div>
             </div>
 
