@@ -16,6 +16,7 @@ import { LoginScreen } from '@/components/login-screen';
 import { auth, db, logout } from '@/lib/firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { collection, onSnapshot, doc, setDoc, deleteDoc, query, where } from 'firebase/firestore';
+import { toast } from 'sonner';
 
 type Grades = {
   acs1: string;
@@ -178,10 +179,11 @@ export default function App() {
     
     try {
       await setDoc(doc(db, 'classes', newClassData.id), newClassData);
-      setIsAddClassOpen(false);
+      toast.success('Turma guardada com sucesso!');
       setNewClass({ school: '', level: '', section: '', subject: '', isDirector: false });
     } catch (error) {
       console.error("Error adding class:", error);
+      toast.error('Erro ao guardar turma.');
     }
   };
 
@@ -219,10 +221,11 @@ export default function App() {
 
     try {
       await setDoc(doc(db, 'classes', selectedClass.id), updatedClass);
-      setIsAddStudentOpen(false);
+      toast.success('Aluno guardado com sucesso!');
       setNewStudent({ studentNumber: '', name: '', dob: '', birthplace: '', address: '', parentName: '', parentProfession: '', parentAddress: '', parentContact: '' });
     } catch (error) {
       console.error("Error adding student:", error);
+      toast.error('Erro ao guardar aluno.');
     }
   };
 
