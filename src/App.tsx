@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Users, BookOpen, School, GraduationCap, ChevronLeft, Trash2, UserPlus, Save, Search, Download, Pencil, Home, LogOut, Star } from 'lucide-react';
+import { Plus, Users, BookOpen, School, GraduationCap, ChevronLeft, Trash2, UserPlus, Save, Search, Download, Pencil, Home, LogOut, Star, Layers } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -47,6 +47,7 @@ type ClassData = {
   level: string;
   section: string;
   subject: string;
+  academicYear: string;
   isDirector: boolean;
   students: Student[];
   createdAt?: string;
@@ -105,6 +106,7 @@ export default function App() {
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [classes, setClasses] = useState<ClassData[]>([]);
   const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
+  const [selectedLevel, setSelectedLevel] = useState<string | null>(null);
   const [hasSeenWelcome, setHasSeenWelcome] = useLocalStorage<boolean>('edugestao-has-seen-welcome', false);
   
   useEffect(() => {
@@ -145,6 +147,7 @@ export default function App() {
     level: '',
     section: '',
     subject: '',
+    academicYear: new Date().getFullYear().toString(),
     isDirector: false
   });
 
@@ -167,11 +170,14 @@ export default function App() {
   const selectedClass = classes.find(c => c.id === selectedClassId);
 
   const handleAddClass = async () => {
-    if (!newClass.school || !newClass.level || !newClass.section || !newClass.subject || !user) return;
+    if (!newClass.level || !newClass.academicYear || !user) return;
     
     const newClassData: ClassData = {
       id: crypto.randomUUID(),
       userId: user.uid,
+      school: newClass.school || 'EduGestão',
+      section: newClass.section || 'A',
+      subject: newClass.subject || 'Geral',
       ...newClass,
       students: [],
       createdAt: new Date().toISOString()
@@ -180,15 +186,41 @@ export default function App() {
     try {
       await setDoc(doc(db, 'classes', newClassData.id), newClassData);
       toast.success('Turma guardada com sucesso!');
-      setNewClass({ school: '', level: '', section: '', subject: '', isDirector: false });
+      setNewClass({ 
+        school: newClass.school || '', 
+        level: selectedLevel || '', 
+        section: '', 
+        subject: '', 
+        academicYear: newClass.academicYear || new Date().getFullYear().toString(),
+        isDirector: false 
+      });
     } catch (error) {
       console.error("Error adding class:", error);
       toast.error('Erro ao guardar turma.');
     }
   };
 
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [levelToDelete, setLevelToDelete] = useState<{level: string, year: string} | null>(null);
+
+  const handleDeleteLevel = async () => {
+    if (!levelToDelete || !user) return;
+
+    try {
+      const classesToDelete = classes.filter(c => c.level === levelToDelete.level && c.academicYear === levelToDelete.year);
+      const deletePromises = classesToDelete.map(c => deleteDoc(doc(db, 'classes', c.id)));
+      await Promise.all(deletePromises);
+      toast.success('Classe eliminada com sucesso!');
+      setIsDeleteDialogOpen(false);
+      setLevelToDelete(null);
+    } catch (error) {
+      console.error("Error deleting level:", error);
+      toast.error('Erro ao eliminar classe.');
+    }
+  };
+
   const handleUpdateClass = async () => {
-    if (!editingClass || !editingClass.school || !editingClass.level || !editingClass.section || !editingClass.subject || !user) return;
+    if (!editingClass || !editingClass.level || !editingClass.academicYear || !user) return;
 
     try {
       await setDoc(doc(db, 'classes', editingClass.id), editingClass);
@@ -369,6 +401,22 @@ export default function App() {
     return a.section.localeCompare(b.section);
   });
 
+  const levels = Array.from(
+    new Map<string, { level: string; year: string }>(
+      classes.map(c => [`${c.level}-${c.academicYear}`, { level: c.level, year: c.academicYear }])
+    ).values()
+  ).sort((a, b) => {
+    const getLevelNum = (str: string) => parseInt(str.replace(/\D/g, '')) || 0;
+    if (a.level !== b.level) {
+      return getLevelNum(a.level) - getLevelNum(b.level);
+    }
+    return b.year.localeCompare(a.year);
+  });
+
+  const filteredByLevel = selectedLevel 
+    ? sortedClasses.filter(c => c.level === selectedLevel)
+    : sortedClasses;
+
   if (!isAuthReady) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -399,19 +447,6 @@ export default function App() {
             <h1 className="text-xl font-semibold tracking-tight">EduGestão</h1>
           </div>
           <div className="flex items-center gap-2 sm:gap-4">
-            {hasSeenWelcome && (
-              <Button variant="ghost" size="sm" onClick={() => { setHasSeenWelcome(false); setSelectedClassId(null); }} className="text-muted-foreground hover:text-foreground" title="Página Inicial">
-                <Home className="h-4 w-4 sm:mr-1" />
-                <span className="hidden sm:inline">Início</span>
-              </Button>
-            )}
-            {selectedClassId && (
-              <Button variant="ghost" size="sm" onClick={() => setSelectedClassId(null)} className="text-muted-foreground hover:text-foreground">
-                <ChevronLeft className="h-4 w-4 sm:mr-1" />
-                <span className="hidden sm:inline">Voltar às Turmas</span>
-                <span className="sm:hidden">Voltar</span>
-              </Button>
-            )}
             <ThemeToggle />
             <Button variant="ghost" size="icon" onClick={logout} title="Terminar Sessão" className="text-muted-foreground hover:text-destructive">
               <LogOut className="h-4 w-4" />
@@ -424,65 +459,124 @@ export default function App() {
         {!selectedClassId ? (
           // Dashboard - List of Classes
           <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-              <div>
-                <h2 className="text-3xl font-light tracking-tight">Minhas Turmas</h2>
-                <p className="text-muted-foreground mt-1">Faça a gestão dos seus alunos e avaliações.</p>
-              </div>
-              
-              <Dialog open={isAddClassOpen} onOpenChange={setIsAddClassOpen}>
-                <DialogTrigger render={<Button className="bg-primary hover:bg-primary/90 text-primary-foreground rounded-full px-6 shadow-sm" />}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Nova Turma
-                </DialogTrigger>
-                <DialogContent className="sm:max-w-[425px]">
-                  <DialogHeader>
-                    <DialogTitle>Adicionar Nova Turma</DialogTitle>
-                    <DialogDescription>
-                      Preencha os detalhes da turma ou disciplina que leciona.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="grid gap-4 py-4">
-                    <div className="grid gap-2">
-                      <Label htmlFor="school">Escola / Colégio</Label>
-                      <Input id="school" value={newClass.school} onChange={e => setNewClass({...newClass, school: e.target.value})} placeholder="Ex: Escola Secundária Central" />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="grid gap-2">
-                        <Label htmlFor="level">Classe / Ano</Label>
-                        <Input id="level" value={newClass.level} onChange={e => setNewClass({...newClass, level: e.target.value})} placeholder="Ex: 10ª Classe" />
-                      </div>
-                      <div className="grid gap-2">
-                        <Label htmlFor="section">Turma</Label>
-                        <Input id="section" value={newClass.section} onChange={e => setNewClass({...newClass, section: e.target.value})} placeholder="Ex: A" />
-                      </div>
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="subject">Disciplina</Label>
-                      <Input id="subject" value={newClass.subject} onChange={e => setNewClass({...newClass, subject: e.target.value})} placeholder="Ex: Matemática" />
-                    </div>
-                    <div className="flex items-center space-x-2 mt-2 bg-muted/50 p-3 rounded-md border border-border">
-                      <Checkbox 
-                        id="isDirector" 
-                        checked={newClass.isDirector}
-                        onCheckedChange={(checked) => setNewClass({...newClass, isDirector: checked === true})}
-                      />
-                      <div className="grid gap-1.5 leading-none">
-                        <Label htmlFor="isDirector" className="font-medium cursor-pointer">
-                          Sou o Diretor desta Turma
-                        </Label>
-                        <p className="text-xs text-muted-foreground">
-                          Permite adicionar dados detalhados dos alunos (morada, encarregado, etc).
-                        </p>
-                      </div>
-                    </div>
+            {selectedLevel ? (
+              <div className="space-y-4">
+                {/* Class Card with header and back button */}
+                <div className="bg-card/40 p-5 sm:p-6 rounded-2xl border border-border/50 flex items-center justify-between gap-4">
+                  <div className="flex flex-col min-w-0 text-left">
+                    <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground truncate">
+                      {selectedLevel}
+                    </h2>
+                    <p className="text-muted-foreground text-xs sm:text-sm mt-1">
+                      Gestão das turmas e disciplinas da classe.
+                    </p>
                   </div>
-                  <DialogFooter>
-                    <Button variant="outline" onClick={() => setIsAddClassOpen(false)}>Cancelar</Button>
-                    <Button onClick={handleAddClass} className="bg-primary hover:bg-primary/90 text-primary-foreground">Guardar Turma</Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
+
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => setSelectedLevel(null)} 
+                    className="h-10 w-10 sm:w-auto sm:px-4 border border-border/80 bg-card/20 hover:bg-card/40 text-muted-foreground hover:text-foreground hover:border-primary/30 transition-all rounded-xl shadow-sm flex items-center justify-center sm:gap-1.5 font-semibold text-sm cursor-pointer shrink-0"
+                    title="Voltar para Minhas Classes"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                    <span className="hidden sm:inline">Voltar</span>
+                  </Button>
+                </div>
+
+                {/* Floating FAB to Add New Turma */}
+                <Dialog open={isAddClassOpen} onOpenChange={(open) => {
+                  setIsAddClassOpen(open);
+                  if (open) {
+                    setNewClass(prev => ({ ...prev, level: selectedLevel }));
+                  }
+                }}>
+                  <DialogTrigger render={
+                    <Button 
+                      className="fixed bottom-6 right-6 sm:bottom-8 sm:right-8 z-50 rounded-full w-14 h-14 p-0 bg-primary hover:bg-primary/95 text-primary-foreground shadow-lg shadow-primary/25 border border-primary-foreground/10 hover:shadow-xl hover:shadow-primary/35 ring-4 ring-primary/5 hover:ring-primary/15 transition-all duration-300 hover:scale-110 active:scale-95 cursor-pointer flex items-center justify-center" 
+                      title="Adicionar Nova Turma"
+                    >
+                      <Plus className="h-7 w-7" />
+                    </Button>
+                  } />
+                  <DialogContent className="sm:max-w-[425px]">
+                    <DialogHeader>
+                      <DialogTitle>Adicionar Nova Turma</DialogTitle>
+                      <DialogDescription>
+                        Crie uma nova turma para a {selectedLevel}.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                      <div className="grid gap-2">
+                        <Label htmlFor="school">Escola / Colégio</Label>
+                        <Input id="school" value={newClass.school || ''} onChange={e => setNewClass({...newClass, school: e.target.value})} placeholder="Ex: Escola Secundária" />
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="grid gap-2">
+                          <Label htmlFor="section">Turma <span className="text-red-500">*</span></Label>
+                          <Input id="section" value={newClass.section || ''} onChange={e => setNewClass({...newClass, section: e.target.value})} placeholder="Ex: A" />
+                        </div>
+                        <div className="grid gap-2">
+                          <Label htmlFor="subject">Disciplina <span className="text-red-500">*</span></Label>
+                          <Input id="subject" value={newClass.subject || ''} onChange={e => setNewClass({...newClass, subject: e.target.value})} placeholder="Ex: Matemática" />
+                        </div>
+                      </div>
+                    </div>
+                    <DialogFooter className="gap-2 sm:gap-0 mt-2">
+                      <Button variant="outline" className="rounded-xl px-4 h-10 text-sm font-medium transition-all" onClick={() => setIsAddClassOpen(false)}>Cancelar</Button>
+                      <Button onClick={handleAddClass} className="bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl px-5 h-10 text-sm font-semibold shadow-sm transition-all" disabled={!newClass.level || !newClass.academicYear}>
+                        Guardar Turma
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </div>
+            ) : (
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-card/40 p-6 rounded-2xl border border-border/50">
+                <div className="flex flex-col">
+                  <h2 className="text-3xl font-light tracking-tight">Minhas Classes</h2>
+                  <p className="text-muted-foreground mt-1">Organize as suas turmas por classe e lecionação.</p>
+                </div>
+                
+                <div className="flex items-center gap-3 w-full sm:w-auto mt-2 sm:mt-0">
+                  {/* Floating FAB to Add New Class */}
+                  <Dialog open={isAddClassOpen} onOpenChange={setIsAddClassOpen}>
+                    <DialogTrigger render={
+                      <Button 
+                        className="fixed bottom-6 right-6 sm:bottom-8 sm:right-8 z-50 rounded-full w-14 h-14 p-0 bg-primary hover:bg-primary/95 text-primary-foreground shadow-lg shadow-primary/25 border border-primary-foreground/10 hover:shadow-xl hover:shadow-primary/35 ring-4 ring-primary/5 hover:ring-primary/15 transition-all duration-300 hover:scale-110 active:scale-95 cursor-pointer flex items-center justify-center" 
+                        title="Adicionar Nova Classe"
+                      >
+                        <Plus className="h-7 w-7" />
+                      </Button>
+                    } />
+                    <DialogContent className="sm:max-w-[425px]">
+                      <DialogHeader>
+                        <DialogTitle>Adicionar Nova Classe</DialogTitle>
+                        <DialogDescription>
+                          Defina o nível e o ano letivo para organizar as turmas.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="grid gap-4 py-4">
+                        <div className="grid gap-2">
+                          <Label htmlFor="level">Classe / Nível <span className="text-red-500">*</span></Label>
+                          <Input id="level" value={newClass.level || ''} onChange={e => setNewClass({...newClass, level: e.target.value})} placeholder="Ex: 7ª Classe" />
+                        </div>
+                        <div className="grid gap-2">
+                          <Label htmlFor="academicYear">Ano Letivo <span className="text-red-500">*</span></Label>
+                          <Input id="academicYear" value={newClass.academicYear || ''} onChange={e => setNewClass({...newClass, academicYear: e.target.value})} placeholder="Ex: 2024" />
+                        </div>
+                      </div>
+                      <DialogFooter className="gap-2 sm:gap-0 mt-2">
+                        <Button variant="outline" className="rounded-xl px-4 h-10 text-sm font-medium transition-all" onClick={() => setIsAddClassOpen(false)}>Cancelar</Button>
+                        <Button onClick={handleAddClass} className="bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl px-5 h-10 text-sm font-semibold shadow-sm transition-all" disabled={!newClass.level || !newClass.academicYear}>
+                          Guardar Classe
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+              </div>
+            )}
 
               <Dialog open={!!editingClass} onOpenChange={(open) => !open && setEditingClass(null)}>
                 <DialogContent className="sm:max-w-[425px]">
@@ -496,21 +590,27 @@ export default function App() {
                     <div className="grid gap-4 py-4">
                       <div className="grid gap-2">
                         <Label htmlFor="edit-school">Escola / Colégio</Label>
-                        <Input id="edit-school" value={editingClass.school} onChange={e => setEditingClass({...editingClass, school: e.target.value})} placeholder="Ex: Escola Secundária Central" />
+                        <Input id="edit-school" value={editingClass.school || ''} onChange={e => setEditingClass({...editingClass, school: e.target.value})} placeholder="Ex: Escola Secundária Central" />
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                         <div className="grid gap-2">
-                          <Label htmlFor="edit-level">Classe / Ano</Label>
-                          <Input id="edit-level" value={editingClass.level} onChange={e => setEditingClass({...editingClass, level: e.target.value})} placeholder="Ex: 10ª Classe" />
+                          <Label htmlFor="edit-level">Classe</Label>
+                          <Input id="edit-level" value={editingClass.level || ''} onChange={e => setEditingClass({...editingClass, level: e.target.value})} placeholder="Ex: 7ª Classe" />
                         </div>
                         <div className="grid gap-2">
-                          <Label htmlFor="edit-section">Turma</Label>
-                          <Input id="edit-section" value={editingClass.section} onChange={e => setEditingClass({...editingClass, section: e.target.value})} placeholder="Ex: A" />
+                          <Label htmlFor="edit-year">Ano Letivo</Label>
+                          <Input id="edit-year" value={editingClass.academicYear || ''} onChange={e => setEditingClass({...editingClass, academicYear: e.target.value})} placeholder="Ex: 2024" />
                         </div>
                       </div>
-                      <div className="grid gap-2">
-                        <Label htmlFor="edit-subject">Disciplina</Label>
-                        <Input id="edit-subject" value={editingClass.subject} onChange={e => setEditingClass({...editingClass, subject: e.target.value})} placeholder="Ex: Matemática" />
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="grid gap-2">
+                          <Label htmlFor="edit-section">Turma</Label>
+                          <Input id="edit-section" value={editingClass.section || ''} onChange={e => setEditingClass({...editingClass, section: e.target.value})} placeholder="Ex: A" />
+                        </div>
+                        <div className="grid gap-2">
+                          <Label htmlFor="edit-subject">Disciplina</Label>
+                          <Input id="edit-subject" value={editingClass.subject || ''} onChange={e => setEditingClass({...editingClass, subject: e.target.value})} placeholder="Ex: Matemática" />
+                        </div>
                       </div>
                       <div className="flex items-center space-x-2 mt-2 bg-muted/50 p-3 rounded-md border border-border">
                         <Checkbox 
@@ -530,43 +630,118 @@ export default function App() {
                     </div>
                   )}
                   <DialogFooter>
-                    <Button variant="outline" onClick={() => setEditingClass(null)}>Cancelar</Button>
-                    <Button onClick={handleUpdateClass} className="bg-primary hover:bg-primary/90 text-primary-foreground" disabled={!editingClass?.school || !editingClass?.level || !editingClass?.section || !editingClass?.subject}>Guardar Alterações</Button>
+                    <Button variant="outline" className="rounded-xl px-4 h-10 text-sm font-medium transition-all" onClick={() => setEditingClass(null)}>Cancelar</Button>
+                    <Button onClick={handleUpdateClass} className="bg-primary hover:bg-primary/95 text-primary-foreground rounded-xl px-5 h-10 text-sm font-semibold shadow-sm transition-all" disabled={!editingClass?.level || !editingClass?.academicYear}>Guardar Alterações</Button>
                   </DialogFooter>
                 </DialogContent>
               </Dialog>
-            </div>
+
+              <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+                <DialogContent className="sm:max-w-[425px]">
+                  <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2 text-destructive">
+                      <Trash2 className="h-5 w-5" />
+                      Eliminar Classe
+                    </DialogTitle>
+                    <DialogDescription>
+                      Esta ação não pode ser desfeita. Isto irá eliminar permanentemente todas as <strong>turmas</strong>, <strong>alunos</strong> e <strong>notas</strong> associadas à {levelToDelete?.level} ({levelToDelete?.year}).
+                    </DialogDescription>
+                  </DialogHeader>
+                  <DialogFooter className="gap-2 sm:gap-0">
+                    <Button variant="outline" className="rounded-xl px-4 h-10 text-sm font-medium transition-all" onClick={() => setIsDeleteDialogOpen(false)}>Cancelar</Button>
+                    <Button variant="destructive" className="rounded-xl px-5 h-10 text-sm font-semibold shadow-sm transition-all" onClick={handleDeleteLevel}>
+                      Sim, Eliminar Tudo
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
 
             {classes.length === 0 ? (
-              <div className="text-center py-20 bg-card rounded-2xl border border-dashed border-border">
+              <div className="text-center py-20 bg-card rounded-2xl border border-dashed border-border p-6 flex flex-col items-center justify-center">
                 <div className="mx-auto w-16 h-16 bg-primary/10 text-primary rounded-full flex items-center justify-center mb-4">
                   <BookOpen className="h-8 w-8" />
                 </div>
-                <h3 className="text-lg font-medium text-foreground">Nenhuma turma adicionada</h3>
-                <p className="text-muted-foreground mt-1 max-w-sm mx-auto">Comece por adicionar a sua primeira turma para gerir os alunos e as suas avaliações.</p>
-                <Button onClick={() => setIsAddClassOpen(true)} variant="outline" className="mt-6 rounded-full">
-                  <Plus className="h-4 w-4 mr-2" /> Adicionar Turma
+                <h3 className="text-lg font-medium text-foreground">Nenhuma classe adicionada</h3>
+                <p className="text-muted-foreground mt-1 max-w-sm mx-auto text-sm">Comece por adicionar a sua primeira classe para gerir as turmas e alunos.</p>
+                <Button onClick={() => setIsAddClassOpen(true)} className="mt-6 rounded-xl bg-primary hover:bg-primary/95 text-primary-foreground px-6 h-11 text-sm font-bold shadow-md transition-all flex items-center justify-center gap-2 hover:scale-[1.02] cursor-pointer">
+                  <Plus className="h-4 w-4" /> Adicionar Classe
                 </Button>
+              </div>
+            ) : !selectedLevel ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {levels.map((item) => {
+                  const levelKey = `${item.level}-${item.year}`;
+                  const classesInLevel = classes.filter(c => c.level === item.level && c.academicYear === item.year);
+                  const hasDirector = classesInLevel.some(c => c.isDirector);
+                  return (
+                    <Card 
+                      key={levelKey} 
+                      className={`relative overflow-hidden border-border bg-card flex flex-col items-center justify-center p-8 text-center min-h-[220px] ${hasDirector ? 'border-primary/40' : ''}`}
+                    >
+                      {/* Actions */}
+                      <div className="absolute top-4 left-4 z-20">
+                        <Button 
+                          variant="ghost" 
+                          className="h-9 px-3 gap-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-full transition-colors flex items-center"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setLevelToDelete({ level: item.level, year: item.year });
+                            setIsDeleteDialogOpen(true);
+                          }}
+                          title="Eliminar Classe"
+                        >
+                          <Trash2 className="h-5 w-5" />
+                          <span className="text-xs font-bold uppercase tracking-wider">Apagar</span>
+                        </Button>
+                      </div>
+
+                      <div className="absolute top-4 right-4 z-20">
+                        <Button 
+                          variant="ghost" 
+                          className="h-9 px-3 gap-2 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-full transition-colors flex items-center"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedLevel(item.level);
+                          }}
+                          title="Gerir Turmas"
+                        >
+                          <Pencil className="h-5 w-5" />
+                          <span className="text-xs font-bold uppercase tracking-wider">Editar</span>
+                        </Button>
+                      </div>
+
+                      {/* Background Logo Effect */}
+                      <div className="absolute inset-0 flex items-center justify-center opacity-[0.03] dark:opacity-[0.05] pointer-events-none transition-transform duration-500 blur-[1px]">
+                         <GraduationCap className="w-48 h-48 sm:w-64 sm:h-64 rotate-12" />
+                      </div>
+
+                      <div className="relative z-10 w-full h-full flex flex-col items-center justify-center">
+                        <h3 className="text-3xl font-bold tracking-tight text-foreground">{item.level}</h3>
+                        <p className="text-muted-foreground text-sm mt-3 font-medium bg-muted/50 px-4 py-1.5 rounded-full inline-block border border-border/50">
+                          {classesInLevel.length} {classesInLevel.length === 1 ? 'Turma' : 'Turmas'}
+                        </p>
+                      </div>
+                    </Card>
+                  );
+                })}
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {sortedClasses.map((c) => (
+                {filteredByLevel.map((c) => (
                   <Card 
                     key={c.id} 
                     className={`cursor-pointer hover:shadow-md transition-all duration-200 group ${c.isDirector ? 'border-primary/40 bg-[var(--card-director)] shadow-sm' : 'border-border hover:border-primary/50 bg-card'}`}
                     onClick={() => setSelectedClassId(c.id)}
                   >
-                    <CardHeader className="pb-3">
+                    <CardHeader className="pb-3 px-6 pt-6">
                       <div className="flex justify-between items-start">
-                        <div className="flex gap-2 flex-wrap mb-3">
-                          <div className="bg-primary/10 text-primary px-3 py-1 rounded-full text-xs font-medium inline-block">
-                            {c.subject}
+                        <div>
+                          <CardTitle className="text-xl font-bold text-foreground group-hover:text-primary transition-colors">
+                            Turma {c.section}
+                          </CardTitle>
+                          <div className="text-sm text-muted-foreground mt-1 flex items-center gap-1">
+                            <BookOpen className="h-3 w-3" /> {c.subject}
                           </div>
-                          {c.isDirector && (
-                            <div className="bg-amber-500/10 text-amber-600 dark:text-amber-400 px-3 py-1 rounded-full text-xs font-medium inline-flex items-center gap-1">
-                              <Star className="h-3 w-3 fill-current" /> Diretor
-                            </div>
-                          )}
                         </div>
                         <div className="flex gap-1">
                           <Button 
@@ -595,20 +770,19 @@ export default function App() {
                           </Button>
                         </div>
                       </div>
-                      <CardTitle className="text-xl">{c.level} - Turma {c.section}</CardTitle>
                       <CardDescription className="flex items-center gap-1.5 mt-1.5">
                         <School className="h-3.5 w-3.5" /> {c.school}
                       </CardDescription>
                     </CardHeader>
-                    <CardContent>
-                      <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                        <div className="flex items-center gap-1.5">
-                          <Users className="h-4 w-4 text-muted-foreground" />
+                    <CardContent className="px-6 pb-6 pt-0">
+                      <div className="flex items-center justify-between mt-4">
+                        <div className="flex items-center text-sm text-muted-foreground">
+                          <Users className="h-4 w-4 mr-1.5" />
                           <span>{c.students.length} Alunos</span>
                         </div>
                         {c.isDirector && (
-                          <div className="flex items-center gap-1.5 text-amber-600 dark:text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded text-xs font-medium">
-                            Diretor de Turma
+                          <div className="bg-amber-500/10 text-amber-600 dark:text-amber-400 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
+                            <Star className="h-2.5 w-2.5 fill-current" /> Diretor
                           </div>
                         )}
                       </div>
@@ -621,24 +795,30 @@ export default function App() {
         ) : (
           // Class Details - Students and Grades
           <div className="space-y-6 animate-in fade-in duration-300">
-            <div className="bg-card p-6 rounded-2xl border border-border shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="bg-primary/20 text-primary text-xs font-semibold px-2.5 py-0.5 rounded-full">
-                    {selectedClass.subject}
-                  </span>
-                  {selectedClass.isDirector && (
-                    <span className="bg-amber-500/20 text-amber-600 dark:text-amber-500 text-xs font-semibold px-2.5 py-0.5 rounded-full">
-                      Direção de Turma
+            <div className="bg-card p-6 rounded-2xl border border-border shadow-sm">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="bg-primary/20 text-primary text-xs font-semibold px-2.5 py-0.5 rounded-full">
+                      {selectedClass.subject}
                     </span>
-                  )}
+                    {selectedClass.isDirector && (
+                      <span className="bg-amber-500/20 text-amber-600 dark:text-amber-500 text-xs font-semibold px-2.5 py-0.5 rounded-full">
+                        Direção de Turma
+                      </span>
+                    )}
+                  </div>
+                  <h2 className="text-2xl font-bold text-foreground">
+                    {selectedClass.level} - Turma {selectedClass.section}
+                  </h2>
+                  <p className="text-muted-foreground text-sm flex items-center gap-1.5 mt-1">
+                    <School className="h-4 w-4" /> {selectedClass.school}
+                  </p>
                 </div>
-                <h2 className="text-2xl font-bold text-foreground">
-                  {selectedClass.level} - Turma {selectedClass.section}
-                </h2>
-                <p className="text-muted-foreground text-sm flex items-center gap-1.5 mt-1">
-                  <School className="h-4 w-4" /> {selectedClass.school}
-                </p>
+                <Button variant="outline" size="sm" onClick={() => setSelectedClassId(null)} className="text-muted-foreground hover:text-foreground">
+                  <ChevronLeft className="h-4 w-4 mr-1" />
+                  <span>Voltar</span>
+                </Button>
               </div>
               
               <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3 w-full md:w-auto">
@@ -647,7 +827,7 @@ export default function App() {
                   <Input 
                     placeholder="Procurar aluno..." 
                     className="pl-9 bg-muted/50 border-border"
-                    value={searchQuery}
+                    value={searchQuery || ''}
                     onChange={(e) => setSearchQuery(e.target.value)}
                   />
                 </div>
@@ -672,11 +852,11 @@ export default function App() {
                       <div className="grid grid-cols-4 gap-4">
                         <div className="grid gap-2 col-span-1">
                           <Label htmlFor="studentNumber">Nº</Label>
-                          <Input id="studentNumber" value={newStudent.studentNumber} onChange={e => setNewStudent({...newStudent, studentNumber: e.target.value})} placeholder="Ex: 1" />
+                          <Input id="studentNumber" value={newStudent.studentNumber || ''} onChange={e => setNewStudent({...newStudent, studentNumber: e.target.value})} placeholder="Ex: 1" />
                         </div>
                         <div className="grid gap-2 col-span-3">
                           <Label htmlFor="studentName">Nome Completo <span className="text-red-500">*</span></Label>
-                          <Input id="studentName" value={newStudent.name} onChange={e => setNewStudent({...newStudent, name: e.target.value})} placeholder="Ex: João Manuel Silva" />
+                          <Input id="studentName" value={newStudent.name || ''} onChange={e => setNewStudent({...newStudent, name: e.target.value})} placeholder="Ex: João Manuel Silva" />
                         </div>
                       </div>
                       
@@ -684,15 +864,15 @@ export default function App() {
                         <>
                           <div className="grid gap-2">
                             <Label htmlFor="dob">Data de Nascimento</Label>
-                            <Input id="dob" type="date" value={newStudent.dob} onChange={e => setNewStudent({...newStudent, dob: e.target.value})} />
+                            <Input id="dob" type="date" value={newStudent.dob || ''} onChange={e => setNewStudent({...newStudent, dob: e.target.value})} />
                           </div>
                           <div className="grid gap-2">
                             <Label htmlFor="birthplace">Local de Nascimento</Label>
-                            <Input id="birthplace" value={newStudent.birthplace} onChange={e => setNewStudent({...newStudent, birthplace: e.target.value})} placeholder="Ex: Lisboa" />
+                            <Input id="birthplace" value={newStudent.birthplace || ''} onChange={e => setNewStudent({...newStudent, birthplace: e.target.value})} placeholder="Ex: Lisboa" />
                           </div>
                           <div className="grid gap-2">
                             <Label htmlFor="address">Morada do Aluno</Label>
-                            <Input id="address" value={newStudent.address} onChange={e => setNewStudent({...newStudent, address: e.target.value})} placeholder="Ex: Bairro Central, Rua 2" />
+                            <Input id="address" value={newStudent.address || ''} onChange={e => setNewStudent({...newStudent, address: e.target.value})} placeholder="Ex: Bairro Central, Rua 2" />
                           </div>
                           
                           <div className="my-2 border-t border-border pt-4">
@@ -700,21 +880,21 @@ export default function App() {
                             <div className="grid gap-4">
                               <div className="grid gap-2">
                                 <Label htmlFor="parentName">Nome do Pai / Encarregado</Label>
-                                <Input id="parentName" value={newStudent.parentName} onChange={e => setNewStudent({...newStudent, parentName: e.target.value})} placeholder="Nome completo" />
+                                <Input id="parentName" value={newStudent.parentName || ''} onChange={e => setNewStudent({...newStudent, parentName: e.target.value})} placeholder="Nome completo" />
                               </div>
                               <div className="grid grid-cols-2 gap-4">
                                 <div className="grid gap-2">
                                   <Label htmlFor="parentProfession">Profissão</Label>
-                                  <Input id="parentProfession" value={newStudent.parentProfession} onChange={e => setNewStudent({...newStudent, parentProfession: e.target.value})} placeholder="Ex: Professor" />
+                                  <Input id="parentProfession" value={newStudent.parentProfession || ''} onChange={e => setNewStudent({...newStudent, parentProfession: e.target.value})} placeholder="Ex: Professor" />
                                 </div>
                                 <div className="grid gap-2">
                                   <Label htmlFor="parentContact">Contacto</Label>
-                                  <Input id="parentContact" value={newStudent.parentContact} onChange={e => setNewStudent({...newStudent, parentContact: e.target.value})} placeholder="Ex: 9XX XXX XXX" />
+                                  <Input id="parentContact" value={newStudent.parentContact || ''} onChange={e => setNewStudent({...newStudent, parentContact: e.target.value})} placeholder="Ex: 9XX XXX XXX" />
                                 </div>
                               </div>
                               <div className="grid gap-2">
                                 <Label htmlFor="parentAddress">Morada do Encarregado</Label>
-                                <Input id="parentAddress" value={newStudent.parentAddress} onChange={e => setNewStudent({...newStudent, parentAddress: e.target.value})} placeholder="Se diferente da morada do aluno" />
+                                <Input id="parentAddress" value={newStudent.parentAddress || ''} onChange={e => setNewStudent({...newStudent, parentAddress: e.target.value})} placeholder="Se diferente da morada do aluno" />
                               </div>
                             </div>
                           </div>
@@ -745,7 +925,7 @@ export default function App() {
                           </div>
                           <div className="col-span-3 grid gap-2">
                             <Label htmlFor="edit-studentName">Nome Completo <span className="text-red-500">*</span></Label>
-                            <Input id="edit-studentName" value={editingStudent.name} onChange={e => setEditingStudent({...editingStudent, name: e.target.value})} placeholder="Ex: João Silva" />
+                            <Input id="edit-studentName" value={editingStudent.name || ''} onChange={e => setEditingStudent({...editingStudent, name: e.target.value})} placeholder="Ex: João Silva" />
                           </div>
                         </div>
                         
@@ -862,7 +1042,7 @@ export default function App() {
                                 <TableCell>
                                   <Input 
                                     className={`h-8 w-16 mx-auto text-center px-1 border-transparent hover:border-border focus:border-primary bg-transparent hover:bg-background transition-all font-medium ${getGradeColor(student.grades.acs1)}`}
-                                    value={student.grades.acs1} 
+                                    value={student.grades.acs1 || ''} 
                                     onChange={(e) => updateGrade(student.id, 'acs1', e.target.value)}
                                     placeholder="-"
                                   />
@@ -870,7 +1050,7 @@ export default function App() {
                                 <TableCell>
                                   <Input 
                                     className={`h-8 w-16 mx-auto text-center px-1 border-transparent hover:border-border focus:border-primary bg-transparent hover:bg-background transition-all font-medium ${getGradeColor(student.grades.acs2)}`}
-                                    value={student.grades.acs2} 
+                                    value={student.grades.acs2 || ''} 
                                     onChange={(e) => updateGrade(student.id, 'acs2', e.target.value)}
                                     placeholder="-"
                                   />
@@ -878,7 +1058,7 @@ export default function App() {
                                 <TableCell>
                                   <Input 
                                     className={`h-8 w-16 mx-auto text-center px-1 border-transparent hover:border-border focus:border-primary bg-transparent hover:bg-background transition-all font-medium ${getGradeColor(student.grades.acs3)}`}
-                                    value={student.grades.acs3} 
+                                    value={student.grades.acs3 || ''} 
                                     onChange={(e) => updateGrade(student.id, 'acs3', e.target.value)}
                                     placeholder="-"
                                   />
@@ -886,7 +1066,7 @@ export default function App() {
                                 <TableCell>
                                   <Input 
                                     className={`h-8 w-16 mx-auto text-center px-1 border-transparent hover:border-border focus:border-primary bg-transparent hover:bg-background transition-all font-medium ${getGradeColor(student.grades.ap)}`}
-                                    value={student.grades.ap} 
+                                    value={student.grades.ap || ''} 
                                     onChange={(e) => updateGrade(student.id, 'ap', e.target.value)}
                                     placeholder="-"
                                   />
@@ -894,7 +1074,7 @@ export default function App() {
                                 <TableCell>
                                   <Input 
                                     className={`h-8 w-16 mx-auto text-center px-1 border-transparent hover:border-border focus:border-primary bg-transparent hover:bg-background transition-all font-medium ${getGradeColor(student.grades.exame)}`}
-                                    value={student.grades.exame} 
+                                    value={student.grades.exame || ''} 
                                     onChange={(e) => updateGrade(student.id, 'exame', e.target.value)}
                                     placeholder="-"
                                   />
@@ -1013,7 +1193,7 @@ export default function App() {
                             <TableCell>
                               <Input 
                                 className={`h-8 w-16 mx-auto text-center px-1 border-transparent hover:border-border focus:border-primary bg-transparent hover:bg-background transition-all font-medium ${getGradeColor(student.grades.acs1)}`}
-                                value={student.grades.acs1} 
+                                value={student.grades.acs1 || ''} 
                                 onChange={(e) => updateGrade(student.id, 'acs1', e.target.value)}
                                 placeholder="-"
                               />
@@ -1021,7 +1201,7 @@ export default function App() {
                             <TableCell>
                               <Input 
                                 className={`h-8 w-16 mx-auto text-center px-1 border-transparent hover:border-border focus:border-primary bg-transparent hover:bg-background transition-all font-medium ${getGradeColor(student.grades.acs2)}`}
-                                value={student.grades.acs2} 
+                                value={student.grades.acs2 || ''} 
                                 onChange={(e) => updateGrade(student.id, 'acs2', e.target.value)}
                                 placeholder="-"
                               />
@@ -1029,7 +1209,7 @@ export default function App() {
                             <TableCell>
                               <Input 
                                 className={`h-8 w-16 mx-auto text-center px-1 border-transparent hover:border-border focus:border-primary bg-transparent hover:bg-background transition-all font-medium ${getGradeColor(student.grades.acs3)}`}
-                                value={student.grades.acs3} 
+                                value={student.grades.acs3 || ''} 
                                 onChange={(e) => updateGrade(student.id, 'acs3', e.target.value)}
                                 placeholder="-"
                               />
@@ -1037,7 +1217,7 @@ export default function App() {
                             <TableCell>
                               <Input 
                                 className={`h-8 w-16 mx-auto text-center px-1 border-transparent hover:border-border focus:border-primary bg-transparent hover:bg-background transition-all font-medium ${getGradeColor(student.grades.ap)}`}
-                                value={student.grades.ap} 
+                                value={student.grades.ap || ''} 
                                 onChange={(e) => updateGrade(student.id, 'ap', e.target.value)}
                                 placeholder="-"
                               />
@@ -1045,7 +1225,7 @@ export default function App() {
                             <TableCell>
                               <Input 
                                 className={`h-8 w-16 mx-auto text-center px-1 border-transparent hover:border-border focus:border-primary bg-transparent hover:bg-background transition-all font-medium ${getGradeColor(student.grades.exame)}`}
-                                value={student.grades.exame} 
+                                value={student.grades.exame || ''} 
                                 onChange={(e) => updateGrade(student.id, 'exame', e.target.value)}
                                 placeholder="-"
                               />
