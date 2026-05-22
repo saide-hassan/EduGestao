@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Users, BookOpen, School, GraduationCap, ChevronLeft, Trash2, UserPlus, Save, Search, Download, Pencil, Home, LogOut, Star, Layers } from 'lucide-react';
+import { Plus, Users, BookOpen, School, GraduationCap, ChevronLeft, Trash2, UserPlus, Save, Search, Download, Pencil, Home, LogOut, Star, Layers, Sun, Moon } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { motion } from 'motion/react';
+import { useTheme } from '@/components/theme-provider';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -66,15 +68,36 @@ const getGradeColor = (val: string, isAverage = false) => {
   const num = parseFloat(val.replace(',', '.'));
   if (isNaN(num)) return '';
   
-  if (num >= 0 && num <= 6.5) return 'text-red-600 dark:text-red-500';
-  if (num > 6.5 && num < 10) return 'text-orange-500 dark:text-orange-400';
-  
-  if (isAverage && num >= 10) return 'text-emerald-500 dark:text-emerald-400';
-  
-  if (num >= 10 && num <= 15) return 'text-green-400 dark:text-green-300';
-  if (num > 15 && num <= 20) return 'text-green-600 dark:text-green-500';
+  if (num < 10) return 'text-red-500 dark:text-red-400 font-semibold';
+  if (num >= 10 && num <= 13) return 'text-yellow-500 dark:text-yellow-400 font-semibold';
+  if (num >= 14) return 'text-green-500 dark:text-green-400 font-bold';
   
   return '';
+};
+
+const renderGradeIndicator = (grade: string | undefined | null) => {
+  if (!grade) return null;
+  const val = parseFloat(grade.replace(',', '.'));
+  if (isNaN(val)) return null;
+  const pct = Math.min(100, Math.max(0, (val / 20) * 100));
+  
+  let barColorClass = 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]';
+  if (val >= 14) {
+    barColorClass = 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]';
+  } else if (val >= 10) {
+    barColorClass = 'bg-yellow-500 shadow-[0_0_8px_rgba(234,179,8,0.5)]';
+  }
+  
+  return (
+    <div className="flex flex-col items-center gap-1 mt-1 w-full max-w-[56px] mx-auto select-none">
+      <div className="w-full h-1 bg-border/40 rounded-full overflow-hidden">
+        <div className={`h-full ${barColorClass} transition-all duration-300`} style={{ width: `${pct}%` }} />
+      </div>
+      <span className="text-[9px] font-mono text-muted-foreground/60 leading-none">
+        {val}/20
+      </span>
+    </div>
+  );
 };
 
 function useLocalStorage<T>(key: string, initialValue: T) {
@@ -101,12 +124,55 @@ function useLocalStorage<T>(key: string, initialValue: T) {
   return [storedValue, setValue] as const;
 }
 
+const ACCENT_COLORS = [
+  { border: 'border-l-purple-500', text: 'text-purple-600 dark:text-purple-400', bg: 'bg-purple-500/10' },
+  { border: 'border-l-indigo-500', text: 'text-indigo-600 dark:text-indigo-400', bg: 'bg-indigo-500/10' },
+  { border: 'border-l-pink-500', text: 'text-pink-600 dark:text-pink-400', bg: 'bg-pink-500/10' },
+  { border: 'border-l-violet-500', text: 'text-violet-600 dark:text-violet-400', bg: 'bg-violet-500/10' },
+  { border: 'border-l-fuchsia-500', text: 'text-fuchsia-600 dark:text-fuchsia-400', bg: 'bg-fuchsia-500/10' },
+  { border: 'border-l-rose-500', text: 'text-rose-600 dark:text-rose-400', bg: 'bg-rose-500/10' },
+  { border: 'border-l-amber-500', text: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-500/10' },
+  { border: 'border-l-teal-500', text: 'text-teal-600 dark:text-teal-400', bg: 'bg-teal-500/10' },
+  { border: 'border-l-blue-500', text: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-500/10' },
+];
+
+const getAccentColor = (key: string) => {
+  let hash = 0;
+  for (let i = 0; i < key.length; i++) {
+    hash = key.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const index = Math.abs(hash) % ACCENT_COLORS.length;
+  return ACCENT_COLORS[index];
+};
+
+const getInitials = (currentUser: User) => {
+  if (currentUser.displayName) {
+    const names = currentUser.displayName.trim().split(/\s+/);
+    if (names.length >= 2) {
+      return (names[0][0] + names[names.length - 1][0]).toUpperCase();
+    }
+    return names[0].substring(0, 2).toUpperCase();
+  }
+  if (currentUser.email) {
+    const parts = currentUser.email.split('@')[0];
+    return parts.substring(0, 2).toUpperCase();
+  }
+  return 'U';
+};
+
 export default function App() {
+  const { theme, setTheme } = useTheme();
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false);
+  
+  const isDark = theme === "dark" || (theme === "system" && typeof window !== 'undefined' && window.matchMedia("(prefers-color-scheme: dark)").matches);
+
   const [user, setUser] = useState<User | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [classes, setClasses] = useState<ClassData[]>([]);
   const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
   const [selectedLevel, setSelectedLevel] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'avaliacoes' | 'dados'>('avaliacoes');
   const [hasSeenWelcome, setHasSeenWelcome] = useLocalStorage<boolean>('edugestao-has-seen-welcome', false);
   
   useEffect(() => {
@@ -440,20 +506,120 @@ export default function App() {
   return (
     <div className="min-h-screen text-foreground font-sans">
       {/* Header */}
-      <header className="bg-card/80 backdrop-blur-md border-b border-border sticky top-0 z-10">
+      <header className="bg-card/85 backdrop-blur-md border-b border-border sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2 text-primary">
             <GraduationCap className="h-6 w-6 text-primary" />
             <h1 className="text-xl font-semibold tracking-tight">EduGestão</h1>
           </div>
           <div className="flex items-center gap-2 sm:gap-4">
-            <ThemeToggle />
-            <Button variant="ghost" size="icon" onClick={logout} title="Terminar Sessão" className="text-muted-foreground hover:text-destructive">
-              <LogOut className="h-4 w-4" />
-            </Button>
+            {/* Circular user avatar with popup custom dropdown */}
+            <div className="relative">
+              <button
+                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                className="relative flex items-center justify-center h-9 w-9 rounded-full overflow-hidden border border-border/70 hover:border-primary/50 transition-all cursor-pointer shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+                title="Menu do Utilizador"
+              >
+                {user.photoURL ? (
+                  <img 
+                    src={user.photoURL} 
+                    alt={user.displayName || 'Utilizador'} 
+                    className="h-full w-full object-cover"
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <div className="h-full w-full bg-purple-600 text-white text-xs font-bold font-mono flex items-center justify-center">
+                    {getInitials(user)}
+                  </div>
+                )}
+              </button>
+
+              {isDropdownOpen && (
+                <>
+                  <div 
+                    className="fixed inset-0 z-40" 
+                    onClick={() => setIsDropdownOpen(false)} 
+                  />
+                  <div className="absolute right-0 mt-2 w-56 rounded-xl border border-border bg-card p-2 shadow-lg z-50 animate-in fade-in slide-in-from-top-1 duration-150">
+                    <div className="px-3 py-2 border-b border-border/50 mb-1">
+                      <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Conectado como</p>
+                      <p className="text-xs font-bold text-foreground truncate">{user.displayName || user.email}</p>
+                    </div>
+
+                    <button
+                      onClick={() => setTheme(isDark ? "light" : "dark")}
+                      className="w-full flex items-center justify-between px-3 py-2 text-xs font-bold text-foreground hover:bg-muted rounded-lg transition-colors cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2">
+                        {isDark ? (
+                          <Moon className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                        ) : (
+                          <Sun className="h-4 w-4 text-amber-500" />
+                        )}
+                        <span>Modo Escuro</span>
+                      </div>
+                      <div className={`relative w-9 h-5 rounded-full transition-colors duration-200 ${isDark ? 'bg-purple-600' : 'bg-muted-foreground/30'}`}>
+                        <div className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 ${isDark ? 'translate-x-4' : 'translate-x-0'}`} />
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setIsDropdownOpen(false);
+                        setIsLogoutDialogOpen(true);
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-red-500 hover:bg-red-500/10 dark:hover:bg-red-500/15 rounded-lg transition-colors cursor-pointer text-left"
+                    >
+                      <LogOut className="h-4 w-4 text-red-500" />
+                      <span>Terminar Sessão</span>
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
       </header>
+
+      {/* Logout Centered Confirmation Modal */}
+      {isLogoutDialogOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          {/* Semi-transparent dark overlay */}
+          <div 
+            className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity" 
+            onClick={() => setIsLogoutDialogOpen(false)} 
+          />
+          
+          {/* Centered Modal Card */}
+          <div className="relative bg-card border border-border rounded-2xl max-w-sm w-full p-6 shadow-2xl animate-in zoom-in-95 duration-200 z-10">
+            <h3 className="text-lg font-bold text-foreground mb-2">
+              Terminar Sessão
+            </h3>
+            <p className="text-sm text-muted-foreground mb-6 leading-relaxed">
+              Tem a certeza que deseja sair da sua conta?
+            </p>
+            
+            <div className="flex items-center gap-3">
+              <Button 
+                variant="outline" 
+                onClick={() => setIsLogoutDialogOpen(false)}
+                className="flex-1 rounded-xl h-10 text-xs font-bold cursor-pointer border border-border/85 animate-none"
+              >
+                Cancelar
+              </Button>
+              <Button 
+                onClick={() => {
+                  setIsLogoutDialogOpen(false);
+                  logout();
+                }}
+                className="flex-1 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl h-10 text-xs cursor-pointer border-0"
+              >
+                Sair
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {!selectedClassId ? (
@@ -461,27 +627,29 @@ export default function App() {
           <div className="space-y-6">
             {selectedLevel ? (
               <div className="space-y-4">
-                {/* Class Card with header and back button */}
-                <div className="bg-card/40 p-5 sm:p-6 rounded-2xl border border-border/50 flex items-center justify-between gap-4">
-                  <div className="flex flex-col min-w-0 text-left">
-                    <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground truncate">
-                      {selectedLevel}
-                    </h2>
-                    <p className="text-muted-foreground text-xs sm:text-sm mt-1">
-                      Gestão das turmas e disciplinas da classe.
-                    </p>
-                  </div>
-
+                {/* Compact Class Card with header and back button */}
+                <div className="bg-card/30 py-3 px-4 sm:px-5 rounded-xl border border-border/50 flex items-center gap-4 transition-all duration-200">
                   <Button 
                     variant="outline" 
                     size="sm" 
                     onClick={() => setSelectedLevel(null)} 
-                    className="h-10 w-10 sm:w-auto sm:px-4 border border-border/80 bg-card/20 hover:bg-card/40 text-muted-foreground hover:text-foreground hover:border-primary/30 transition-all rounded-xl shadow-sm flex items-center justify-center sm:gap-1.5 font-semibold text-sm cursor-pointer shrink-0"
+                    className="h-8 px-4 border border-border/85 bg-card/10 hover:bg-card/30 text-foreground hover:border-primary/30 transition-all rounded-full shadow-sm flex items-center gap-1.5 font-bold text-xs cursor-pointer shrink-0"
                     title="Voltar para Minhas Classes"
                   >
-                    <ChevronLeft className="h-4 w-4" />
-                    <span className="hidden sm:inline">Voltar</span>
+                    <span>← Voltar</span>
                   </Button>
+
+                  <div className="flex items-center gap-2 min-w-0 border-l border-border/60 pl-3">
+                    <GraduationCap className="h-4 w-4 sm:h-5 sm:w-5 text-primary shrink-0" />
+                    <div className="flex flex-row items-baseline gap-2 min-w-0">
+                      <h2 className="text-base sm:text-lg font-bold tracking-tight text-foreground truncate">
+                        {selectedLevel}
+                      </h2>
+                      <span className="hidden xs:inline text-xs text-muted-foreground border-l border-border pl-2 truncate">
+                        Gestão de turmas e disciplinas da classe
+                      </span>
+                    </div>
+                  </div>
                 </div>
 
                 {/* Floating FAB to Add New Turma */}
@@ -493,10 +661,10 @@ export default function App() {
                 }}>
                   <DialogTrigger render={
                     <Button 
-                      className="fixed bottom-6 right-6 sm:bottom-8 sm:right-8 z-50 rounded-full w-14 h-14 p-0 bg-primary hover:bg-primary/95 text-primary-foreground shadow-lg shadow-primary/25 border border-primary-foreground/10 hover:shadow-xl hover:shadow-primary/35 ring-4 ring-primary/5 hover:ring-primary/15 transition-all duration-300 hover:scale-110 active:scale-95 cursor-pointer flex items-center justify-center" 
+                      className="fixed bottom-20 right-6 sm:bottom-24 sm:right-8 z-55 rounded-full w-12 h-12 p-0 bg-primary hover:bg-primary/95 text-primary-foreground shadow-md shadow-primary/25 border border-primary-foreground/10 hover:shadow-lg hover:shadow-primary/35 ring-2 ring-primary/5 hover:ring-primary/15 transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer flex items-center justify-center animate-in zoom-in-50 duration-250" 
                       title="Adicionar Nova Turma"
                     >
-                      <Plus className="h-7 w-7" />
+                      <Plus className="h-6 w-6 animate-pulse" />
                     </Button>
                   } />
                   <DialogContent className="sm:max-w-[425px]">
@@ -532,49 +700,60 @@ export default function App() {
                 </Dialog>
               </div>
             ) : (
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-card/40 p-6 rounded-2xl border border-border/50">
-                <div className="flex flex-col">
-                  <h2 className="text-3xl font-light tracking-tight">Minhas Classes</h2>
-                  <p className="text-muted-foreground mt-1">Organize as suas turmas por classe e lecionação.</p>
+              <div className="space-y-4">
+                <div className="bg-card/30 py-3.5 px-4 sm:px-5 rounded-xl border border-border/50 flex items-center justify-between gap-4 transition-all duration-200">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <BookOpen className="h-4 w-4 sm:h-5 sm:w-5 text-primary shrink-0" />
+                    <div className="flex flex-row items-baseline gap-2 min-w-0">
+                      <h2 className="text-base sm:text-lg font-bold tracking-tight text-foreground animate-in slide-in-from-left duration-200">
+                        Minhas Classes
+                      </h2>
+                      <span className="hidden sm:inline text-xs text-muted-foreground border-l border-border pl-2 truncate">
+                        Organize as suas turmas por classe e lecionação.
+                      </span>
+                    </div>
+                  </div>
+
+                  <span className="text-[10px] sm:text-xs font-semibold bg-primary/10 text-primary px-2.5 py-0.5 rounded-full whitespace-nowrap shrink-0">
+                    {levels.length} {levels.length === 1 ? 'Classe' : 'Classes'}
+                  </span>
                 </div>
-                
-                <div className="flex items-center gap-3 w-full sm:w-auto mt-2 sm:mt-0">
-                  {/* Floating FAB to Add New Class */}
-                  <Dialog open={isAddClassOpen} onOpenChange={setIsAddClassOpen}>
-                    <DialogTrigger render={
-                      <Button 
-                        className="fixed bottom-6 right-6 sm:bottom-8 sm:right-8 z-50 rounded-full w-14 h-14 p-0 bg-primary hover:bg-primary/95 text-primary-foreground shadow-lg shadow-primary/25 border border-primary-foreground/10 hover:shadow-xl hover:shadow-primary/35 ring-4 ring-primary/5 hover:ring-primary/15 transition-all duration-300 hover:scale-110 active:scale-95 cursor-pointer flex items-center justify-center" 
-                        title="Adicionar Nova Classe"
-                      >
-                        <Plus className="h-7 w-7" />
-                      </Button>
-                    } />
-                    <DialogContent className="sm:max-w-[425px]">
-                      <DialogHeader>
-                        <DialogTitle>Adicionar Nova Classe</DialogTitle>
-                        <DialogDescription>
-                          Defina o nível e o ano letivo para organizar as turmas.
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="grid gap-4 py-4">
-                        <div className="grid gap-2">
-                          <Label htmlFor="level">Classe / Nível <span className="text-red-500">*</span></Label>
-                          <Input id="level" value={newClass.level || ''} onChange={e => setNewClass({...newClass, level: e.target.value})} placeholder="Ex: 7ª Classe" />
-                        </div>
-                        <div className="grid gap-2">
-                          <Label htmlFor="academicYear">Ano Letivo <span className="text-red-500">*</span></Label>
-                          <Input id="academicYear" value={newClass.academicYear || ''} onChange={e => setNewClass({...newClass, academicYear: e.target.value})} placeholder="Ex: 2024" />
-                        </div>
+
+                {/* Floating FAB to Add New Class */}
+                <Dialog open={isAddClassOpen} onOpenChange={setIsAddClassOpen}>
+                  <DialogTrigger render={
+                    <Button 
+                      className="fixed bottom-20 right-6 sm:bottom-24 sm:right-8 z-55 rounded-full w-12 h-12 p-0 bg-primary hover:bg-primary/95 text-primary-foreground shadow-md shadow-primary/25 border border-primary-foreground/10 hover:shadow-lg hover:shadow-primary/35 ring-2 ring-primary/5 hover:ring-primary/15 transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer flex items-center justify-center animate-in zoom-in-50 duration-250" 
+                      title="Adicionar Nova Classe"
+                    >
+                      <Plus className="h-6 w-6 animate-pulse" />
+                    </Button>
+                  } />
+                  <DialogContent className="sm:max-w-[425px]">
+                    <DialogHeader>
+                      <DialogTitle>Adicionar Nova Classe</DialogTitle>
+                      <DialogDescription>
+                        Defina o nível e o ano letivo para organizar as turmas.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                      <div className="grid gap-2">
+                        <Label htmlFor="level" className="flex items-center gap-1 text-sm font-medium">Classe / Nível <span className="text-red-500">*</span></Label>
+                        <Input id="level" value={newClass.level || ''} onChange={e => setNewClass({...newClass, level: e.target.value})} placeholder="Ex: 7ª Classe" />
                       </div>
-                      <DialogFooter className="gap-2 sm:gap-0 mt-2">
-                        <Button variant="outline" className="rounded-xl px-4 h-10 text-sm font-medium transition-all" onClick={() => setIsAddClassOpen(false)}>Cancelar</Button>
-                        <Button onClick={handleAddClass} className="bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl px-5 h-10 text-sm font-semibold shadow-sm transition-all" disabled={!newClass.level || !newClass.academicYear}>
-                          Guardar Classe
-                        </Button>
-                      </DialogFooter>
-                    </DialogContent>
-                  </Dialog>
-                </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="academicYear" className="flex items-center gap-1 text-sm font-medium">Ano Letivo <span className="text-red-500">*</span></Label>
+                        <Input id="academicYear" value={newClass.academicYear || ''} onChange={e => setNewClass({...newClass, academicYear: e.target.value})} placeholder="Ex: 2024" />
+                      </div>
+                    </div>
+                    <DialogFooter className="gap-2 sm:gap-0 mt-2">
+                      <Button variant="outline" className="rounded-xl px-4 h-10 text-sm font-medium transition-all" onClick={() => setIsAddClassOpen(false)}>Cancelar</Button>
+                      <Button onClick={handleAddClass} className="bg-primary hover:bg-primary/91 text-primary-foreground rounded-xl px-5 h-10 text-sm font-semibold shadow-sm transition-all" disabled={!newClass.level || !newClass.academicYear}>
+                        Guardar Classe
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
               </div>
             )}
 
@@ -668,21 +847,54 @@ export default function App() {
                 </Button>
               </div>
             ) : !selectedLevel ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6 animate-in fade-in duration-300">
                 {levels.map((item) => {
                   const levelKey = `${item.level}-${item.year}`;
                   const classesInLevel = classes.filter(c => c.level === item.level && c.academicYear === item.year);
                   const hasDirector = classesInLevel.some(c => c.isDirector);
+                  const accent = getAccentColor(levelKey);
+
                   return (
                     <Card 
                       key={levelKey} 
-                      className={`relative overflow-hidden border-border bg-card flex flex-col items-center justify-center p-8 text-center min-h-[220px] ${hasDirector ? 'border-primary/40' : ''}`}
+                      onClick={() => setSelectedLevel(item.level)}
+                      className={`relative overflow-hidden cursor-pointer transition-all duration-300 group hover:shadow-md ${hasDirector ? 'border-l-4 border-l-primary bg-[var(--card-director)]' : `border-l-4 ${accent.border}`} bg-card/65 hover:bg-card p-5 flex flex-col justify-between min-h-[160px] rounded-xl border border-border/50 hover:border-primary/20 hover:scale-[1.01]`}
                     >
-                      {/* Actions */}
-                      <div className="absolute top-4 left-4 z-20">
+                      <div className="flex flex-col text-left">
+                        <div className="flex justify-between items-start gap-2">
+                          <h3 className="text-xl font-bold tracking-tight text-foreground group-hover:text-primary transition-colors">
+                            {item.level}
+                          </h3>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${accent.bg} ${accent.text} shrink-0`}>
+                            {item.year}
+                          </span>
+                        </div>
+                        
+                        <p className="text-xs text-muted-foreground mt-2.5 font-medium flex items-center gap-1.5">
+                          <BookOpen className="h-3.5 w-3.5 text-muted-foreground/60" />
+                          <span>{classesInLevel.length} {classesInLevel.length === 1 ? 'Turma' : 'Turmas'}</span>
+                        </p>
+                      </div>
+
+                      {/* Actions in a bottom row, icon-only buttons with subtle borders */}
+                      <div className="mt-4 pt-3 border-t border-border/30 flex items-center justify-end gap-2">
                         <Button 
-                          variant="ghost" 
-                          className="h-9 px-3 gap-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-full transition-colors flex items-center"
+                          variant="outline" 
+                          size="icon"
+                          className="h-8 w-8 rounded-lg border border-border/80 bg-background/20 text-muted-foreground hover:text-primary hover:border-primary/40 hover:bg-primary/10 transition-all flex items-center justify-center cursor-pointer"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedLevel(item.level);
+                          }}
+                          title="Gerir Turmas"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+
+                        <Button 
+                          variant="outline" 
+                          size="icon"
+                          className="h-8 w-8 rounded-lg border border-border/80 bg-background/20 text-muted-foreground hover:text-destructive hover:border-destructive/40 hover:bg-destructive/10 transition-all flex items-center justify-center cursor-pointer"
                           onClick={(e) => {
                             e.stopPropagation();
                             setLevelToDelete({ level: item.level, year: item.year });
@@ -690,105 +902,91 @@ export default function App() {
                           }}
                           title="Eliminar Classe"
                         >
-                          <Trash2 className="h-5 w-5" />
-                          <span className="text-xs font-bold uppercase tracking-wider">Apagar</span>
+                          <Trash2 className="h-3.5 w-3.5" />
                         </Button>
-                      </div>
-
-                      <div className="absolute top-4 right-4 z-20">
-                        <Button 
-                          variant="ghost" 
-                          className="h-9 px-3 gap-2 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-full transition-colors flex items-center"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedLevel(item.level);
-                          }}
-                          title="Gerir Turmas"
-                        >
-                          <Pencil className="h-5 w-5" />
-                          <span className="text-xs font-bold uppercase tracking-wider">Editar</span>
-                        </Button>
-                      </div>
-
-                      {/* Background Logo Effect */}
-                      <div className="absolute inset-0 flex items-center justify-center opacity-[0.03] dark:opacity-[0.05] pointer-events-none transition-transform duration-500 blur-[1px]">
-                         <GraduationCap className="w-48 h-48 sm:w-64 sm:h-64 rotate-12" />
-                      </div>
-
-                      <div className="relative z-10 w-full h-full flex flex-col items-center justify-center">
-                        <h3 className="text-3xl font-bold tracking-tight text-foreground">{item.level}</h3>
-                        <p className="text-muted-foreground text-sm mt-3 font-medium bg-muted/50 px-4 py-1.5 rounded-full inline-block border border-border/50">
-                          {classesInLevel.length} {classesInLevel.length === 1 ? 'Turma' : 'Turmas'}
-                        </p>
                       </div>
                     </Card>
                   );
                 })}
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredByLevel.map((c) => (
-                  <Card 
-                    key={c.id} 
-                    className={`cursor-pointer hover:shadow-md transition-all duration-200 group ${c.isDirector ? 'border-primary/40 bg-[var(--card-director)] shadow-sm' : 'border-border hover:border-primary/50 bg-card'}`}
-                    onClick={() => setSelectedClassId(c.id)}
-                  >
-                    <CardHeader className="pb-3 px-6 pt-6">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <CardTitle className="text-xl font-bold text-foreground group-hover:text-primary transition-colors">
-                            Turma {c.section}
-                          </CardTitle>
-                          <div className="text-sm text-muted-foreground mt-1 flex items-center gap-1">
-                            <BookOpen className="h-3 w-3" /> {c.subject}
+               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {filteredByLevel.map((c) => {
+                  const accent = getAccentColor(c.id);
+                  const borderClass = c.isDirector 
+                    ? 'border-l-4 border-l-amber-500 bg-amber-500/5' 
+                    : `border-l-4 ${accent.border} bg-card/65 hover:bg-card`;
+
+                  return (
+                    <Card 
+                      key={c.id} 
+                      className={`cursor-pointer hover:shadow-md transition-all duration-300 group hover:scale-[1.01] ${borderClass} border border-border/50 rounded-xl`}
+                      onClick={() => setSelectedClassId(c.id)}
+                    >
+                      <CardHeader className="pb-3 px-5 pt-5">
+                        <div className="flex justify-between items-start gap-2">
+                          <div>
+                            <CardTitle className="text-xl font-bold text-foreground group-hover:text-primary transition-colors">
+                              Turma {c.section}
+                            </CardTitle>
+                            <div className="text-sm text-muted-foreground mt-1 flex items-center gap-1.5 font-medium">
+                              <BookOpen className="h-3.5 w-3.5 text-muted-foreground/60" /> {c.subject}
+                            </div>
+                          </div>
+                          
+                          {/* Rich-spaced Actions with vertical divider */}
+                          <div className="flex items-center gap-3">
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-lg transition-all cursor-pointer flex items-center justify-center shrink-0"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingClass(c);
+                              }}
+                              title="Editar Turma"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <div className="h-4 w-[1px] bg-border/60" />
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-all cursor-pointer flex items-center justify-center shrink-0"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                deleteClass(c.id, e);
+                              }}
+                              title="Remover Turma"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
                           </div>
                         </div>
-                        <div className="flex gap-1">
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            className="h-8 w-8 text-muted-foreground opacity-100 md:opacity-0 md:group-hover:opacity-100 hover:text-primary transition-opacity"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setEditingClass(c);
-                            }}
-                            title="Editar Turma"
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            className="h-8 w-8 text-muted-foreground opacity-100 md:opacity-0 md:group-hover:opacity-100 hover:text-destructive transition-opacity"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              deleteClass(c.id, e);
-                            }}
-                            title="Remover Turma"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                      <CardDescription className="flex items-center gap-1.5 mt-1.5">
-                        <School className="h-3.5 w-3.5" /> {c.school}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="px-6 pb-6 pt-0">
-                      <div className="flex items-center justify-between mt-4">
-                        <div className="flex items-center text-sm text-muted-foreground">
-                          <Users className="h-4 w-4 mr-1.5" />
-                          <span>{c.students.length} Alunos</span>
-                        </div>
-                        {c.isDirector && (
-                          <div className="bg-amber-500/10 text-amber-600 dark:text-amber-400 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
-                            <Star className="h-2.5 w-2.5 fill-current" /> Diretor
+                        <CardDescription className="flex items-center gap-1.5 mt-2">
+                          <School className="h-3.5 w-3.5 text-muted-foreground/60" /> {c.school}
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="px-5 pb-5 pt-0">
+                        <div className="flex items-center justify-between mt-4">
+                          {/* Pill/chip for Students count */}
+                          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-muted hover:bg-muted/80 text-muted-foreground border border-border/40 shrink-0">
+                            <Users className="h-3 w-3 text-muted-foreground/70" />
+                            <span>{c.students.length} {c.students.length === 1 ? 'aluno' : 'alunos'}</span>
                           </div>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+
+                          {/* Prominent gold/amber badge for Diretor */}
+                          {c.isDirector && (
+                            <div className="bg-amber-400 text-amber-950 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wide flex items-center gap-1 shadow-sm shrink-0">
+                              <Star className="h-2.5 w-2.5 fill-amber-950 text-amber-950" /> 
+                              <span>Diretor</span>
+                            </div>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -796,50 +994,61 @@ export default function App() {
           // Class Details - Students and Grades
           <div className="space-y-6 animate-in fade-in duration-300">
             <div className="bg-card p-6 rounded-2xl border border-border shadow-sm">
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="bg-primary/20 text-primary text-xs font-semibold px-2.5 py-0.5 rounded-full">
-                      {selectedClass.subject}
-                    </span>
-                    {selectedClass.isDirector && (
-                      <span className="bg-amber-500/20 text-amber-600 dark:text-amber-500 text-xs font-semibold px-2.5 py-0.5 rounded-full">
-                        Direção de Turma
-                      </span>
-                    )}
-                  </div>
-                  <h2 className="text-2xl font-bold text-foreground">
-                    {selectedClass.level} - Turma {selectedClass.section}
+              <div className="flex flex-col gap-4 mb-6">
+                <div className="flex items-center justify-between gap-4">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => setSelectedClassId(null)} 
+                    className="rounded-full px-4 h-9 border border-border/80 bg-background/5 text-foreground hover:bg-muted font-bold text-xs cursor-pointer shadow-sm flex items-center justify-center gap-1.5 transition-all"
+                  >
+                    <span>← Voltar</span>
+                  </Button>
+                  
+                  <h2 className="text-2xl sm:text-3xl font-bold text-foreground">
+                    {`${selectedClass.level.replace(/\s*[Cc]lasse\s*/i, '').trim()} ${selectedClass.section}`}
                   </h2>
-                  <p className="text-muted-foreground text-sm flex items-center gap-1.5 mt-1">
-                    <School className="h-4 w-4" /> {selectedClass.school}
-                  </p>
                 </div>
-                <Button variant="outline" size="sm" onClick={() => setSelectedClassId(null)} className="text-muted-foreground hover:text-foreground">
-                  <ChevronLeft className="h-4 w-4 mr-1" />
-                  <span>Voltar</span>
-                </Button>
+                
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="bg-primary/20 text-primary text-xs font-semibold px-2.5 py-0.5 rounded-full">
+                    {selectedClass.subject}
+                  </span>
+                  {selectedClass.isDirector && (
+                    <span className="bg-gradient-to-r from-orange-500 to-amber-500 text-white text-xs font-extrabold px-3 py-0.5 rounded-full shadow-sm">
+                      Director de Turma
+                    </span>
+                  )}
+                </div>
               </div>
               
-              <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3 w-full md:w-auto">
-                <div className="relative flex-1 md:w-64 order-2 md:order-1">
-                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <div className="flex flex-col md:flex-row items-stretch md:items-center gap-4 w-full justify-between">
+                <div className="relative flex-1 md:max-w-xs w-full">
+                  <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground/60" />
                   <Input 
                     placeholder="Procurar aluno..." 
-                    className="pl-9 bg-muted/50 border-border"
+                    className="pl-9 bg-muted/40 border-border h-10 rounded-xl"
                     value={searchQuery || ''}
                     onChange={(e) => setSearchQuery(e.target.value)}
                   />
                 </div>
-                <div className="flex items-center gap-2 sm:gap-3 order-1 md:order-2 w-full md:w-auto justify-end">
-                  <Button variant="outline" onClick={exportToExcel} className="shadow-sm shrink-0 flex-1 md:flex-none" title="Exportar para Excel" disabled={selectedClass.students.length === 0}>
-                    <Download className="h-4 w-4 sm:mr-2" />
-                    <span className="inline">Exportar</span>
+                <div className="flex flex-row items-center gap-3 w-full md:max-w-md">
+                  <Button 
+                    variant="outline" 
+                    onClick={exportToExcel} 
+                    className="flex-1 h-10 border border-border/80 bg-background/5 text-muted-foreground hover:text-foreground font-semibold rounded-xl text-xs sm:text-sm shadow-sm flex items-center justify-center gap-2 cursor-pointer transition-all" 
+                    title="Exportar para Excel" 
+                    disabled={selectedClass.students.length === 0}
+                  >
+                    <Download className="h-4 w-4 shrink-0" />
+                    <span>Exportar</span>
                   </Button>
                   <Dialog open={isAddStudentOpen} onOpenChange={setIsAddStudentOpen}>
-                    <DialogTrigger render={<Button className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm shrink-0 flex-1 md:flex-none" />}>
-                      <UserPlus className="h-4 w-4 mr-2" />
-                      Adicionar Aluno
+                    <DialogTrigger render={
+                      <Button className="flex-1 h-10 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl text-xs sm:text-sm shadow-sm flex items-center justify-center gap-2 cursor-pointer border-0 transition-all" />
+                    }>
+                      <UserPlus className="h-4 w-4 shrink-0" />
+                      <span>Adicionar Aluno</span>
                     </DialogTrigger>
                   <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
@@ -1011,83 +1220,133 @@ export default function App() {
                 </div>
               ) : (
                 selectedClass.isDirector ? (
-                  <Tabs defaultValue="avaliacoes" className="w-full">
-                    <div className="px-6 pt-4 border-b border-border">
-                      <TabsList className="grid w-full max-w-md grid-cols-2">
-                        <TabsTrigger value="avaliacoes">Avaliações</TabsTrigger>
-                        <TabsTrigger value="dados">Dados dos Alunos</TabsTrigger>
-                      </TabsList>
+                  <div className="w-full">
+                    {/* Segmented Control Switcher with Sliding Active Indicator */}
+                    <div className="px-5 pt-5 pb-3">
+                      <div className="relative flex p-1 bg-muted/60 rounded-xl max-w-md w-full border border-border/40 select-none">
+                        <button 
+                          className={`relative flex-1 py-2 text-xs sm:text-sm font-bold rounded-lg transition-colors z-10 cursor-pointer flex items-center justify-center gap-1.5 h-9 ${
+                            activeTab === 'avaliacoes' ? 'text-purple-600 dark:text-purple-400 font-extrabold' : 'text-muted-foreground hover:text-foreground'
+                          }`}
+                          onClick={() => setActiveTab('avaliacoes')}
+                        >
+                          {activeTab === 'avaliacoes' && (
+                            <motion.div 
+                              layoutId="activeTabIndicator" 
+                              className="absolute inset-0 bg-background dark:bg-muted-foreground/15 rounded-lg shadow-sm -z-10"
+                              transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                            />
+                          )}
+                          <span>Avaliações</span>
+                        </button>
+                        <button 
+                          className={`relative flex-1 py-2 text-xs sm:text-sm font-bold rounded-lg transition-colors z-10 cursor-pointer flex items-center justify-center gap-1.5 h-9 ${
+                            activeTab === 'dados' ? 'text-purple-600 dark:text-purple-400 font-extrabold' : 'text-muted-foreground hover:text-foreground'
+                          }`}
+                          onClick={() => setActiveTab('dados')}
+                        >
+                          {activeTab === 'dados' && (
+                            <motion.div 
+                              layoutId="activeTabIndicator" 
+                              className="absolute inset-0 bg-background dark:bg-muted-foreground/15 rounded-lg shadow-sm -z-10"
+                              transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                            />
+                          )}
+                          <span>Dados dos Alunos</span>
+                        </button>
+                      </div>
                     </div>
-                    <TabsContent value="avaliacoes" className="m-0">
+
+                    {activeTab === 'avaliacoes' ? (
                       <div className="overflow-x-auto">
                         <Table>
                           <TableHeader className="bg-muted/50">
-                            <TableRow>
-                              <TableHead className="w-[60px] font-semibold text-foreground">Nº</TableHead>
-                              <TableHead className="w-[250px] font-semibold text-foreground">Nome do Aluno</TableHead>
-                              <TableHead className="w-[90px] text-center font-semibold text-foreground">ACS 1</TableHead>
-                              <TableHead className="w-[90px] text-center font-semibold text-foreground">ACS 2</TableHead>
-                              <TableHead className="w-[90px] text-center font-semibold text-foreground">ACS 3</TableHead>
-                              <TableHead className="w-[90px] text-center font-semibold text-foreground">AP</TableHead>
-                              <TableHead className="w-[90px] text-center font-semibold text-foreground">Exame</TableHead>
-                              <TableHead className="w-[90px] text-center font-semibold text-foreground">Média</TableHead>
-                              <TableHead className="w-[80px] text-right font-semibold text-foreground">Ações</TableHead>
+                            <TableRow className="h-12 border-b border-border/50">
+                              <TableHead className="w-[60px] font-bold text-foreground">Nº</TableHead>
+                              <TableHead className="w-[250px] font-bold text-foreground">Nome do Aluno</TableHead>
+                              <TableHead className="w-[90px] text-center font-bold text-foreground">ACS 1</TableHead>
+                              <TableHead className="w-[90px] text-center font-bold text-foreground">ACS 2</TableHead>
+                              <TableHead className="w-[90px] text-center font-bold text-foreground">ACS 3</TableHead>
+                              <TableHead className="w-[90px] text-center font-bold text-foreground">AP</TableHead>
+                              <TableHead className="w-[90px] text-center font-bold text-foreground">Exame</TableHead>
+                              <TableHead className="w-[90px] text-center font-bold text-foreground">Média</TableHead>
+                              <TableHead className="w-[80px] text-right font-bold text-foreground">Ações</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {filteredStudents.map((student) => (
-                              <TableRow key={student.id} className="hover:bg-muted/50 transition-colors">
-                                <TableCell className="font-medium text-muted-foreground">{student.studentNumber || '-'}</TableCell>
-                                <TableCell className="font-medium text-foreground">{student.name}</TableCell>
-                                <TableCell>
-                                  <Input 
-                                    className={`h-8 w-16 mx-auto text-center px-1 border-transparent hover:border-border focus:border-primary bg-transparent hover:bg-background transition-all font-medium ${getGradeColor(student.grades.acs1)}`}
-                                    value={student.grades.acs1 || ''} 
-                                    onChange={(e) => updateGrade(student.id, 'acs1', e.target.value)}
-                                    placeholder="-"
-                                  />
+                            {filteredStudents.map((student, idx) => (
+                              <TableRow key={student.id} className="h-16 hover:bg-muted/40 transition-colors odd:bg-muted/15 even:bg-transparent">
+                                <TableCell className="font-medium text-muted-foreground align-middle">{student.studentNumber || '-'}</TableCell>
+                                <TableCell className="font-semibold text-foreground align-middle">{student.name}</TableCell>
+                                <TableCell className="align-middle">
+                                  <div className="flex flex-col items-center justify-center">
+                                    <Input 
+                                      className={`h-8 w-16 text-center px-1 border-transparent hover:border-border focus:border-primary bg-transparent hover:bg-background/50 transition-all font-semibold ${getGradeColor(student.grades.acs1)}`}
+                                      value={student.grades.acs1 || ''} 
+                                      onChange={(e) => updateGrade(student.id, 'acs1', e.target.value)}
+                                      placeholder="-"
+                                    />
+                                    {renderGradeIndicator(student.grades.acs1)}
+                                  </div>
                                 </TableCell>
-                                <TableCell>
-                                  <Input 
-                                    className={`h-8 w-16 mx-auto text-center px-1 border-transparent hover:border-border focus:border-primary bg-transparent hover:bg-background transition-all font-medium ${getGradeColor(student.grades.acs2)}`}
-                                    value={student.grades.acs2 || ''} 
-                                    onChange={(e) => updateGrade(student.id, 'acs2', e.target.value)}
-                                    placeholder="-"
-                                  />
+                                <TableCell className="align-middle">
+                                  <div className="flex flex-col items-center justify-center">
+                                    <Input 
+                                      className={`h-8 w-16 text-center px-1 border-transparent hover:border-border focus:border-primary bg-transparent hover:bg-background/50 transition-all font-semibold ${getGradeColor(student.grades.acs2)}`}
+                                      value={student.grades.acs2 || ''} 
+                                      onChange={(e) => updateGrade(student.id, 'acs2', e.target.value)}
+                                      placeholder="-"
+                                    />
+                                    {renderGradeIndicator(student.grades.acs2)}
+                                  </div>
                                 </TableCell>
-                                <TableCell>
-                                  <Input 
-                                    className={`h-8 w-16 mx-auto text-center px-1 border-transparent hover:border-border focus:border-primary bg-transparent hover:bg-background transition-all font-medium ${getGradeColor(student.grades.acs3)}`}
-                                    value={student.grades.acs3 || ''} 
-                                    onChange={(e) => updateGrade(student.id, 'acs3', e.target.value)}
-                                    placeholder="-"
-                                  />
+                                <TableCell className="align-middle">
+                                  <div className="flex flex-col items-center justify-center">
+                                    <Input 
+                                      className={`h-8 w-16 text-center px-1 border-transparent hover:border-border focus:border-primary bg-transparent hover:bg-background/50 transition-all font-semibold ${getGradeColor(student.grades.acs3)}`}
+                                      value={student.grades.acs3 || ''} 
+                                      onChange={(e) => updateGrade(student.id, 'acs3', e.target.value)}
+                                      placeholder="-"
+                                    />
+                                    {renderGradeIndicator(student.grades.acs3)}
+                                  </div>
                                 </TableCell>
-                                <TableCell>
-                                  <Input 
-                                    className={`h-8 w-16 mx-auto text-center px-1 border-transparent hover:border-border focus:border-primary bg-transparent hover:bg-background transition-all font-medium ${getGradeColor(student.grades.ap)}`}
-                                    value={student.grades.ap || ''} 
-                                    onChange={(e) => updateGrade(student.id, 'ap', e.target.value)}
-                                    placeholder="-"
-                                  />
+                                <TableCell className="align-middle">
+                                  <div className="flex flex-col items-center justify-center">
+                                    <Input 
+                                      className={`h-8 w-16 text-center px-1 border-transparent hover:border-border focus:border-primary bg-transparent hover:bg-background/50 transition-all font-semibold ${getGradeColor(student.grades.ap)}`}
+                                      value={student.grades.ap || ''} 
+                                      onChange={(e) => updateGrade(student.id, 'ap', e.target.value)}
+                                      placeholder="-"
+                                    />
+                                    {renderGradeIndicator(student.grades.ap)}
+                                  </div>
                                 </TableCell>
-                                <TableCell>
-                                  <Input 
-                                    className={`h-8 w-16 mx-auto text-center px-1 border-transparent hover:border-border focus:border-primary bg-transparent hover:bg-background transition-all font-medium ${getGradeColor(student.grades.exame)}`}
-                                    value={student.grades.exame || ''} 
-                                    onChange={(e) => updateGrade(student.id, 'exame', e.target.value)}
-                                    placeholder="-"
-                                  />
+                                <TableCell className="align-middle">
+                                  <div className="flex flex-col items-center justify-center">
+                                    <Input 
+                                      className={`h-8 w-16 text-center px-1 border-transparent hover:border-border focus:border-primary bg-transparent hover:bg-background/50 transition-all font-semibold ${getGradeColor(student.grades.exame)}`}
+                                      value={student.grades.exame || ''} 
+                                      onChange={(e) => updateGrade(student.id, 'exame', e.target.value)}
+                                      placeholder="-"
+                                    />
+                                    {renderGradeIndicator(student.grades.exame)}
+                                  </div>
                                 </TableCell>
-                                <TableCell className={`text-center font-bold ${getGradeColor(calculateAverage(student.grades), true) || 'text-foreground'}`}>
-                                  {calculateAverage(student.grades)}
+                                <TableCell className="align-middle text-center">
+                                  <div className="flex flex-col items-center justify-center">
+                                    <span className={`font-bold text-sm ${getGradeColor(calculateAverage(student.grades), true) || 'text-foreground'}`}>
+                                      {calculateAverage(student.grades)}
+                                    </span>
+                                    {renderGradeIndicator(calculateAverage(student.grades))}
+                                  </div>
                                 </TableCell>
-                                <TableCell className="text-right">
+                                <TableCell className="align-middle text-right">
                                   <div className="flex justify-end gap-1">
                                     <Button 
                                       variant="ghost" 
                                       size="icon" 
-                                      className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/10"
+                                      className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-lg cursor-pointer"
                                       onClick={() => setEditingStudent(student)}
                                       title="Editar Aluno"
                                     >
@@ -1096,7 +1355,7 @@ export default function App() {
                                     <Button 
                                       variant="ghost" 
                                       size="icon" 
-                                      className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                                      className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg cursor-pointer"
                                       onClick={() => confirmDeleteStudent(student.id)}
                                       title="Remover Aluno"
                                     >
@@ -1109,43 +1368,42 @@ export default function App() {
                           </TableBody>
                         </Table>
                       </div>
-                    </TabsContent>
-                    <TabsContent value="dados" className="m-0">
+                    ) : (
                       <div className="overflow-x-auto">
                         <Table>
                           <TableHeader className="bg-muted/50">
-                            <TableRow>
-                              <TableHead className="w-[60px] font-semibold text-foreground">Nº</TableHead>
-                              <TableHead className="w-[200px] font-semibold text-foreground">Nome do Aluno</TableHead>
-                              <TableHead className="w-[120px] font-semibold text-foreground">Data Nasc.</TableHead>
-                              <TableHead className="w-[150px] font-semibold text-foreground">Local Nasc.</TableHead>
-                              <TableHead className="w-[150px] font-semibold text-foreground">Morada</TableHead>
-                              <TableHead className="w-[200px] font-semibold text-foreground">Encarregado (EE)</TableHead>
-                              <TableHead className="w-[120px] font-semibold text-foreground">Contacto EE</TableHead>
-                              <TableHead className="w-[80px] text-right font-semibold text-foreground">Ações</TableHead>
+                            <TableRow className="h-12 border-b border-border/50">
+                              <TableHead className="w-[60px] font-bold text-foreground">Nº</TableHead>
+                              <TableHead className="w-[200px] font-bold text-foreground">Nome do Aluno</TableHead>
+                              <TableHead className="w-[120px] font-bold text-foreground">Data Nasc.</TableHead>
+                              <TableHead className="w-[150px] font-bold text-foreground">Local Nasc.</TableHead>
+                              <TableHead className="w-[150px] font-bold text-foreground">Morada</TableHead>
+                              <TableHead className="w-[200px] font-bold text-foreground">Encarregado (EE)</TableHead>
+                              <TableHead className="w-[120px] font-bold text-foreground">Contacto EE</TableHead>
+                              <TableHead className="w-[80px] text-right font-bold text-foreground">Ações</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {filteredStudents.map((student) => (
-                              <TableRow key={student.id} className="hover:bg-muted/50 transition-colors">
-                                <TableCell className="font-medium text-muted-foreground">{student.studentNumber || '-'}</TableCell>
-                                <TableCell className="font-medium text-foreground">{student.name}</TableCell>
-                                <TableCell className="text-sm text-muted-foreground">{student.dob ? new Date(student.dob).toLocaleDateString('pt-PT') : '-'}</TableCell>
-                                <TableCell className="text-sm text-muted-foreground">{student.birthplace || '-'}</TableCell>
-                                <TableCell className="text-sm text-muted-foreground">{student.address || '-'}</TableCell>
-                                <TableCell className="text-sm text-muted-foreground">
+                            {filteredStudents.map((student, idx) => (
+                              <TableRow key={student.id} className="h-16 hover:bg-muted/40 transition-colors odd:bg-muted/15 even:bg-transparent">
+                                <TableCell className="font-medium text-muted-foreground align-middle">{student.studentNumber || '-'}</TableCell>
+                                <TableCell className="font-semibold text-foreground align-middle">{student.name}</TableCell>
+                                <TableCell className="text-sm text-muted-foreground align-middle">{student.dob ? new Date(student.dob).toLocaleDateString('pt-PT') : '-'}</TableCell>
+                                <TableCell className="text-sm text-muted-foreground align-middle">{student.birthplace || '-'}</TableCell>
+                                <TableCell className="text-sm text-muted-foreground align-middle">{student.address || '-'}</TableCell>
+                                <TableCell className="text-sm text-muted-foreground align-middle">
                                   <div className="flex flex-col">
-                                    <span>{student.parentName || '-'}</span>
-                                    {student.parentProfession && <span className="text-[10px] text-muted-foreground/70">{student.parentProfession}</span>}
+                                    <span className="font-semibold text-foreground">{student.parentName || '-'}</span>
+                                    {student.parentProfession && <span className="text-[10px] text-muted-foreground/75 font-mono">{student.parentProfession}</span>}
                                   </div>
                                 </TableCell>
-                                <TableCell className="text-sm text-muted-foreground">{student.parentContact || '-'}</TableCell>
-                                <TableCell className="text-right">
+                                <TableCell className="text-sm text-muted-foreground align-middle">{student.parentContact || '-'}</TableCell>
+                                <TableCell className="align-middle text-right">
                                   <div className="flex justify-end gap-1">
                                     <Button 
                                       variant="ghost" 
                                       size="icon" 
-                                      className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/10"
+                                      className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-lg cursor-pointer"
                                       onClick={() => setEditingStudent(student)}
                                       title="Editar Aluno"
                                     >
@@ -1154,7 +1412,7 @@ export default function App() {
                                     <Button 
                                       variant="ghost" 
                                       size="icon" 
-                                      className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                                      className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg cursor-pointer"
                                       onClick={() => confirmDeleteStudent(student.id)}
                                       title="Remover Aluno"
                                     >
@@ -1167,78 +1425,98 @@ export default function App() {
                           </TableBody>
                         </Table>
                       </div>
-                    </TabsContent>
-                  </Tabs>
+                    )}
+                  </div>
                 ) : (
                   <div className="overflow-x-auto">
                     <Table>
                       <TableHeader className="bg-muted/50">
-                        <TableRow>
-                          <TableHead className="w-[60px] font-semibold text-foreground">Nº</TableHead>
-                          <TableHead className="w-[250px] font-semibold text-foreground">Nome do Aluno</TableHead>
-                          <TableHead className="w-[90px] text-center font-semibold text-foreground">ACS 1</TableHead>
-                          <TableHead className="w-[90px] text-center font-semibold text-foreground">ACS 2</TableHead>
-                          <TableHead className="w-[90px] text-center font-semibold text-foreground">ACS 3</TableHead>
-                          <TableHead className="w-[90px] text-center font-semibold text-foreground">AP</TableHead>
-                          <TableHead className="w-[90px] text-center font-semibold text-foreground">Exame</TableHead>
-                          <TableHead className="w-[90px] text-center font-semibold text-foreground">Média</TableHead>
-                          <TableHead className="w-[80px] text-right font-semibold text-foreground">Ações</TableHead>
+                        <TableRow className="h-12 border-b border-border/50">
+                          <TableHead className="w-[60px] font-bold text-foreground">Nº</TableHead>
+                          <TableHead className="w-[250px] font-bold text-foreground">Nome do Aluno</TableHead>
+                          <TableHead className="w-[90px] text-center font-bold text-foreground">ACS 1</TableHead>
+                          <TableHead className="w-[90px] text-center font-bold text-foreground">ACS 2</TableHead>
+                          <TableHead className="w-[90px] text-center font-bold text-foreground">ACS 3</TableHead>
+                          <TableHead className="w-[90px] text-center font-bold text-foreground">AP</TableHead>
+                          <TableHead className="w-[90px] text-center font-bold text-foreground">Exame</TableHead>
+                          <TableHead className="w-[90px] text-center font-bold text-foreground">Média</TableHead>
+                          <TableHead className="w-[80px] text-right font-bold text-foreground">Ações</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {filteredStudents.map((student) => (
-                          <TableRow key={student.id} className="hover:bg-muted/50 transition-colors">
-                            <TableCell className="font-medium text-muted-foreground">{student.studentNumber || '-'}</TableCell>
-                            <TableCell className="font-medium text-foreground">{student.name}</TableCell>
-                            <TableCell>
-                              <Input 
-                                className={`h-8 w-16 mx-auto text-center px-1 border-transparent hover:border-border focus:border-primary bg-transparent hover:bg-background transition-all font-medium ${getGradeColor(student.grades.acs1)}`}
-                                value={student.grades.acs1 || ''} 
-                                onChange={(e) => updateGrade(student.id, 'acs1', e.target.value)}
-                                placeholder="-"
-                              />
+                        {filteredStudents.map((student, idx) => (
+                          <TableRow key={student.id} className="h-16 hover:bg-muted/40 transition-colors odd:bg-muted/15 even:bg-transparent">
+                            <TableCell className="font-medium text-muted-foreground align-middle">{student.studentNumber || '-'}</TableCell>
+                            <TableCell className="font-semibold text-foreground align-middle">{student.name}</TableCell>
+                            <TableCell className="align-middle">
+                              <div className="flex flex-col items-center justify-center">
+                                <Input 
+                                  className={`h-8 w-16 text-center px-1 border-transparent hover:border-border focus:border-primary bg-transparent hover:bg-background/50 transition-all font-semibold ${getGradeColor(student.grades.acs1)}`}
+                                  value={student.grades.acs1 || ''} 
+                                  onChange={(e) => updateGrade(student.id, 'acs1', e.target.value)}
+                                  placeholder="-"
+                                />
+                                {renderGradeIndicator(student.grades.acs1)}
+                              </div>
                             </TableCell>
-                            <TableCell>
-                              <Input 
-                                className={`h-8 w-16 mx-auto text-center px-1 border-transparent hover:border-border focus:border-primary bg-transparent hover:bg-background transition-all font-medium ${getGradeColor(student.grades.acs2)}`}
-                                value={student.grades.acs2 || ''} 
-                                onChange={(e) => updateGrade(student.id, 'acs2', e.target.value)}
-                                placeholder="-"
-                              />
+                            <TableCell className="align-middle">
+                              <div className="flex flex-col items-center justify-center">
+                                <Input 
+                                  className={`h-8 w-16 text-center px-1 border-transparent hover:border-border focus:border-primary bg-transparent hover:bg-background/50 transition-all font-semibold ${getGradeColor(student.grades.acs2)}`}
+                                  value={student.grades.acs2 || ''} 
+                                  onChange={(e) => updateGrade(student.id, 'acs2', e.target.value)}
+                                  placeholder="-"
+                                />
+                                {renderGradeIndicator(student.grades.acs2)}
+                              </div>
                             </TableCell>
-                            <TableCell>
-                              <Input 
-                                className={`h-8 w-16 mx-auto text-center px-1 border-transparent hover:border-border focus:border-primary bg-transparent hover:bg-background transition-all font-medium ${getGradeColor(student.grades.acs3)}`}
-                                value={student.grades.acs3 || ''} 
-                                onChange={(e) => updateGrade(student.id, 'acs3', e.target.value)}
-                                placeholder="-"
-                              />
+                            <TableCell className="align-middle">
+                              <div className="flex flex-col items-center justify-center">
+                                <Input 
+                                  className={`h-8 w-16 text-center px-1 border-transparent hover:border-border focus:border-primary bg-transparent hover:bg-background/50 transition-all font-semibold ${getGradeColor(student.grades.acs3)}`}
+                                  value={student.grades.acs3 || ''} 
+                                  onChange={(e) => updateGrade(student.id, 'acs3', e.target.value)}
+                                  placeholder="-"
+                                />
+                                {renderGradeIndicator(student.grades.acs3)}
+                              </div>
                             </TableCell>
-                            <TableCell>
-                              <Input 
-                                className={`h-8 w-16 mx-auto text-center px-1 border-transparent hover:border-border focus:border-primary bg-transparent hover:bg-background transition-all font-medium ${getGradeColor(student.grades.ap)}`}
-                                value={student.grades.ap || ''} 
-                                onChange={(e) => updateGrade(student.id, 'ap', e.target.value)}
-                                placeholder="-"
-                              />
+                            <TableCell className="align-middle">
+                              <div className="flex flex-col items-center justify-center">
+                                <Input 
+                                  className={`h-8 w-16 text-center px-1 border-transparent hover:border-border focus:border-primary bg-transparent hover:bg-background/50 transition-all font-semibold ${getGradeColor(student.grades.ap)}`}
+                                  value={student.grades.ap || ''} 
+                                  onChange={(e) => updateGrade(student.id, 'ap', e.target.value)}
+                                  placeholder="-"
+                                />
+                                {renderGradeIndicator(student.grades.ap)}
+                              </div>
                             </TableCell>
-                            <TableCell>
-                              <Input 
-                                className={`h-8 w-16 mx-auto text-center px-1 border-transparent hover:border-border focus:border-primary bg-transparent hover:bg-background transition-all font-medium ${getGradeColor(student.grades.exame)}`}
-                                value={student.grades.exame || ''} 
-                                onChange={(e) => updateGrade(student.id, 'exame', e.target.value)}
-                                placeholder="-"
-                              />
+                            <TableCell className="align-middle">
+                              <div className="flex flex-col items-center justify-center">
+                                <Input 
+                                  className={`h-8 w-16 text-center px-1 border-transparent hover:border-border focus:border-primary bg-transparent hover:bg-background/50 transition-all font-semibold ${getGradeColor(student.grades.exame)}`}
+                                  value={student.grades.exame || ''} 
+                                  onChange={(e) => updateGrade(student.id, 'exame', e.target.value)}
+                                  placeholder="-"
+                                />
+                                {renderGradeIndicator(student.grades.exame)}
+                              </div>
                             </TableCell>
-                            <TableCell className={`text-center font-bold ${getGradeColor(calculateAverage(student.grades), true) || 'text-foreground'}`}>
-                              {calculateAverage(student.grades)}
+                            <TableCell className="align-middle text-center">
+                              <div className="flex flex-col items-center justify-center">
+                                <span className={`font-bold text-sm ${getGradeColor(calculateAverage(student.grades), true) || 'text-foreground'}`}>
+                                  {calculateAverage(student.grades)}
+                                </span>
+                                {renderGradeIndicator(calculateAverage(student.grades))}
+                              </div>
                             </TableCell>
-                            <TableCell className="text-right">
+                            <TableCell className="align-middle text-right">
                               <div className="flex justify-end gap-1">
                                 <Button 
                                   variant="ghost" 
                                   size="icon" 
-                                  className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/10"
+                                  className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-lg cursor-pointer"
                                   onClick={() => setEditingStudent(student)}
                                   title="Editar Aluno"
                                 >
@@ -1247,7 +1525,7 @@ export default function App() {
                                 <Button 
                                   variant="ghost" 
                                   size="icon" 
-                                  className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                                  className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg cursor-pointer"
                                   onClick={() => confirmDeleteStudent(student.id)}
                                   title="Remover Aluno"
                                 >

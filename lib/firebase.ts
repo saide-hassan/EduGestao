@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { initializeFirestore } from 'firebase/firestore';
 
 import aiStudioConfig from '../firebase-applet-config.json';
 
@@ -23,7 +23,10 @@ const app = initializeApp(firebaseConfig);
 
 // O AI Studio usa um ID de base de dados específico. Projetos manuais geralmente usam o default (undefined).
 const dbId = isManualSetup ? undefined : (aiStudioConfig as any).firestoreDatabaseId;
-export const db = getFirestore(app, dbId);
+export const db = initializeFirestore(app, {
+  experimentalForceLongPolling: true,
+  ignoreUndefinedProperties: true
+}, dbId);
 
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
