@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Users, BookOpen, School, GraduationCap, ChevronLeft, Trash2, UserPlus, Save, Search, Download, Pencil, Home, LogOut, Star, Layers, Sun, Moon } from 'lucide-react';
+import { Plus, Users, BookOpen, School, GraduationCap, ChevronLeft, Trash2, UserPlus, Save, Search, Download, Pencil, Home, LogOut, Star, Layers, Sun, Moon, Upload, FileSpreadsheet, FileText, UploadCloud, Check } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import mammoth from 'mammoth';
 import { motion } from 'motion/react';
 import { useTheme } from '@/components/theme-provider';
 import { Button } from '@/components/ui/button';
@@ -55,13 +56,44 @@ type ClassData = {
   createdAt?: string;
 };
 
-const calculateAverage = (grades: Grades) => {
-  const values = [grades.acs1, grades.acs2, grades.acs3, grades.ap, grades.exame]
-    .map(v => parseFloat(v.replace(',', '.')))
+const customRound = (value: number): string => {
+  if (isNaN(value)) return '-';
+  const integerPart = Math.floor(value);
+  const decimalStr = value.toFixed(10);
+  const dotIndex = decimalStr.indexOf('.');
+  if (dotIndex === -1) {
+    return String(integerPart);
+  }
+  const tenthsDigit = parseInt(decimalStr.charAt(dotIndex + 1), 10);
+  if (tenthsDigit >= 5) {
+    return String(integerPart + 1);
+  } else {
+    return String(integerPart);
+  }
+};
+
+const calculateAcsAverage = (grades: Grades) => {
+  const values = [grades.acs1, grades.acs2, grades.acs3]
+    .map(v => parseFloat((v || '').replace(',', '.')))
     .filter(v => !isNaN(v));
   if (values.length === 0) return '-';
   const sum = values.reduce((acc, curr) => acc + curr, 0);
-  return (sum / values.length).toFixed(1);
+  const rawAverage = sum / values.length;
+  return customRound(rawAverage);
+};
+
+const calculateGeneralAverage = (grades: Grades) => {
+  const acsAvgStr = calculateAcsAverage(grades);
+  if (acsAvgStr === '-') return '-';
+  const acsAvg = parseFloat(acsAvgStr.replace(',', '.'));
+  const apVal = parseFloat((grades.ap || '').replace(',', '.'));
+  if (isNaN(acsAvg) || isNaN(apVal)) return '-';
+  const rawAverage = (acsAvg + apVal) / 2;
+  return customRound(rawAverage);
+};
+
+const calculateAverage = (grades: Grades) => {
+  return calculateGeneralAverage(grades);
 };
 
 const getGradeColor = (val: string, isAverage = false) => {
@@ -233,6 +265,14 @@ export default function App() {
 
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Import Students States
+  const [isImportOpen, setIsImportOpen] = useState(false);
+  const [importError, setImportError] = useState('');
+  const [previewStudents, setPreviewStudents] = useState<Student[]>([]);
+  const [isImporting, setIsImporting] = useState(false);
+  const [importMode, setImportMode] = useState<'file' | 'paste'>('file');
+  const [pastedNames, setPastedNames] = useState('');
+
   const selectedClass = classes.find(c => c.id === selectedClassId);
 
   const handleAddClass = async () => {
@@ -268,6 +308,7 @@ export default function App() {
 
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [levelToDelete, setLevelToDelete] = useState<{level: string, year: string} | null>(null);
+  const [classToDelete, setClassToDelete] = useState<string | null>(null);
 
   const handleDeleteLevel = async () => {
     if (!levelToDelete || !user) return;
@@ -282,6 +323,20 @@ export default function App() {
     } catch (error) {
       console.error("Error deleting level:", error);
       toast.error('Erro ao eliminar classe.');
+    }
+  };
+
+  const confirmDeleteClass = async () => {
+    if (!classToDelete || !user) return;
+
+    try {
+      await deleteDoc(doc(db, 'classes', classToDelete));
+      if (selectedClassId === classToDelete) setSelectedClassId(null);
+      toast.success('Turma eliminada com sucesso!');
+      setClassToDelete(null);
+    } catch (error) {
+      console.error("Error deleting class:", error);
+      toast.error('Erro ao eliminar turma.');
     }
   };
 
@@ -324,6 +379,252 @@ export default function App() {
     } catch (error) {
       console.error("Error adding student:", error);
       toast.error('Erro ao guardar aluno.');
+    }
+  };
+
+  const handleImportFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    setIsImporting(true);
+    setImportError('');
+    setPreviewStudents([]);
+    
+    try {
+      const ext = file.name.split('.').pop()?.toLowerCase();
+      if (ext === 'xlsx' || ext === 'xls' || ext === 'csv') {
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+          try {
+            const data = new Uint8Array(event.target?.result as ArrayBuffer);
+            const workbook = XLSX.read(data, { type: 'array' });
+            const firstSheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[firstSheetName];
+            const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
+            
+            if (!jsonData || jsonData.length === 0) {
+              setImportError('O ficheiro está vazio.');
+              setIsImporting(false);
+              return;
+            }
+            
+            // Normalize columns to lower-case and no accents
+            const headers = (jsonData[0] || []).map(h => 
+              String(h || '').trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+            );
+            
+            const findColIndex = (names: string[]) => {
+              return headers.findIndex(h => names.some(n => h.includes(n)));
+            };
+            
+            const numberIdx = findColIndex(['nº', 'no', 'num', 'ordem', 'id', 'numero']);
+            const nameIdx = findColIndex(['nome', 'aluno', 'estudante', 'completo']);
+            const dobIdx = findColIndex(['nascimento', 'data', 'dob']);
+            const birthplaceIdx = findColIndex(['naturalidade', 'local']);
+            const addressIdx = findColIndex(['morada', 'endereco', 'residencia']);
+            
+            const imported: Student[] = [];
+            let startRow = 1;
+            
+            let finalNameIdx = nameIdx;
+            if (finalNameIdx === -1) {
+              finalNameIdx = 0; // fallback to column 0 if row 0 has name, or check if row 0 itself is first student
+            }
+            
+            const firstRowContainsNames = jsonData[0] && jsonData[0].some(cell => 
+              String(cell || '').toLowerCase().includes('joao') || 
+              String(cell || '').toLowerCase().includes('maria') || 
+              String(cell || '').toLowerCase().includes('silva')
+            );
+            
+            if (firstRowContainsNames) {
+              startRow = 0;
+            }
+            
+            for (let i = startRow; i < jsonData.length; i++) {
+              const row = jsonData[i];
+              if (!row || row.length === 0) continue;
+              
+              const nameValue = row[finalNameIdx] ? String(row[finalNameIdx]).trim() : '';
+              if (!nameValue || nameValue.toLowerCase() === 'nome' || nameValue.toLowerCase() === 'nome completo') continue;
+              
+              const numberValue = numberIdx !== -1 && row[numberIdx] ? String(row[numberIdx]).trim() : String(imported.length + 1);
+              const dobValue = dobIdx !== -1 && row[dobIdx] ? String(row[dobIdx]).trim() : '';
+              const birthplaceValue = birthplaceIdx !== -1 && row[birthplaceIdx] ? String(row[birthplaceIdx]).trim() : '';
+              const addressValue = addressIdx !== -1 && row[addressIdx] ? String(row[addressIdx]).trim() : '';
+              
+              imported.push({
+                id: crypto.randomUUID(),
+                studentNumber: numberValue,
+                name: nameValue,
+                grades: { acs1: '', acs2: '', acs3: '', ap: '', exame: '' },
+                dob: dobValue,
+                birthplace: birthplaceValue,
+                address: addressValue
+              });
+            }
+            
+            if (imported.length === 0) {
+              setImportError('Nenhum aluno encontrado no ficheiro Excel.');
+            } else {
+              setPreviewStudents(imported);
+            }
+            setIsImporting(false);
+          } catch (err: any) {
+            console.error(err);
+            setImportError('Erro ao ler dados do ficheiro: ' + err.message);
+            setIsImporting(false);
+          }
+        };
+        reader.readAsArrayBuffer(file);
+      } else if (ext === 'docx') {
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+          try {
+            const arrayBuffer = event.target?.result as ArrayBuffer;
+            const result = await mammoth.extractRawText({ arrayBuffer });
+            const text = result.value;
+            
+            if (!text || text.trim().length === 0) {
+              setImportError('O ficheiro Word está vazio.');
+              setIsImporting(false);
+              return;
+            }
+            
+            const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+            const imported: Student[] = [];
+            
+            lines.forEach((line) => {
+              const lowerLine = line.toLowerCase();
+              if (lowerLine === 'nome' || lowerLine === 'nome completo' || lowerLine === 'lista de alunos' || lowerLine === 'alunos') {
+                return;
+              }
+              
+              const match = line.match(/^(\d+)\s*[-.\t]\s*(.+)$/);
+              let number = String(imported.length + 1);
+              let name = line;
+              
+              if (match) {
+                number = match[1];
+                name = match[2].trim();
+              } else {
+                const matchSpace = line.match(/^(\d+)\s+(.+)$/);
+                if (matchSpace) {
+                  number = matchSpace[1];
+                  name = matchSpace[2].trim();
+                }
+              }
+              
+              name = name.replace(/^[•\-*+]\s*/, '').trim();
+              
+              if (name.length > 2) {
+                imported.push({
+                  id: crypto.randomUUID(),
+                  studentNumber: number,
+                  name: name,
+                  grades: { acs1: '', acs2: '', acs3: '', ap: '', exame: '' }
+                });
+              }
+            });
+            
+            if (imported.length === 0) {
+              setImportError('Não foi possível identificar nomes de alunos no ficheiro Word.');
+            } else {
+              setPreviewStudents(imported);
+            }
+            setIsImporting(false);
+          } catch (err: any) {
+            console.error(err);
+            setImportError('Erro ao extrair texto do Word: ' + err.message);
+            setIsImporting(false);
+          }
+        };
+        reader.readAsArrayBuffer(file);
+      } else {
+        setImportError('Formato de arquivo não suportado. Carregue .xlsx, .xls, .csv ou .docx.');
+        setIsImporting(false);
+      }
+    } catch (err: any) {
+      console.error(err);
+      setImportError('Erro ao processar ficheiro: ' + err.message);
+      setIsImporting(false);
+    }
+  };
+
+  const handleProcessPastedNames = () => {
+    if (!pastedNames.trim()) {
+      setImportError('Por favor, cole alguns nomes primeiro.');
+      return;
+    }
+    setImportError('');
+    setIsImporting(true);
+    
+    try {
+      const lines = pastedNames.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+      const imported: Student[] = [];
+      
+      lines.forEach((line) => {
+        const lowerLine = line.toLowerCase();
+        if (lowerLine === 'nome' || lowerLine === 'nome completo' || lowerLine === 'lista de alunos' || lowerLine === 'alunos') {
+          return;
+        }
+        
+        let name = line;
+        const match = line.match(/^(\d+)\s*[-.\t]\s*(.+)$/);
+        if (match) {
+          name = match[2].trim();
+        } else {
+          const matchSpace = line.match(/^(\d+)\s+(.+)$/);
+          if (matchSpace) {
+            name = matchSpace[2].trim();
+          }
+        }
+        
+        name = name.replace(/^[•\-*+]\s*/, '').trim();
+        
+        if (name.length >= 2) {
+          imported.push({
+            id: crypto.randomUUID(),
+            studentNumber: String(imported.length + 1),
+            name: name,
+            grades: { acs1: '', acs2: '', acs3: '', ap: '', exame: '' }
+          });
+        }
+      });
+      
+      if (imported.length === 0) {
+        setImportError('Não foi possível identificar nomes de alunos válidos.');
+      } else {
+        setPreviewStudents(imported);
+      }
+    } catch (err: any) {
+      console.error(err);
+      setImportError('Erro ao ler os nomes colados: ' + err.message);
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  const confirmImportStudents = async () => {
+    if (!selectedClass || previewStudents.length === 0 || !user) return;
+    
+    setIsImporting(true);
+    const updatedClass = {
+      ...selectedClass,
+      students: [...selectedClass.students, ...previewStudents]
+    };
+    
+    try {
+      await setDoc(doc(db, 'classes', selectedClass.id), updatedClass);
+      toast.success(`${previewStudents.length} alunos importados com sucesso!`);
+      setIsImportOpen(false);
+      setPreviewStudents([]);
+      setImportError('');
+    } catch (error) {
+      console.error("Error committing imported students:", error);
+      toast.error('Erro ao guardar os alunos no banco de dados.');
+    } finally {
+      setIsImporting(false);
     }
   };
 
@@ -383,16 +684,9 @@ export default function App() {
     }
   };
 
-  const deleteClass = async (classId: string, e: React.MouseEvent) => {
+  const deleteClass = (classId: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!confirm('Tem certeza que deseja remover esta turma? Todos os alunos serão apagados.')) return;
-    
-    try {
-      await deleteDoc(doc(db, 'classes', classId));
-      if (selectedClassId === classId) setSelectedClassId(null);
-    } catch (error) {
-      console.error("Error deleting class:", error);
-    }
+    setClassToDelete(classId);
   };
 
   const filteredStudents = selectedClass?.students.filter(s => 
@@ -421,10 +715,13 @@ export default function App() {
       if (hasAcs1) row['ACS 1'] = student.grades.acs1;
       if (hasAcs2) row['ACS 2'] = student.grades.acs2;
       if (hasAcs3) row['ACS 3'] = student.grades.acs3;
+      
+      row['Média'] = calculateAcsAverage(student.grades);
+      
       if (hasAp) row['AP'] = student.grades.ap;
       if (hasExame) row['Exame'] = student.grades.exame;
       
-      row['Média'] = calculateAverage(student.grades);
+      row['Média Geral'] = calculateGeneralAverage(student.grades);
       return row;
     });
 
@@ -621,7 +918,7 @@ export default function App() {
         </div>
       )}
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-3 pb-8 sm:pt-4">
         {!selectedClassId ? (
           // Dashboard - List of Classes
           <div className="space-y-6">
@@ -835,6 +1132,30 @@ export default function App() {
                 </DialogContent>
               </Dialog>
 
+              {/* Confirm Delete Class Dialog */}
+              <Dialog open={!!classToDelete} onOpenChange={(open) => !open && setClassToDelete(null)}>
+                <DialogContent className="sm:max-w-[425px]">
+                  <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2 text-destructive">
+                      <Trash2 className="h-5 w-5" />
+                      Remover Turma
+                    </DialogTitle>
+                    <DialogDescription>
+                      Esta ação não pode ser desfeita. Isto irá remover permanentemente a turma <strong>{(() => {
+                        const c = classes.find(item => item.id === classToDelete);
+                        return c ? `${c.level}ª ${c.section}` : '';
+                      })()}</strong> ({classes.find(item => item.id === classToDelete)?.subject || 'Geral'}) e todos os seus alunos.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <DialogFooter className="gap-2 sm:gap-0 mt-2">
+                    <Button variant="outline" className="rounded-xl px-4 h-10 text-sm font-medium transition-all" onClick={() => setClassToDelete(null)}>Cancelar</Button>
+                    <Button variant="destructive" className="rounded-xl px-5 h-10 text-sm font-semibold shadow-sm transition-all animate-pulse" onClick={confirmDeleteClass}>
+                      Sim, Remover Turma
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+
             {classes.length === 0 ? (
               <div className="text-center py-20 bg-card rounded-2xl border border-dashed border-border p-6 flex flex-col items-center justify-center">
                 <div className="mx-auto w-16 h-16 bg-primary/10 text-primary rounded-full flex items-center justify-center mb-4">
@@ -992,9 +1313,9 @@ export default function App() {
           </div>
         ) : (
           // Class Details - Students and Grades
-          <div className="space-y-6 animate-in fade-in duration-300">
-            <div className="bg-card p-6 rounded-2xl border border-border shadow-sm">
-              <div className="flex flex-col gap-4 mb-6">
+          <div className="space-y-4 animate-in fade-in duration-300">
+            <div className="bg-card/95 backdrop-blur-md p-4 sm:p-5 rounded-2xl border border-border shadow-md sticky top-[64px] z-20">
+              <div className="flex flex-col gap-3.5 mb-4">
                 <div className="flex items-center justify-between gap-4">
                   <Button 
                     variant="outline" 
@@ -1010,15 +1331,34 @@ export default function App() {
                   </h2>
                 </div>
                 
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="bg-primary/20 text-primary text-xs font-semibold px-2.5 py-0.5 rounded-full">
-                    {selectedClass.subject}
-                  </span>
-                  {selectedClass.isDirector && (
-                    <span className="bg-gradient-to-r from-orange-500 to-amber-500 text-white text-xs font-extrabold px-3 py-0.5 rounded-full shadow-sm">
-                      Director de Turma
+                <div className="flex items-center justify-between gap-4 w-full">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="bg-primary/20 text-primary text-xs font-semibold px-2.5 py-0.5 rounded-full">
+                      {selectedClass.subject}
                     </span>
-                  )}
+                    {selectedClass.isDirector && (
+                      <span className="bg-gradient-to-r from-orange-500 to-amber-500 text-white text-xs font-extrabold px-3 py-0.5 rounded-full shadow-sm">
+                        Director de Turma
+                      </span>
+                    )}
+                  </div>
+                  
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setPreviewStudents([]);
+                      setImportError('');
+                      setImportMode('file');
+                      setPastedNames('');
+                      setIsImportOpen(true);
+                    }}
+                    className="h-8 rounded-full border border-purple-200 dark:border-purple-900/40 bg-purple-50/50 dark:bg-purple-950/20 text-purple-700 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-900/30 text-xs font-bold cursor-pointer flex items-center justify-center gap-1.5 px-3.5 py-1.5 shadow-xs transition-all w-fit border-0"
+                    title="Importar Lista de Alunos"
+                  >
+                    <Upload className="h-3.5 w-3.5" />
+                    <span>Importar Alunos</span>
+                  </Button>
                 </div>
               </div>
               
@@ -1113,6 +1453,209 @@ export default function App() {
                     <DialogFooter>
                       <Button variant="outline" onClick={() => setIsAddStudentOpen(false)}>Cancelar</Button>
                       <Button onClick={handleAddStudent} className="bg-primary hover:bg-primary/90 text-primary-foreground" disabled={!newStudent.name}>Guardar Aluno</Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+
+                <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>
+                  <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+                    <DialogHeader>
+                      <DialogTitle className="flex items-center gap-2">
+                        <Upload className="h-5 w-5 text-purple-600" />
+                        <span>Importar Candidatos / Alunos</span>
+                      </DialogTitle>
+                      <DialogDescription>
+                        Selecione um ficheiro ou cole diretamente a lista de nomes dos alunos desta turma.
+                      </DialogDescription>
+                    </DialogHeader>
+
+                    {previewStudents.length === 0 ? (
+                      <div className="space-y-4 py-4">
+                        <div className="flex bg-muted p-1 rounded-xl gap-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setImportMode('file');
+                              setImportError('');
+                            }}
+                            className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                              importMode === 'file'
+                                ? 'bg-background text-foreground shadow-xs'
+                                : 'text-muted-foreground hover:text-foreground'
+                            }`}
+                          >
+                            Carregar Ficheiro
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setImportMode('paste');
+                              setImportError('');
+                            }}
+                            className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                              importMode === 'paste'
+                                ? 'bg-background text-foreground shadow-xs'
+                                : 'text-muted-foreground hover:text-foreground'
+                            }`}
+                          >
+                            Colar Nomes
+                          </button>
+                        </div>
+
+                        {importMode === 'file' ? (
+                          <>
+                            <div className="flex flex-col items-center justify-center border-2 border-dashed border-border hover:border-purple-500/50 rounded-2xl p-8 bg-muted/15 hover:bg-muted/30 transition-all text-center relative cursor-pointer min-h-[180px] group">
+                              <input
+                                type="file"
+                                accept=".xlsx,.xls,.csv,.docx,.txt"
+                                onChange={handleImportFileChange}
+                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                                disabled={isImporting}
+                              />
+                              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 mb-3 group-hover:scale-110 transition-transform">
+                                <UploadCloud className="h-6 w-6" />
+                              </div>
+                              <div>
+                                <p className="text-sm font-bold text-foreground">
+                                  {isImporting ? 'A ler ficheiro...' : 'Arraste o ficheiro ou clique para selecionar'}
+                                </p>
+                                <p className="text-xs text-muted-foreground mt-1.5 font-medium">
+                                  Formatos aceites: Excel (.xlsx, .xls, .csv) ou Word (.docx, .txt)
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                              <div className="p-3 bg-muted/20 border border-border/60 rounded-xl">
+                                <div className="flex items-center gap-1.5 text-xs font-bold text-foreground mb-1">
+                                  <FileSpreadsheet className="h-4 w-4 text-emerald-500" />
+                                  <span>Importação por Excel / CSV</span>
+                                </div>
+                                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                                  O ficheiro Excel deve conter colunas de dados, com cabeçalhos como <strong className="text-foreground">Nº</strong> e <strong className="text-foreground">Nome Completo</strong>. Os dados adicionais como morada e nascimento também são importados caso existam.
+                                </p>
+                              </div>
+                              <div className="p-3 bg-muted/20 border border-border/60 rounded-xl">
+                                <div className="flex items-center gap-1.5 text-xs font-bold text-foreground mb-1">
+                                  <FileText className="h-4 w-4 text-blue-500" />
+                                  <span>Importação por Word / Texto</span>
+                                </div>
+                                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                                  O documento Word deve conter a lista dos alunos, com cada nome em uma nova linha formatado com ou sem número de ordem (Ex: <strong className="text-foreground">"1 - João Manuel"</strong> ou simplesmente <strong className="text-foreground">"João Manuel"</strong>).
+                                </p>
+                              </div>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="space-y-3">
+                            <Label className="text-xs font-bold text-foreground block">
+                              Cole a lista de nomes dos alunos abaixo (um nome por linha):
+                            </Label>
+                            <textarea
+                              value={pastedNames}
+                              onChange={(e) => setPastedNames(e.target.value)}
+                              placeholder={`Filipe Macuácua&#10;Amélia Nhaca&#10;Geraldo Chivambo`}
+                              className="w-full h-44 px-3 py-2 text-xs border border-border rounded-xl bg-muted/10 text-foreground placeholder:text-muted-foreground/60 focus-visible:outline-none focus:border-purple-500 transition-colors font-sans leading-relaxed resize-none"
+                            />
+                            <p className="text-[10px] text-muted-foreground italic leading-relaxed">
+                              O sistema irá numerar automaticamente cada aluno de 1 até o fim da lista.
+                            </p>
+                            <Button
+                              onClick={handleProcessPastedNames}
+                              className="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl h-10 text-xs cursor-pointer border-0 mt-1"
+                              disabled={isImporting}
+                            >
+                              Processar e Numerar Alunos
+                            </Button>
+                          </div>
+                        )}
+
+                        {importError && (
+                          <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-xs font-semibold text-red-500 flex items-start gap-2 animate-in fade-in duration-150">
+                            <span className="text-sm">⚠️</span>
+                            <span className="flex-1 leading-relaxed">{importError}</span>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="space-y-4 py-4">
+                        <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl flex items-center justify-between text-xs font-extrabold text-emerald-600 dark:text-emerald-400">
+                          <div className="flex items-center gap-2">
+                            <Check className="h-4 w-4 stroke-[3]" />
+                            <span>Leitura de ficheiro concluída!</span>
+                          </div>
+                          <span>{previewStudents.length} alunos identificados</span>
+                        </div>
+
+                        <div className="border border-border rounded-xl spill-overlay overflow-hidden max-h-[260px] overflow-y-auto">
+                          <Table>
+                            <TableHeader className="bg-muted/50 sticky top-0 z-10 font-bold">
+                              <TableRow className="hover:bg-transparent border-b border-border">
+                                <TableHead className="w-16 h-9 text-[11px] font-extrabold text-foreground uppercase tracking-wider">Nº</TableHead>
+                                <TableHead className="h-9 text-[11px] font-extrabold text-foreground uppercase tracking-wider">Nome Completo</TableHead>
+                                {selectedClass?.isDirector && (
+                                  <>
+                                    <TableHead className="h-9 text-[11px] font-extrabold text-foreground uppercase tracking-wider">Nascimento</TableHead>
+                                    <TableHead className="h-9 text-[11px] font-extrabold text-foreground uppercase tracking-wider">Naturalidade</TableHead>
+                                  </>
+                                )}
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {previewStudents.map((st, sidx) => (
+                                <TableRow key={st.id || sidx} className="h-9 hover:bg-muted/10 border-b border-border/50">
+                                  <TableCell className="py-1 text-xs font-mono font-bold text-muted-foreground/80">{st.studentNumber || (sidx + 1)}</TableCell>
+                                  <TableCell className="py-1 text-xs font-bold text-foreground truncate max-w-[200px]">{st.name}</TableCell>
+                                  {selectedClass?.isDirector && (
+                                    <>
+                                      <TableCell className="py-1 text-xs text-muted-foreground truncate max-w-[100px]">{st.dob || '-'}</TableCell>
+                                      <TableCell className="py-1 text-xs text-muted-foreground truncate max-w-[100px]">{st.birthplace || '-'}</TableCell>
+                                    </>
+                                  )}
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+
+                        <p className="text-[11px] text-muted-foreground italic font-medium leading-relaxed">
+                          Reveja a tabela acima. Ao prosseguir, todos os {previewStudents.length} alunos serão importados diretamente para a turma {selectedClass?.section}.
+                        </p>
+                      </div>
+                    )}
+
+                    <DialogFooter className="flex flex-row items-center gap-3 mt-2">
+                      {previewStudents.length === 0 ? (
+                        <Button
+                          variant="outline"
+                          onClick={() => setIsImportOpen(false)}
+                          className="flex-1 rounded-xl h-10 text-xs font-bold cursor-pointer"
+                          disabled={isImporting}
+                        >
+                          Cancelar
+                        </Button>
+                      ) : (
+                        <>
+                          <Button
+                            variant="outline"
+                            onClick={() => {
+                              setPreviewStudents([]);
+                              setImportError('');
+                            }}
+                            className="flex-1 rounded-xl h-10 text-xs font-bold cursor-pointer"
+                            disabled={isImporting}
+                          >
+                            Carregar Outro
+                          </Button>
+                          <Button
+                            onClick={confirmImportStudents}
+                            className="flex-1 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl h-10 text-xs cursor-pointer border-0"
+                            disabled={isImporting}
+                          >
+                            {isImporting ? 'A guardar...' : 'Confirmar Importação'}
+                          </Button>
+                        </>
+                      )}
                     </DialogFooter>
                   </DialogContent>
                 </Dialog>
@@ -1267,9 +1810,10 @@ export default function App() {
                               <TableHead className="w-[90px] text-center font-bold text-foreground">ACS 1</TableHead>
                               <TableHead className="w-[90px] text-center font-bold text-foreground">ACS 2</TableHead>
                               <TableHead className="w-[90px] text-center font-bold text-foreground">ACS 3</TableHead>
+                              <TableHead className="w-[90px] text-center font-bold text-purple-600 dark:text-purple-400">Média</TableHead>
                               <TableHead className="w-[90px] text-center font-bold text-foreground">AP</TableHead>
                               <TableHead className="w-[90px] text-center font-bold text-foreground">Exame</TableHead>
-                              <TableHead className="w-[90px] text-center font-bold text-foreground">Média</TableHead>
+                              <TableHead className="w-[100px] text-center font-bold text-foreground">Média Geral</TableHead>
                               <TableHead className="w-[80px] text-right font-bold text-foreground">Ações</TableHead>
                             </TableRow>
                           </TableHeader>
@@ -1311,6 +1855,14 @@ export default function App() {
                                     {renderGradeIndicator(student.grades.acs3)}
                                   </div>
                                 </TableCell>
+                                <TableCell className="align-middle text-center bg-purple-500/5 dark:bg-purple-500/5">
+                                  <div className="flex flex-col items-center justify-center">
+                                    <span className={`font-bold text-sm ${getGradeColor(calculateAcsAverage(student.grades), true) || 'text-foreground'}`}>
+                                      {calculateAcsAverage(student.grades)}
+                                    </span>
+                                    {renderGradeIndicator(calculateAcsAverage(student.grades))}
+                                  </div>
+                                </TableCell>
                                 <TableCell className="align-middle">
                                   <div className="flex flex-col items-center justify-center">
                                     <Input 
@@ -1333,12 +1885,12 @@ export default function App() {
                                     {renderGradeIndicator(student.grades.exame)}
                                   </div>
                                 </TableCell>
-                                <TableCell className="align-middle text-center">
+                                <TableCell className="align-middle text-center bg-amber-500/5 dark:bg-amber-500/5">
                                   <div className="flex flex-col items-center justify-center">
-                                    <span className={`font-bold text-sm ${getGradeColor(calculateAverage(student.grades), true) || 'text-foreground'}`}>
-                                      {calculateAverage(student.grades)}
+                                    <span className={`font-bold text-sm ${getGradeColor(calculateGeneralAverage(student.grades), true) || 'text-foreground'}`}>
+                                      {calculateGeneralAverage(student.grades)}
                                     </span>
-                                    {renderGradeIndicator(calculateAverage(student.grades))}
+                                    {renderGradeIndicator(calculateGeneralAverage(student.grades))}
                                   </div>
                                 </TableCell>
                                 <TableCell className="align-middle text-right">
@@ -1437,9 +1989,10 @@ export default function App() {
                           <TableHead className="w-[90px] text-center font-bold text-foreground">ACS 1</TableHead>
                           <TableHead className="w-[90px] text-center font-bold text-foreground">ACS 2</TableHead>
                           <TableHead className="w-[90px] text-center font-bold text-foreground">ACS 3</TableHead>
+                          <TableHead className="w-[90px] text-center font-bold text-purple-600 dark:text-purple-400">Média</TableHead>
                           <TableHead className="w-[90px] text-center font-bold text-foreground">AP</TableHead>
                           <TableHead className="w-[90px] text-center font-bold text-foreground">Exame</TableHead>
-                          <TableHead className="w-[90px] text-center font-bold text-foreground">Média</TableHead>
+                          <TableHead className="w-[100px] text-center font-bold text-foreground">Média Geral</TableHead>
                           <TableHead className="w-[80px] text-right font-bold text-foreground">Ações</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -1481,6 +2034,14 @@ export default function App() {
                                 {renderGradeIndicator(student.grades.acs3)}
                               </div>
                             </TableCell>
+                            <TableCell className="align-middle text-center bg-purple-500/5 dark:bg-purple-500/5">
+                              <div className="flex flex-col items-center justify-center">
+                                <span className={`font-bold text-sm ${getGradeColor(calculateAcsAverage(student.grades), true) || 'text-foreground'}`}>
+                                  {calculateAcsAverage(student.grades)}
+                                </span>
+                                {renderGradeIndicator(calculateAcsAverage(student.grades))}
+                              </div>
+                            </TableCell>
                             <TableCell className="align-middle">
                               <div className="flex flex-col items-center justify-center">
                                 <Input 
@@ -1503,12 +2064,12 @@ export default function App() {
                                 {renderGradeIndicator(student.grades.exame)}
                               </div>
                             </TableCell>
-                            <TableCell className="align-middle text-center">
+                            <TableCell className="align-middle text-center bg-amber-500/5 dark:bg-amber-500/5">
                               <div className="flex flex-col items-center justify-center">
-                                <span className={`font-bold text-sm ${getGradeColor(calculateAverage(student.grades), true) || 'text-foreground'}`}>
-                                  {calculateAverage(student.grades)}
+                                <span className={`font-bold text-sm ${getGradeColor(calculateGeneralAverage(student.grades), true) || 'text-foreground'}`}>
+                                  {calculateGeneralAverage(student.grades)}
                                 </span>
-                                {renderGradeIndicator(calculateAverage(student.grades))}
+                                {renderGradeIndicator(calculateGeneralAverage(student.grades))}
                               </div>
                             </TableCell>
                             <TableCell className="align-middle text-right">
