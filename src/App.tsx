@@ -1310,6 +1310,26 @@ export default function App() {
                 })}
               </div>
             )}
+
+            {/* Footer */}
+            <footer className="mt-12 pt-6 pb-2 border-t border-border/40 text-center text-xs text-muted-foreground/80">
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
+                <p className="font-medium">
+                  &copy; {new Date().getFullYear()} EduGestão. Todos os direitos reservados.
+                </p>
+                <p className="flex items-center gap-1.5 font-medium">
+                  <span>Desenvolvido por</span>
+                  <a 
+                    href="https://www.linkedin.com/in/saidehassan" 
+                    target="_blank" 
+                    rel="noreferrer" 
+                    className="font-bold text-primary hover:text-primary/85 hover:underline transition-all cursor-pointer inline-flex items-center"
+                  >
+                    Saide Hassan
+                  </a>
+                </p>
+              </div>
+            </footer>
           </div>
         ) : (
           // Class Details - Students and Grades
