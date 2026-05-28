@@ -690,12 +690,12 @@ export default function App() {
   };
 
   const filteredStudents = selectedClass?.students.filter(s => 
-    s.name.toLowerCase().includes(searchQuery.toLowerCase())
+    (s.name || '').toLowerCase().includes(searchQuery.toLowerCase())
   ).sort((a, b) => {
     const numA = parseInt(a.studentNumber || '9999', 10);
     const numB = parseInt(b.studentNumber || '9999', 10);
     if (!isNaN(numA) && !isNaN(numB) && numA !== numB) return numA - numB;
-    return a.name.localeCompare(b.name);
+    return (a.name || '').localeCompare(b.name || '');
   }) || [];
 
   const exportToExcel = () => {
@@ -753,7 +753,7 @@ export default function App() {
     if (a.isDirector && !b.isDirector) return -1;
     if (!a.isDirector && b.isDirector) return 1;
 
-    const getLevelNum = (levelStr: string) => parseInt(levelStr.replace(/\D/g, '')) || 0;
+    const getLevelNum = (levelStr: string) => parseInt((levelStr || '').replace(/\D/g, '')) || 0;
     const levelA = getLevelNum(a.level);
     const levelB = getLevelNum(b.level);
     
@@ -761,19 +761,19 @@ export default function App() {
       return levelA - levelB;
     }
 
-    return a.section.localeCompare(b.section);
+    return (a.section || '').localeCompare(b.section || '');
   });
 
   const levels = Array.from(
     new Map<string, { level: string; year: string }>(
-      classes.map(c => [`${c.level}-${c.academicYear}`, { level: c.level, year: c.academicYear }])
+      classes.map(c => [`${c.level || ''}-${c.academicYear || ''}`, { level: c.level || '', year: c.academicYear || '' }])
     ).values()
   ).sort((a, b) => {
-    const getLevelNum = (str: string) => parseInt(str.replace(/\D/g, '')) || 0;
+    const getLevelNum = (str: string) => parseInt((str || '').replace(/\D/g, '')) || 0;
     if (a.level !== b.level) {
       return getLevelNum(a.level) - getLevelNum(b.level);
     }
-    return b.year.localeCompare(a.year);
+    return (b.year || '').localeCompare(a.year || '');
   });
 
   const filteredByLevel = selectedLevel 
