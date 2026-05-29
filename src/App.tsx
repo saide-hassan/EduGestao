@@ -315,7 +315,22 @@ export default function App() {
     if (!levelToDelete || !user) return;
 
     try {
-      const classesToDelete = classes.filter(c => c.level === levelToDelete.level && c.academicYear === levelToDelete.year);
+      const targetLevel = (levelToDelete.level || '').toString().trim().toLowerCase();
+      const targetYear = (levelToDelete.year || '').toString().trim().toLowerCase();
+
+      // Normalize comparison to prevent mismatches from spacing or casing
+      const classesToDelete = classes.filter(c => 
+        (c.level || '').toString().trim().toLowerCase() === targetLevel && 
+        (c.academicYear || '').toString().trim().toLowerCase() === targetYear
+      );
+
+      if (classesToDelete.length === 0) {
+        toast.error('Nenhuma turma encontrada nesta classe para eliminar.');
+        setIsDeleteDialogOpen(false);
+        setLevelToDelete(null);
+        return;
+      }
+
       const deletePromises = classesToDelete.map(c => deleteDoc(doc(db, 'classes', c.id)));
       await Promise.all(deletePromises);
       toast.success('Classe eliminada com sucesso!');
@@ -767,7 +782,11 @@ export default function App() {
 
   const levels = Array.from(
     new Map<string, { level: string; year: string }>(
-      classes.map(c => [`${c.level || ''}-${c.academicYear || ''}`, { level: c.level || '', year: c.academicYear || '' }])
+      classes.map(c => {
+        const lvl = (c.level || '').toString().trim();
+        const yr = (c.academicYear || '').toString().trim();
+        return [`${lvl}-${yr}`, { level: lvl, year: yr }];
+      })
     ).values()
   ).sort((a, b) => {
     const getLevelNum = (str: string) => parseInt((str || '').replace(/\D/g, '')) || 0;
@@ -778,7 +797,7 @@ export default function App() {
   });
 
   const filteredByLevel = selectedLevel 
-    ? sortedClasses.filter(c => c.level === selectedLevel)
+    ? sortedClasses.filter(c => (c.level || '').toString().trim().toLowerCase() === selectedLevel.toString().trim().toLowerCase())
     : sortedClasses;
 
   if (!isAuthReady) {
@@ -1169,7 +1188,10 @@ export default function App() {
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6 animate-in fade-in duration-300">
                 {levels.map((item) => {
                   const levelKey = `${item.level}-${item.year}`;
-                  const classesInLevel = classes.filter(c => c.level === item.level && c.academicYear === item.year);
+                  const classesInLevel = classes.filter(c => 
+                    (c.level || '').toString().trim().toLowerCase() === (item.level || '').toString().trim().toLowerCase() && 
+                    (c.academicYear || '').toString().trim().toLowerCase() === (item.year || '').toString().trim().toLowerCase()
+                  );
                   const hasDirector = classesInLevel.some(c => c.isDirector);
                   const accent = getAccentColor(levelKey);
 
