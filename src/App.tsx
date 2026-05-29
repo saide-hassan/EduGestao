@@ -881,16 +881,24 @@ export default function App() {
                     </div>
 
                     <button
-                      onClick={() => setTheme(isDark ? "light" : "dark")}
+                      onClick={() => {
+                        if (isDark) {
+                          setTheme("light");
+                          toast.success("Luzes Ligadas", { id: "theme-toggle" });
+                        } else {
+                          setTheme("dark");
+                          toast.success("Luzes Apagadas", { id: "theme-toggle" });
+                        }
+                      }}
                       className="w-full flex items-center justify-between px-3 py-2 text-xs font-bold text-foreground hover:bg-muted rounded-lg transition-colors cursor-pointer"
                     >
                       <div className="flex items-center gap-2">
                         {isDark ? (
-                          <Moon className="h-4 w-4 text-purple-600 dark:text-purple-400" />
-                        ) : (
                           <Sun className="h-4 w-4 text-amber-500" />
+                        ) : (
+                          <Moon className="h-4 w-4 text-purple-600 dark:text-purple-400" />
                         )}
-                        <span>Modo Escuro</span>
+                        <span>{isDark ? "Ligar Luzes" : "Apagar Luzes"}</span>
                       </div>
                       <div className={`relative w-9 h-5 rounded-full transition-colors duration-200 ${isDark ? 'bg-purple-600' : 'bg-muted-foreground/30'}`}>
                         <div className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 ${isDark ? 'translate-x-4' : 'translate-x-0'}`} />
