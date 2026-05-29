@@ -41,6 +41,23 @@ type Student = {
   parentProfession?: string;
   parentAddress?: string;
   parentContact?: string;
+  trimesterGrades?: {
+    1?: Grades;
+    2?: Grades;
+    3?: Grades;
+  };
+};
+
+const emptyGrades = (): Grades => ({ acs1: '', acs2: '', acs3: '', ap: '', exame: '' });
+
+const getStudentGrades = (student: Student, trimester: '1' | '2' | '3'): Grades => {
+  if (student.trimesterGrades && student.trimesterGrades[trimester]) {
+    return student.trimesterGrades[trimester]!;
+  }
+  if (trimester === '1') {
+    return student.grades || emptyGrades();
+  }
+  return emptyGrades();
 };
 
 type ClassData = {
@@ -206,6 +223,7 @@ export default function App() {
   const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
   const [selectedLevel, setSelectedLevel] = useState<string | null>(null);
   const [selectedLevelYear, setSelectedLevelYear] = useState<string | null>(null);
+  const [selectedTrimester, setSelectedTrimester] = useState<'1' | '2' | '3'>('1');
   const [activeTab, setActiveTab] = useState<'avaliacoes' | 'dados'>('avaliacoes');
   const [hasSeenWelcome, setHasSeenWelcome] = useLocalStorage<boolean>('edugestao-has-seen-welcome', false);
   
@@ -680,7 +698,22 @@ export default function App() {
       ...selectedClass,
       students: selectedClass.students.map(s => {
         if (s.id === studentId) {
-          return { ...s, grades: { ...s.grades, [field]: value } };
+          const currentTrimesterGrades = s.trimesterGrades || {};
+          const currentTGrades = { ...getStudentGrades(s, selectedTrimester), [field]: value };
+          
+          const newTrimesterGrades = {
+            ...currentTrimesterGrades,
+            [selectedTrimester]: currentTGrades
+          };
+          
+          // Sync with old grades object for trimester 1 compatibility
+          const updatedRootGrades = selectedTrimester === '1' ? currentTGrades : s.grades;
+          
+          return { 
+            ...s, 
+            grades: updatedRootGrades,
+            trimesterGrades: newTrimesterGrades
+          };
         }
         return s;
       })
@@ -730,27 +763,30 @@ export default function App() {
   const exportToExcel = () => {
     if (!selectedClass) return;
 
-    const hasAcs1 = selectedClass.students.some(s => s.grades.acs1.trim() !== '');
-    const hasAcs2 = selectedClass.students.some(s => s.grades.acs2.trim() !== '');
-    const hasAcs3 = selectedClass.students.some(s => s.grades.acs3.trim() !== '');
-    const hasAp = selectedClass.students.some(s => s.grades.ap.trim() !== '');
-    const hasExame = selectedClass.students.some(s => s.grades.exame.trim() !== '');
+    const studentGradesList = selectedClass.students.map(s => getStudentGrades(s, selectedTrimester));
+
+    const hasAcs1 = studentGradesList.some(g => (g.acs1 || '').trim() !== '');
+    const hasAcs2 = studentGradesList.some(g => (g.acs2 || '').trim() !== '');
+    const hasAcs3 = studentGradesList.some(g => (g.acs3 || '').trim() !== '');
+    const hasAp = studentGradesList.some(g => (g.ap || '').trim() !== '');
+    const hasExame = studentGradesList.some(g => (g.exame || '').trim() !== '');
 
     const gradesData = selectedClass.students.map(student => {
+      const studentGrades = getStudentGrades(student, selectedTrimester);
       const row: Record<string, string> = {
         'Nº': student.studentNumber || '-',
         'Nome do Aluno': student.name,
       };
-      if (hasAcs1) row['ACS 1'] = student.grades.acs1;
-      if (hasAcs2) row['ACS 2'] = student.grades.acs2;
-      if (hasAcs3) row['ACS 3'] = student.grades.acs3;
+      if (hasAcs1) row['ACS 1'] = studentGrades.acs1;
+      if (hasAcs2) row['ACS 2'] = studentGrades.acs2;
+      if (hasAcs3) row['ACS 3'] = studentGrades.acs3;
       
-      row['Média'] = calculateAcsAverage(student.grades);
+      row['Média'] = calculateAcsAverage(studentGrades);
       
-      if (hasAp) row['AP'] = student.grades.ap;
-      if (hasExame) row['Exame'] = student.grades.exame;
+      if (hasAp) row['AP'] = studentGrades.ap;
+      if (hasExame) row['Exame'] = studentGrades.exame;
       
-      row['Média Geral'] = calculateGeneralAverage(student.grades);
+      row['Média Geral'] = calculateGeneralAverage(studentGrades);
       return row;
     });
 
@@ -1094,7 +1130,7 @@ export default function App() {
                     <DialogHeader>
                       <DialogTitle>Adicionar Nova Classe</DialogTitle>
                       <DialogDescription>
-                        Defina o nível e o ano letivo para organizar as turmas.
+                        Defina o nível e o ano lectivo para organizar as turmas.
                       </DialogDescription>
                     </DialogHeader>
                     <div className="grid gap-4 py-4">
@@ -1103,7 +1139,7 @@ export default function App() {
                         <Input id="level" value={newClass.level || ''} onChange={e => setNewClass({...newClass, level: e.target.value})} placeholder="Ex: 7ª Classe" />
                       </div>
                       <div className="grid gap-2">
-                        <Label htmlFor="academicYear" className="flex items-center gap-1 text-sm font-medium">Ano Letivo <span className="text-red-500">*</span></Label>
+                        <Label htmlFor="academicYear" className="flex items-center gap-1 text-sm font-medium">Ano Lectivo <span className="text-red-500">*</span></Label>
                         <Input id="academicYear" value={newClass.academicYear || ''} onChange={e => setNewClass({...newClass, academicYear: e.target.value})} placeholder="Ex: 2024" />
                       </div>
                     </div>
@@ -1138,7 +1174,7 @@ export default function App() {
                           <Input id="edit-level" value={editingClass.level || ''} onChange={e => setEditingClass({...editingClass, level: e.target.value})} placeholder="Ex: 7ª Classe" />
                         </div>
                         <div className="grid gap-2">
-                          <Label htmlFor="edit-year">Ano Letivo</Label>
+                          <Label htmlFor="edit-year">Ano Lectivo</Label>
                           <Input id="edit-year" value={editingClass.academicYear || ''} onChange={e => setEditingClass({...editingClass, academicYear: e.target.value})} placeholder="Ex: 2024" />
                         </div>
                       </div>
@@ -1160,7 +1196,7 @@ export default function App() {
                         />
                         <div className="grid gap-1.5 leading-none">
                           <Label htmlFor="edit-isDirector" className="font-medium cursor-pointer">
-                            Sou o Diretor desta Turma
+                            Sou o Director desta Turma
                           </Label>
                           <p className="text-xs text-muted-foreground">
                             Permite adicionar dados detalhados dos alunos (morada, encarregado, etc).
@@ -1383,7 +1419,7 @@ export default function App() {
                           {c.isDirector && (
                             <div className="bg-amber-400 text-amber-950 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wide flex items-center gap-1 shadow-sm shrink-0">
                               <Star className="h-2.5 w-2.5 fill-amber-950 text-amber-950" /> 
-                              <span>Diretor</span>
+                              <span>Director</span>
                             </div>
                           )}
                         </div>
@@ -1553,7 +1589,7 @@ export default function App() {
                         <span>Importar Alunos</span>
                       </DialogTitle>
                       <DialogDescription>
-                        Selecione um ficheiro ou cole diretamente a lista de nomes dos alunos desta turma.
+                        Seleccione um ficheiro ou cole directamente a lista de nomes dos alunos desta turma.
                       </DialogDescription>
                     </DialogHeader>
 
@@ -1605,7 +1641,7 @@ export default function App() {
                               </div>
                               <div>
                                 <p className="text-sm font-bold text-foreground">
-                                  {isImporting ? 'A ler ficheiro...' : 'Arraste o ficheiro ou clique para selecionar'}
+                                  {isImporting ? 'A ler ficheiro...' : 'Arraste o ficheiro ou clique para seleccionar'}
                                 </p>
                                 <p className="text-xs text-muted-foreground mt-1.5 font-medium">
                                   Formatos aceites: Excel (.xlsx, .xls, .csv) ou Word (.docx, .txt)
@@ -1707,7 +1743,7 @@ export default function App() {
                         </div>
 
                         <p className="text-[11px] text-muted-foreground italic font-medium leading-relaxed">
-                          Reveja a tabela acima. Ao prosseguir, todos os {previewStudents.length} alunos serão importados diretamente para a turma {selectedClass?.section}.
+                          Reveja a tabela acima. Ao prosseguir, todos os {previewStudents.length} alunos serão importados directamente para a turma {selectedClass?.section}.
                         </p>
                       </div>
                     )}
@@ -1851,7 +1887,73 @@ export default function App() {
                   <p className="text-muted-foreground mt-1 text-sm">Tente procurar por outro nome.</p>
                 </div>
               ) : (
-                selectedClass.isDirector ? (
+                <div className="w-full flex flex-col">
+                  {/* Trimester Tabs - Option A Placement */}
+                  <div className="px-5 pt-5 pb-4 border-b border-border/40 bg-muted/15 dark:bg-muted/5">
+                    <div className="flex flex-col gap-1.5">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#7B2FBE] dark:text-purple-400 font-mono">
+                        Período Lectivo
+                      </span>
+                      <div className="relative flex p-1 bg-muted/60 dark:bg-muted/40 rounded-xl w-full max-w-md border border-border/40 select-none">
+                        <button 
+                          onClick={() => {
+                            setSelectedTrimester('1');
+                            toast.success("1º Trimestre seleccionado", { id: "trimester-selection" });
+                          }}
+                          className={`relative flex-1 py-1.5 text-xs sm:text-sm font-semibold rounded-lg transition-colors z-10 cursor-pointer flex items-center justify-center gap-1.5 h-8.5 select-none ${
+                            selectedTrimester === '1' ? 'text-white font-bold' : 'text-muted-foreground hover:text-foreground font-medium'
+                          }`}
+                        >
+                          {selectedTrimester === '1' && (
+                            <motion.div 
+                              layoutId="activeTrimesterIndicator" 
+                              className="absolute inset-0 bg-[#7B2FBE] rounded-lg -z-10 shadow-sm shadow-[#7B2FBE]/20"
+                              transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                            />
+                          )}
+                          <span>1º Trimestre</span>
+                        </button>
+                        <button 
+                          onClick={() => {
+                            setSelectedTrimester('2');
+                            toast.success("2º Trimestre seleccionado", { id: "trimester-selection" });
+                          }}
+                          className={`relative flex-1 py-1.5 text-xs sm:text-sm font-semibold rounded-lg transition-colors z-10 cursor-pointer flex items-center justify-center gap-1.5 h-8.5 select-none ${
+                            selectedTrimester === '2' ? 'text-white font-bold' : 'text-muted-foreground hover:text-foreground font-medium'
+                          }`}
+                        >
+                          {selectedTrimester === '2' && (
+                            <motion.div 
+                              layoutId="activeTrimesterIndicator" 
+                              className="absolute inset-0 bg-[#7B2FBE] rounded-lg -z-10 shadow-sm shadow-[#7B2FBE]/20"
+                              transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                            />
+                          )}
+                          <span>2º Trimestre</span>
+                        </button>
+                        <button 
+                          onClick={() => {
+                            setSelectedTrimester('3');
+                            toast.success("3º Trimestre seleccionado", { id: "trimester-selection" });
+                          }}
+                          className={`relative flex-1 py-1.5 text-xs sm:text-sm font-semibold rounded-lg transition-colors z-10 cursor-pointer flex items-center justify-center gap-1.5 h-8.5 select-none ${
+                            selectedTrimester === '3' ? 'text-white font-bold' : 'text-muted-foreground hover:text-foreground font-medium'
+                          }`}
+                        >
+                          {selectedTrimester === '3' && (
+                            <motion.div 
+                              layoutId="activeTrimesterIndicator" 
+                              className="absolute inset-0 bg-[#7B2FBE] rounded-lg -z-10 shadow-sm shadow-[#7B2FBE]/20"
+                              transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                            />
+                          )}
+                          <span>3º Trimestre</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {selectedClass.isDirector ? (
                   <div className="w-full">
                     {/* Segmented Control Switcher with Sliding Active Indicator */}
                     <div className="px-5 pt-5 pb-3">
@@ -1907,127 +2009,130 @@ export default function App() {
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {filteredStudents.map((student, idx) => (
-                              <TableRow 
-                                key={student.id} 
-                                className={`h-16 transition-all duration-200 border-l-2 sm:border-l-4 ${
-                                  student.id === highlightedStudentId 
-                                    ? 'bg-purple-500/10 dark:bg-purple-500/20 border-l-purple-500 shadow-sm font-medium' 
-                                    : 'hover:bg-muted/40 odd:bg-muted/15 even:bg-transparent border-l-transparent'
-                                }`}
-                              >
-                                <TableCell className="font-medium text-muted-foreground align-middle">{student.studentNumber || '-'}</TableCell>
-                                <TableCell 
-                                  className={`font-semibold align-middle cursor-pointer transition-colors select-none ${
+                            {filteredStudents.map((student, idx) => {
+                              const studentGrades = getStudentGrades(student, selectedTrimester);
+                              return (
+                                <TableRow 
+                                  key={student.id} 
+                                  className={`h-16 transition-all duration-200 border-l-2 sm:border-l-4 ${
                                     student.id === highlightedStudentId 
-                                      ? 'text-purple-600 dark:text-purple-400 font-extrabold' 
-                                      : 'text-foreground hover:text-purple-600 dark:hover:text-purple-400'
+                                      ? 'bg-purple-500/10 dark:bg-purple-500/20 border-l-purple-500 shadow-sm font-medium' 
+                                      : 'hover:bg-muted/40 odd:bg-muted/15 even:bg-transparent border-l-transparent'
                                   }`}
-                                  onClick={() => setHighlightedStudentId(prev => prev === student.id ? null : student.id)}
-                                  title="Clique para destacar este aluno"
                                 >
-                                  <div className="flex items-center gap-1.5">
-                                    <span>{student.name}</span>
-                                    {student.id === highlightedStudentId && (
-                                      <span className="inline-flex h-2 w-2 rounded-full bg-purple-500 animate-pulse" />
-                                    )}
-                                  </div>
-                                </TableCell>
-                                <TableCell className="align-middle">
-                                  <div className="flex flex-col items-center justify-center">
-                                    <Input 
-                                      className={`h-8 w-16 text-center px-1 border-transparent hover:border-border focus:border-primary bg-transparent hover:bg-background/50 transition-all font-semibold ${getGradeColor(student.grades.acs1)}`}
-                                      value={student.grades.acs1 || ''} 
-                                      onChange={(e) => updateGrade(student.id, 'acs1', e.target.value)}
-                                      placeholder="-"
-                                    />
-                                    {renderGradeIndicator(student.grades.acs1)}
-                                  </div>
-                                </TableCell>
-                                <TableCell className="align-middle">
-                                  <div className="flex flex-col items-center justify-center">
-                                    <Input 
-                                      className={`h-8 w-16 text-center px-1 border-transparent hover:border-border focus:border-primary bg-transparent hover:bg-background/50 transition-all font-semibold ${getGradeColor(student.grades.acs2)}`}
-                                      value={student.grades.acs2 || ''} 
-                                      onChange={(e) => updateGrade(student.id, 'acs2', e.target.value)}
-                                      placeholder="-"
-                                    />
-                                    {renderGradeIndicator(student.grades.acs2)}
-                                  </div>
-                                </TableCell>
-                                <TableCell className="align-middle">
-                                  <div className="flex flex-col items-center justify-center">
-                                    <Input 
-                                      className={`h-8 w-16 text-center px-1 border-transparent hover:border-border focus:border-primary bg-transparent hover:bg-background/50 transition-all font-semibold ${getGradeColor(student.grades.acs3)}`}
-                                      value={student.grades.acs3 || ''} 
-                                      onChange={(e) => updateGrade(student.id, 'acs3', e.target.value)}
-                                      placeholder="-"
-                                    />
-                                    {renderGradeIndicator(student.grades.acs3)}
-                                  </div>
-                                </TableCell>
-                                <TableCell className="align-middle text-center bg-purple-500/5 dark:bg-purple-500/5">
-                                  <div className="flex flex-col items-center justify-center">
-                                    <span className={`font-bold text-sm ${getGradeColor(calculateAcsAverage(student.grades), true) || 'text-foreground'}`}>
-                                      {calculateAcsAverage(student.grades)}
-                                    </span>
-                                    {renderGradeIndicator(calculateAcsAverage(student.grades))}
-                                  </div>
-                                </TableCell>
-                                <TableCell className="align-middle">
-                                  <div className="flex flex-col items-center justify-center">
-                                    <Input 
-                                      className={`h-8 w-16 text-center px-1 border-transparent hover:border-border focus:border-primary bg-transparent hover:bg-background/50 transition-all font-semibold ${getGradeColor(student.grades.ap)}`}
-                                      value={student.grades.ap || ''} 
-                                      onChange={(e) => updateGrade(student.id, 'ap', e.target.value)}
-                                      placeholder="-"
-                                    />
-                                    {renderGradeIndicator(student.grades.ap)}
-                                  </div>
-                                </TableCell>
-                                <TableCell className="align-middle">
-                                  <div className="flex flex-col items-center justify-center">
-                                    <Input 
-                                      className={`h-8 w-16 text-center px-1 border-transparent hover:border-border focus:border-primary bg-transparent hover:bg-background/50 transition-all font-semibold ${getGradeColor(student.grades.exame)}`}
-                                      value={student.grades.exame || ''} 
-                                      onChange={(e) => updateGrade(student.id, 'exame', e.target.value)}
-                                      placeholder="-"
-                                    />
-                                    {renderGradeIndicator(student.grades.exame)}
-                                  </div>
-                                </TableCell>
-                                <TableCell className="align-middle text-center bg-amber-500/5 dark:bg-amber-500/5">
-                                  <div className="flex flex-col items-center justify-center">
-                                    <span className={`font-bold text-sm ${getGradeColor(calculateGeneralAverage(student.grades), true) || 'text-foreground'}`}>
-                                      {calculateGeneralAverage(student.grades)}
-                                    </span>
-                                    {renderGradeIndicator(calculateGeneralAverage(student.grades))}
-                                  </div>
-                                </TableCell>
-                                <TableCell className="align-middle text-right">
-                                  <div className="flex justify-end gap-1">
-                                    <Button 
-                                      variant="ghost" 
-                                      size="icon" 
-                                      className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-lg cursor-pointer"
-                                      onClick={() => setEditingStudent(student)}
-                                      title="Editar Aluno"
-                                    >
-                                      <Pencil className="h-4 w-4" />
-                                    </Button>
-                                    <Button 
-                                      variant="ghost" 
-                                      size="icon" 
-                                      className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg cursor-pointer"
-                                      onClick={() => confirmDeleteStudent(student.id)}
-                                      title="Remover Aluno"
-                                    >
-                                      <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                  </div>
-                                </TableCell>
-                              </TableRow>
-                            ))}
+                                  <TableCell className="font-medium text-muted-foreground align-middle">{student.studentNumber || '-'}</TableCell>
+                                  <TableCell 
+                                    className={`font-semibold align-middle cursor-pointer transition-colors select-none ${
+                                      student.id === highlightedStudentId 
+                                        ? 'text-purple-600 dark:text-purple-400 font-extrabold' 
+                                        : 'text-foreground hover:text-purple-600 dark:hover:text-purple-400'
+                                    }`}
+                                    onClick={() => setHighlightedStudentId(prev => prev === student.id ? null : student.id)}
+                                    title="Clique para destacar este aluno"
+                                  >
+                                    <div className="flex items-center gap-1.5">
+                                      <span>{student.name}</span>
+                                      {student.id === highlightedStudentId && (
+                                        <span className="inline-flex h-2 w-2 rounded-full bg-purple-500 animate-pulse" />
+                                      )}
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="align-middle">
+                                    <div className="flex flex-col items-center justify-center">
+                                      <Input 
+                                        className={`h-8 w-16 text-center px-1 border-transparent hover:border-border focus:border-primary bg-transparent hover:bg-background/50 transition-all font-semibold ${getGradeColor(studentGrades.acs1)}`}
+                                        value={studentGrades.acs1 || ''} 
+                                        onChange={(e) => updateGrade(student.id, 'acs1', e.target.value)}
+                                        placeholder="-"
+                                      />
+                                      {renderGradeIndicator(studentGrades.acs1)}
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="align-middle">
+                                    <div className="flex flex-col items-center justify-center">
+                                      <Input 
+                                        className={`h-8 w-16 text-center px-1 border-transparent hover:border-border focus:border-primary bg-transparent hover:bg-background/50 transition-all font-semibold ${getGradeColor(studentGrades.acs2)}`}
+                                        value={studentGrades.acs2 || ''} 
+                                        onChange={(e) => updateGrade(student.id, 'acs2', e.target.value)}
+                                        placeholder="-"
+                                      />
+                                      {renderGradeIndicator(studentGrades.acs2)}
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="align-middle">
+                                    <div className="flex flex-col items-center justify-center">
+                                      <Input 
+                                        className={`h-8 w-16 text-center px-1 border-transparent hover:border-border focus:border-primary bg-transparent hover:bg-background/50 transition-all font-semibold ${getGradeColor(studentGrades.acs3)}`}
+                                        value={studentGrades.acs3 || ''} 
+                                        onChange={(e) => updateGrade(student.id, 'acs3', e.target.value)}
+                                        placeholder="-"
+                                      />
+                                      {renderGradeIndicator(studentGrades.acs3)}
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="align-middle text-center bg-purple-500/5 dark:bg-purple-500/5">
+                                    <div className="flex flex-col items-center justify-center">
+                                      <span className={`font-bold text-sm ${getGradeColor(calculateAcsAverage(studentGrades), true) || 'text-foreground'}`}>
+                                        {calculateAcsAverage(studentGrades)}
+                                      </span>
+                                      {renderGradeIndicator(calculateAcsAverage(studentGrades))}
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="align-middle">
+                                    <div className="flex flex-col items-center justify-center">
+                                      <Input 
+                                        className={`h-8 w-16 text-center px-1 border-transparent hover:border-border focus:border-primary bg-transparent hover:bg-background/50 transition-all font-semibold ${getGradeColor(studentGrades.ap)}`}
+                                        value={studentGrades.ap || ''} 
+                                        onChange={(e) => updateGrade(student.id, 'ap', e.target.value)}
+                                        placeholder="-"
+                                      />
+                                      {renderGradeIndicator(studentGrades.ap)}
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="align-middle">
+                                    <div className="flex flex-col items-center justify-center">
+                                      <Input 
+                                        className={`h-8 w-16 text-center px-1 border-transparent hover:border-border focus:border-primary bg-transparent hover:bg-background/50 transition-all font-semibold ${getGradeColor(studentGrades.exame)}`}
+                                        value={studentGrades.exame || ''} 
+                                        onChange={(e) => updateGrade(student.id, 'exame', e.target.value)}
+                                        placeholder="-"
+                                      />
+                                      {renderGradeIndicator(studentGrades.exame)}
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="align-middle text-center bg-amber-500/5 dark:bg-amber-500/5">
+                                    <div className="flex flex-col items-center justify-center">
+                                      <span className={`font-bold text-sm ${getGradeColor(calculateGeneralAverage(studentGrades), true) || 'text-foreground'}`}>
+                                        {calculateGeneralAverage(studentGrades)}
+                                      </span>
+                                      {renderGradeIndicator(calculateGeneralAverage(studentGrades))}
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="align-middle text-right">
+                                    <div className="flex justify-end gap-1">
+                                      <Button 
+                                        variant="ghost" 
+                                        size="icon" 
+                                        className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-lg cursor-pointer"
+                                        onClick={() => setEditingStudent(student)}
+                                        title="Editar Aluno"
+                                      >
+                                        <Pencil className="h-4 w-4" />
+                                      </Button>
+                                      <Button 
+                                        variant="ghost" 
+                                        size="icon" 
+                                        className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg cursor-pointer"
+                                        onClick={() => confirmDeleteStudent(student.id)}
+                                        title="Remover Aluno"
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
+                                    </div>
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })}
                           </TableBody>
                         </Table>
                       </div>
@@ -2130,131 +2235,135 @@ export default function App() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {filteredStudents.map((student, idx) => (
-                          <TableRow 
-                            key={student.id} 
-                            className={`h-16 transition-all duration-200 border-l-2 sm:border-l-4 ${
-                              student.id === highlightedStudentId 
-                                ? 'bg-purple-500/10 dark:bg-purple-500/20 border-l-purple-500 shadow-sm font-medium' 
-                                : 'hover:bg-muted/40 odd:bg-muted/15 even:bg-transparent border-l-transparent'
-                            }`}
-                          >
-                            <TableCell className="font-medium text-muted-foreground align-middle">{student.studentNumber || '-'}</TableCell>
-                            <TableCell 
-                              className={`font-semibold align-middle cursor-pointer transition-colors select-none ${
+                        {filteredStudents.map((student, idx) => {
+                          const studentGrades = getStudentGrades(student, selectedTrimester);
+                          return (
+                            <TableRow 
+                              key={student.id} 
+                              className={`h-16 transition-all duration-200 border-l-2 sm:border-l-4 ${
                                 student.id === highlightedStudentId 
-                                  ? 'text-purple-600 dark:text-purple-400 font-extrabold' 
-                                  : 'text-foreground hover:text-purple-600 dark:hover:text-purple-400'
+                                  ? 'bg-purple-500/10 dark:bg-purple-500/20 border-l-purple-500 shadow-sm font-medium' 
+                                  : 'hover:bg-muted/40 odd:bg-muted/15 even:bg-transparent border-l-transparent'
                               }`}
-                              onClick={() => setHighlightedStudentId(prev => prev === student.id ? null : student.id)}
-                              title="Clique para destacar este aluno"
                             >
-                              <div className="flex items-center gap-1.5">
-                                <span>{student.name}</span>
-                                {student.id === highlightedStudentId && (
-                                  <span className="inline-flex h-2 w-2 rounded-full bg-purple-500 animate-pulse" />
-                                )}
-                              </div>
-                            </TableCell>
-                            <TableCell className="align-middle">
-                              <div className="flex flex-col items-center justify-center">
-                                <Input 
-                                  className={`h-8 w-16 text-center px-1 border-transparent hover:border-border focus:border-primary bg-transparent hover:bg-background/50 transition-all font-semibold ${getGradeColor(student.grades.acs1)}`}
-                                  value={student.grades.acs1 || ''} 
-                                  onChange={(e) => updateGrade(student.id, 'acs1', e.target.value)}
-                                  placeholder="-"
-                                />
-                                {renderGradeIndicator(student.grades.acs1)}
-                              </div>
-                            </TableCell>
-                            <TableCell className="align-middle">
-                              <div className="flex flex-col items-center justify-center">
-                                <Input 
-                                  className={`h-8 w-16 text-center px-1 border-transparent hover:border-border focus:border-primary bg-transparent hover:bg-background/50 transition-all font-semibold ${getGradeColor(student.grades.acs2)}`}
-                                  value={student.grades.acs2 || ''} 
-                                  onChange={(e) => updateGrade(student.id, 'acs2', e.target.value)}
-                                  placeholder="-"
-                                />
-                                {renderGradeIndicator(student.grades.acs2)}
-                              </div>
-                            </TableCell>
-                            <TableCell className="align-middle">
-                              <div className="flex flex-col items-center justify-center">
-                                <Input 
-                                  className={`h-8 w-16 text-center px-1 border-transparent hover:border-border focus:border-primary bg-transparent hover:bg-background/50 transition-all font-semibold ${getGradeColor(student.grades.acs3)}`}
-                                  value={student.grades.acs3 || ''} 
-                                  onChange={(e) => updateGrade(student.id, 'acs3', e.target.value)}
-                                  placeholder="-"
-                                />
-                                {renderGradeIndicator(student.grades.acs3)}
-                              </div>
-                            </TableCell>
-                            <TableCell className="align-middle text-center bg-purple-500/5 dark:bg-purple-500/5">
-                              <div className="flex flex-col items-center justify-center">
-                                <span className={`font-bold text-sm ${getGradeColor(calculateAcsAverage(student.grades), true) || 'text-foreground'}`}>
-                                  {calculateAcsAverage(student.grades)}
-                                </span>
-                                {renderGradeIndicator(calculateAcsAverage(student.grades))}
-                              </div>
-                            </TableCell>
-                            <TableCell className="align-middle">
-                              <div className="flex flex-col items-center justify-center">
-                                <Input 
-                                  className={`h-8 w-16 text-center px-1 border-transparent hover:border-border focus:border-primary bg-transparent hover:bg-background/50 transition-all font-semibold ${getGradeColor(student.grades.ap)}`}
-                                  value={student.grades.ap || ''} 
-                                  onChange={(e) => updateGrade(student.id, 'ap', e.target.value)}
-                                  placeholder="-"
-                                />
-                                {renderGradeIndicator(student.grades.ap)}
-                              </div>
-                            </TableCell>
-                            <TableCell className="align-middle">
-                              <div className="flex flex-col items-center justify-center">
-                                <Input 
-                                  className={`h-8 w-16 text-center px-1 border-transparent hover:border-border focus:border-primary bg-transparent hover:bg-background/50 transition-all font-semibold ${getGradeColor(student.grades.exame)}`}
-                                  value={student.grades.exame || ''} 
-                                  onChange={(e) => updateGrade(student.id, 'exame', e.target.value)}
-                                  placeholder="-"
-                                />
-                                {renderGradeIndicator(student.grades.exame)}
-                              </div>
-                            </TableCell>
-                            <TableCell className="align-middle text-center bg-amber-500/5 dark:bg-amber-500/5">
-                              <div className="flex flex-col items-center justify-center">
-                                <span className={`font-bold text-sm ${getGradeColor(calculateGeneralAverage(student.grades), true) || 'text-foreground'}`}>
-                                  {calculateGeneralAverage(student.grades)}
-                                </span>
-                                {renderGradeIndicator(calculateGeneralAverage(student.grades))}
-                              </div>
-                            </TableCell>
-                            <TableCell className="align-middle text-right">
-                              <div className="flex justify-end gap-1">
-                                <Button 
-                                  variant="ghost" 
-                                  size="icon" 
-                                  className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-lg cursor-pointer"
-                                  onClick={() => setEditingStudent(student)}
-                                  title="Editar Aluno"
-                                >
-                                  <Pencil className="h-4 w-4" />
-                                </Button>
-                                <Button 
-                                  variant="ghost" 
-                                  size="icon" 
-                                  className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg cursor-pointer"
-                                  onClick={() => confirmDeleteStudent(student.id)}
-                                  title="Remover Aluno"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        ))}
+                              <TableCell className="font-medium text-muted-foreground align-middle">{student.studentNumber || '-'}</TableCell>
+                              <TableCell 
+                                className={`font-semibold align-middle cursor-pointer transition-colors select-none ${
+                                  student.id === highlightedStudentId 
+                                    ? 'text-purple-600 dark:text-purple-400 font-extrabold' 
+                                    : 'text-foreground hover:text-purple-600 dark:hover:text-purple-400'
+                                }`}
+                                onClick={() => setHighlightedStudentId(prev => prev === student.id ? null : student.id)}
+                                title="Clique para destacar este aluno"
+                              >
+                                <div className="flex items-center gap-1.5">
+                                  <span>{student.name}</span>
+                                  {student.id === highlightedStudentId && (
+                                    <span className="inline-flex h-2 w-2 rounded-full bg-purple-500 animate-pulse" />
+                                  )}
+                                </div>
+                              </TableCell>
+                              <TableCell className="align-middle">
+                                <div className="flex flex-col items-center justify-center">
+                                  <Input 
+                                    className={`h-8 w-16 text-center px-1 border-transparent hover:border-border focus:border-primary bg-transparent hover:bg-background/50 transition-all font-semibold ${getGradeColor(studentGrades.acs1)}`}
+                                    value={studentGrades.acs1 || ''} 
+                                    onChange={(e) => updateGrade(student.id, 'acs1', e.target.value)}
+                                    placeholder="-"
+                                  />
+                                  {renderGradeIndicator(studentGrades.acs1)}
+                                </div>
+                              </TableCell>
+                              <TableCell className="align-middle">
+                                <div className="flex flex-col items-center justify-center">
+                                  <Input 
+                                    className={`h-8 w-16 text-center px-1 border-transparent hover:border-border focus:border-primary bg-transparent hover:bg-background/50 transition-all font-semibold ${getGradeColor(studentGrades.acs2)}`}
+                                    value={studentGrades.acs2 || ''} 
+                                    onChange={(e) => updateGrade(student.id, 'acs2', e.target.value)}
+                                    placeholder="-"
+                                  />
+                                  {renderGradeIndicator(studentGrades.acs2)}
+                                </div>
+                              </TableCell>
+                              <TableCell className="align-middle">
+                                <div className="flex flex-col items-center justify-center">
+                                  <Input 
+                                    className={`h-8 w-16 text-center px-1 border-transparent hover:border-border focus:border-primary bg-transparent hover:bg-background/50 transition-all font-semibold ${getGradeColor(studentGrades.acs3)}`}
+                                    value={studentGrades.acs3 || ''} 
+                                    onChange={(e) => updateGrade(student.id, 'acs3', e.target.value)}
+                                    placeholder="-"
+                                  />
+                                  {renderGradeIndicator(studentGrades.acs3)}
+                                </div>
+                              </TableCell>
+                              <TableCell className="align-middle text-center bg-purple-500/5 dark:bg-purple-500/5">
+                                <div className="flex flex-col items-center justify-center">
+                                  <span className={`font-bold text-sm ${getGradeColor(calculateAcsAverage(studentGrades), true) || 'text-foreground'}`}>
+                                    {calculateAcsAverage(studentGrades)}
+                                  </span>
+                                  {renderGradeIndicator(calculateAcsAverage(studentGrades))}
+                                </div>
+                              </TableCell>
+                              <TableCell className="align-middle">
+                                <div className="flex flex-col items-center justify-center">
+                                  <Input 
+                                    className={`h-8 w-16 text-center px-1 border-transparent hover:border-border focus:border-primary bg-transparent hover:bg-background/50 transition-all font-semibold ${getGradeColor(studentGrades.ap)}`}
+                                    value={studentGrades.ap || ''} 
+                                    onChange={(e) => updateGrade(student.id, 'ap', e.target.value)}
+                                    placeholder="-"
+                                  />
+                                  {renderGradeIndicator(studentGrades.ap)}
+                                </div>
+                              </TableCell>
+                              <TableCell className="align-middle">
+                                <div className="flex flex-col items-center justify-center">
+                                  <Input 
+                                    className={`h-8 w-16 text-center px-1 border-transparent hover:border-border focus:border-primary bg-transparent hover:bg-background/50 transition-all font-semibold ${getGradeColor(studentGrades.exame)}`}
+                                    value={studentGrades.exame || ''} 
+                                    onChange={(e) => updateGrade(student.id, 'exame', e.target.value)}
+                                    placeholder="-"
+                                  />
+                                  {renderGradeIndicator(studentGrades.exame)}
+                                </div>
+                              </TableCell>
+                              <TableCell className="align-middle text-center bg-amber-500/5 dark:bg-amber-500/5">
+                                <div className="flex flex-col items-center justify-center">
+                                  <span className={`font-bold text-sm ${getGradeColor(calculateGeneralAverage(studentGrades), true) || 'text-foreground'}`}>
+                                    {calculateGeneralAverage(studentGrades)}
+                                  </span>
+                                  {renderGradeIndicator(calculateGeneralAverage(studentGrades))}
+                                </div>
+                              </TableCell>
+                              <TableCell className="align-middle text-right">
+                                <div className="flex justify-end gap-1">
+                                  <Button 
+                                    variant="ghost" 
+                                    size="icon" 
+                                    className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-lg cursor-pointer"
+                                    onClick={() => setEditingStudent(student)}
+                                    title="Editar Aluno"
+                                  >
+                                    <Pencil className="h-4 w-4" />
+                                  </Button>
+                                  <Button 
+                                    variant="ghost" 
+                                    size="icon" 
+                                    className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg cursor-pointer"
+                                    onClick={() => confirmDeleteStudent(student.id)}
+                                    title="Remover Aluno"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
                       </TableBody>
                     </Table>
                   </div>
-                )
+                )}
+                </div>
               )}
             </div>
           </div>
