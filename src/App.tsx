@@ -52,6 +52,7 @@ type ClassData = {
   subject: string;
   academicYear: string;
   isDirector: boolean;
+  isPlaceholder?: boolean;
   students: Student[];
   createdAt?: string;
 };
@@ -279,20 +280,30 @@ export default function App() {
   const handleAddClass = async () => {
     if (!newClass.level || !newClass.academicYear || !user) return;
     
+    // If selectedLevel is not set, we are creating a new level placeholder (blank class level)
+    const isPlaceholder = !selectedLevel;
+    
     const newClassData: ClassData = {
       id: crypto.randomUUID(),
       userId: user.uid,
       school: newClass.school || 'EduGestão',
-      section: newClass.section || 'A',
-      subject: newClass.subject || 'Geral',
-      ...newClass,
+      section: isPlaceholder ? '' : (newClass.section ? newClass.section.trim() : 'A'),
+      subject: isPlaceholder ? '' : (newClass.subject ? newClass.subject.trim() : 'Geral'),
+      academicYear: newClass.academicYear || new Date().getFullYear().toString(),
+      level: newClass.level.trim(),
+      isDirector: newClass.isDirector,
+      isPlaceholder,
       students: [],
       createdAt: new Date().toISOString()
     };
     
     try {
       await setDoc(doc(db, 'classes', newClassData.id), newClassData);
-      toast.success('Turma guardada com sucesso!');
+      if (isPlaceholder) {
+        toast.success('Classe criada com sucesso!');
+      } else {
+        toast.success('Turma guardada com sucesso!');
+      }
       setNewClass({ 
         school: newClass.school || '', 
         level: selectedLevel || '', 
@@ -301,9 +312,10 @@ export default function App() {
         academicYear: newClass.academicYear || new Date().getFullYear().toString(),
         isDirector: false 
       });
+      setIsAddClassOpen(false);
     } catch (error) {
       console.error("Error adding class:", error);
-      toast.error('Erro ao guardar turma.');
+      toast.error('Erro ao guardar.');
     }
   };
 
@@ -797,7 +809,7 @@ export default function App() {
   });
 
   const filteredByLevel = selectedLevel 
-    ? sortedClasses.filter(c => (c.level || '').toString().trim().toLowerCase() === selectedLevel.toString().trim().toLowerCase())
+    ? sortedClasses.filter(c => !c.isPlaceholder && (c.level || '').toString().trim().toLowerCase() === selectedLevel.toString().trim().toLowerCase())
     : sortedClasses;
 
   if (!isAuthReady) {
@@ -1189,6 +1201,7 @@ export default function App() {
                 {levels.map((item) => {
                   const levelKey = `${item.level}-${item.year}`;
                   const classesInLevel = classes.filter(c => 
+                    !c.isPlaceholder &&
                     (c.level || '').toString().trim().toLowerCase() === (item.level || '').toString().trim().toLowerCase() && 
                     (c.academicYear || '').toString().trim().toLowerCase() === (item.year || '').toString().trim().toLowerCase()
                   );
@@ -1249,6 +1262,17 @@ export default function App() {
                     </Card>
                   );
                 })}
+              </div>
+            ) : filteredByLevel.length === 0 ? (
+              <div className="text-center py-16 bg-card/40 backdrop-blur-xs rounded-2xl border border-dashed border-border p-6 flex flex-col items-center justify-center w-full animate-in fade-in duration-350 col-span-full">
+                <div className="mx-auto w-14 h-14 bg-purple-100 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 rounded-full flex items-center justify-center mb-4">
+                  <Layers className="h-6 w-6" />
+                </div>
+                <h3 className="text-lg font-bold text-foreground">Nenhuma turma adicionada</h3>
+                <p className="text-muted-foreground mt-1 max-w-sm mx-auto text-xs sm:text-sm">Adicione turmas (ex: Turma A, Turma B) com as respetivas disciplinas para começar.</p>
+                <Button onClick={() => setIsAddClassOpen(true)} className="mt-5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white px-5 h-9 text-xs font-bold shadow-md transition-all flex items-center justify-center gap-1.5 hover:scale-[1.02] cursor-pointer border-0">
+                  <Plus className="h-4 w-4" /> Adicionar Turma
+                </Button>
               </div>
             ) : (
                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -1487,7 +1511,7 @@ export default function App() {
                     <DialogHeader>
                       <DialogTitle className="flex items-center gap-2">
                         <Upload className="h-5 w-5 text-purple-600" />
-                        <span>Importar Candidatos / Alunos</span>
+                        <span>Importar Alunos</span>
                       </DialogTitle>
                       <DialogDescription>
                         Selecione um ficheiro ou cole diretamente a lista de nomes dos alunos desta turma.
