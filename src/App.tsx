@@ -205,6 +205,7 @@ export default function App() {
   const [classes, setClasses] = useState<ClassData[]>([]);
   const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
   const [selectedLevel, setSelectedLevel] = useState<string | null>(null);
+  const [selectedLevelYear, setSelectedLevelYear] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'avaliacoes' | 'dados'>('avaliacoes');
   const [hasSeenWelcome, setHasSeenWelcome] = useLocalStorage<boolean>('edugestao-has-seen-welcome', false);
   
@@ -809,7 +810,11 @@ export default function App() {
   });
 
   const filteredByLevel = selectedLevel 
-    ? sortedClasses.filter(c => !c.isPlaceholder && (c.level || '').toString().trim().toLowerCase() === selectedLevel.toString().trim().toLowerCase())
+    ? sortedClasses.filter(c => 
+        !c.isPlaceholder && 
+        (c.level || '').toString().trim().toLowerCase() === selectedLevel.toString().trim().toLowerCase() &&
+        (!selectedLevelYear || (c.academicYear || '').toString().trim().toLowerCase() === selectedLevelYear.toString().trim().toLowerCase())
+      )
     : sortedClasses;
 
   if (!isAuthReady) {
@@ -962,7 +967,10 @@ export default function App() {
                     <Button 
                       variant="outline" 
                       size="sm" 
-                      onClick={() => setSelectedLevel(null)} 
+                      onClick={() => {
+                        setSelectedLevel(null);
+                        setSelectedLevelYear(null);
+                      }} 
                       className="h-8 px-4 border border-border/85 bg-card/10 hover:bg-card/30 text-foreground hover:border-primary/30 transition-all rounded-full shadow-sm flex items-center gap-1.5 font-bold text-xs cursor-pointer shrink-0"
                       title="Voltar para Minhas Classes"
                     >
@@ -982,7 +990,14 @@ export default function App() {
                 <Dialog open={isAddClassOpen} onOpenChange={(open) => {
                   setIsAddClassOpen(open);
                   if (open) {
-                    setNewClass(prev => ({ ...prev, level: selectedLevel }));
+                    setNewClass({
+                      school: '',
+                      level: selectedLevel || '',
+                      section: '',
+                      subject: '',
+                      academicYear: selectedLevelYear || new Date().getFullYear().toString(),
+                      isDirector: false
+                    });
                   }
                 }}>
                   <DialogTrigger render={
@@ -1046,7 +1061,19 @@ export default function App() {
                 </div>
 
                 {/* Floating FAB to Add New Class */}
-                <Dialog open={isAddClassOpen} onOpenChange={setIsAddClassOpen}>
+                <Dialog open={isAddClassOpen} onOpenChange={(open) => {
+                  setIsAddClassOpen(open);
+                  if (open) {
+                    setNewClass({
+                      school: '',
+                      level: '',
+                      section: '',
+                      subject: '',
+                      academicYear: new Date().getFullYear().toString(),
+                      isDirector: false
+                    });
+                  }
+                }}>
                   <DialogTrigger render={
                     <Button 
                       className="fixed bottom-20 right-6 sm:bottom-24 sm:right-8 z-55 rounded-full w-12 h-12 p-0 bg-primary hover:bg-primary/95 text-primary-foreground shadow-md shadow-primary/25 border border-primary-foreground/10 hover:shadow-lg hover:shadow-primary/35 ring-2 ring-primary/5 hover:ring-primary/15 transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer flex items-center justify-center animate-in zoom-in-50 duration-250" 
@@ -1211,7 +1238,10 @@ export default function App() {
                   return (
                     <Card 
                       key={levelKey} 
-                      onClick={() => setSelectedLevel(item.level)}
+                      onClick={() => {
+                        setSelectedLevel(item.level);
+                        setSelectedLevelYear(item.year);
+                      }}
                       className={`relative overflow-hidden cursor-pointer transition-all duration-300 group hover:shadow-md ${hasDirector ? 'border-l-4 border-l-primary bg-[var(--card-director)]' : `border-l-4 ${accent.border}`} bg-card/65 hover:bg-card p-5 flex flex-col justify-between min-h-[160px] rounded-xl border border-border/50 hover:border-primary/20 hover:scale-[1.01]`}
                     >
                       <div className="flex flex-col text-left">
@@ -1239,6 +1269,7 @@ export default function App() {
                           onClick={(e) => {
                             e.stopPropagation();
                             setSelectedLevel(item.level);
+                            setSelectedLevelYear(item.year);
                           }}
                           title="Gerir Turmas"
                         >
