@@ -236,6 +236,7 @@ export default function App() {
   }, [user, isAuthReady]);
   
   // Add Class State
+  const [highlightedStudentId, setHighlightedStudentId] = useState<string | null>(null);
   const [isAddClassOpen, setIsAddClassOpen] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [editingClass, setEditingClass] = useState<ClassData | null>(null);
@@ -801,9 +802,9 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen text-foreground font-sans">
+    <div className="min-h-screen flex flex-col text-foreground font-sans">
       {/* Header */}
-      <header className="bg-card/85 backdrop-blur-md border-b border-border sticky top-0 z-10">
+      <header className="bg-card/85 backdrop-blur-md border-b border-border sticky top-0 z-30">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2 text-primary">
             <GraduationCap className="h-6 w-6 text-primary" />
@@ -918,33 +919,30 @@ export default function App() {
         </div>
       )}
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-3 pb-8 sm:pt-4">
+      <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-3 pb-8 sm:pt-4 w-full">
         {!selectedClassId ? (
           // Dashboard - List of Classes
           <div className="space-y-6">
             {selectedLevel ? (
-              <div className="space-y-4">
+              <div className="space-y-4 pt-16">
                 {/* Compact Class Card with header and back button */}
-                <div className="bg-card/30 py-3 px-4 sm:px-5 rounded-xl border border-border/50 flex items-center gap-4 transition-all duration-200">
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={() => setSelectedLevel(null)} 
-                    className="h-8 px-4 border border-border/85 bg-card/10 hover:bg-card/30 text-foreground hover:border-primary/30 transition-all rounded-full shadow-sm flex items-center gap-1.5 font-bold text-xs cursor-pointer shrink-0"
-                    title="Voltar para Minhas Classes"
-                  >
-                    <span>← Voltar</span>
-                  </Button>
+                <div className="fixed top-16 left-0 right-0 z-20 bg-background/95 backdrop-blur-md border-b border-border shadow-md py-3.5">
+                  <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between gap-4 w-full">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => setSelectedLevel(null)} 
+                      className="h-8 px-4 border border-border/85 bg-card/10 hover:bg-card/30 text-foreground hover:border-primary/30 transition-all rounded-full shadow-sm flex items-center gap-1.5 font-bold text-xs cursor-pointer shrink-0"
+                      title="Voltar para Minhas Classes"
+                    >
+                      <span>← Voltar</span>
+                    </Button>
 
-                  <div className="flex items-center gap-2 min-w-0 border-l border-border/60 pl-3">
-                    <GraduationCap className="h-4 w-4 sm:h-5 sm:w-5 text-primary shrink-0" />
-                    <div className="flex flex-row items-baseline gap-2 min-w-0">
+                    <div className="flex items-center gap-2 min-w-0">
                       <h2 className="text-base sm:text-lg font-bold tracking-tight text-foreground truncate">
                         {selectedLevel}
                       </h2>
-                      <span className="hidden xs:inline text-xs text-muted-foreground border-l border-border pl-2 truncate">
-                        Gestão de turmas e disciplinas da classe
-                      </span>
+                      <GraduationCap className="h-4 w-4 sm:h-5 sm:w-5 text-primary shrink-0" />
                     </div>
                   </div>
                 </div>
@@ -1310,57 +1308,37 @@ export default function App() {
                 })}
               </div>
             )}
-
-            {/* Footer */}
-            <footer className="mt-12 pt-6 pb-2 border-t border-border/40 text-center text-xs text-muted-foreground/80">
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
-                <p className="font-medium">
-                  &copy; {new Date().getFullYear()} EduGestão. Todos os direitos reservados.
-                </p>
-                <p className="flex items-center gap-1.5 font-medium">
-                  <span>Desenvolvido por</span>
-                  <a 
-                    href="https://www.linkedin.com/in/saidehassan" 
-                    target="_blank" 
-                    rel="noreferrer" 
-                    className="font-bold text-primary hover:text-primary/85 hover:underline transition-all cursor-pointer inline-flex items-center"
-                  >
-                    Saide Hassan
-                  </a>
-                </p>
-              </div>
-            </footer>
           </div>
         ) : (
           // Class Details - Students and Grades
-          <div className="space-y-4 animate-in fade-in duration-300">
-            <div className="bg-card/95 backdrop-blur-md p-4 sm:p-5 rounded-2xl border border-border shadow-md sticky top-[64px] z-20">
-              <div className="flex flex-col gap-3.5 mb-4">
-                <div className="flex items-center justify-between gap-4">
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={() => setSelectedClassId(null)} 
-                    className="rounded-full px-4 h-9 border border-border/80 bg-background/5 text-foreground hover:bg-muted font-bold text-xs cursor-pointer shadow-sm flex items-center justify-center gap-1.5 transition-all"
-                  >
-                    <span>← Voltar</span>
-                  </Button>
-                  
-                  <h2 className="text-2xl sm:text-3xl font-bold text-foreground">
-                    {`${selectedClass.level.replace(/\s*[Cc]lasse\s*/i, '').trim()} ${selectedClass.section}`}
-                  </h2>
-                </div>
-                
-                <div className="flex items-center justify-between gap-4 w-full">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="bg-primary/20 text-primary text-xs font-semibold px-2.5 py-0.5 rounded-full">
-                      {selectedClass.subject}
-                    </span>
-                    {selectedClass.isDirector && (
-                      <span className="bg-gradient-to-r from-orange-500 to-amber-500 text-white text-xs font-extrabold px-3 py-0.5 rounded-full shadow-sm">
-                        Director de Turma
+          <div className="space-y-4 pt-[156px] xs:pt-[164px] md:pt-[110px] animate-in fade-in duration-300">
+            <div className="fixed top-16 left-0 right-0 z-20 bg-background/95 backdrop-blur-md border-b border-border shadow-xs py-3 sm:py-3.5">
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                {/* Row 1: Context & Navigation Header */}
+                <div className="flex items-center justify-between w-full gap-2 border-b border-border/50 pb-2 mb-2 sm:mb-3">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Button 
+                      variant="outline" 
+                      onClick={() => setSelectedClassId(null)} 
+                      className="h-8 w-8 p-0 border border-purple-200 dark:border-purple-900/40 bg-purple-50/20 dark:bg-purple-950/20 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/30 rounded-lg shadow-2xs flex items-center justify-center cursor-pointer transition-all shrink-0"
+                      title="Voltar para Turmas"
+                    >
+                      <ChevronLeft className="h-4.5 w-4.5" />
+                    </Button>
+                    
+                    <div className="flex items-baseline gap-1.5 min-w-0">
+                      <h2 className="text-base sm:text-xl font-extrabold text-foreground tracking-tight leading-none truncate">
+                        {`${selectedClass.level.replace(/\s*[Cc]lasse\s*/i, '').trim()} ${selectedClass.section}`}
+                      </h2>
+                      <span className="bg-purple-100 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 text-[10px] sm:text-xs font-semibold px-2 py-0.5 rounded-full border border-purple-200/50 dark:border-purple-900/30 shrink-0 truncate max-w-[80px] xs:max-w-[120px] sm:max-w-none">
+                        {selectedClass.subject}
                       </span>
-                    )}
+                      {selectedClass.isDirector && (
+                        <span className="bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[9px] font-extrabold px-1.5 py-0.5 rounded-md shadow-2xs shrink-0 leading-none">
+                          DT
+                        </span>
+                      )}
+                    </div>
                   </div>
                   
                   <Button
@@ -1373,43 +1351,48 @@ export default function App() {
                       setPastedNames('');
                       setIsImportOpen(true);
                     }}
-                    className="h-8 rounded-full border border-purple-200 dark:border-purple-900/40 bg-purple-50/50 dark:bg-purple-950/20 text-purple-700 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-900/30 text-xs font-bold cursor-pointer flex items-center justify-center gap-1.5 px-3.5 py-1.5 shadow-xs transition-all w-fit border-0"
+                    className="h-8 rounded-lg border border-purple-200/80 dark:border-purple-900/45 bg-purple-50/50 dark:bg-purple-950/25 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/35 text-xs font-bold cursor-pointer flex items-center justify-center gap-1.5 px-2.5 py-1 shadow-2xs transition-all w-fit border-0"
                     title="Importar Lista de Alunos"
                   >
-                    <Upload className="h-3.5 w-3.5" />
-                    <span>Importar Alunos</span>
+                    <Upload className="h-3.5 w-3.5 shrink-0" />
+                    <span className="hidden xs:inline text-[11px] sm:text-xs">Importar Alunos</span>
+                    <span className="xs:hidden text-[11px]">Importar</span>
                   </Button>
                 </div>
-              </div>
-              
-              <div className="flex flex-col md:flex-row items-stretch md:items-center gap-4 w-full justify-between">
-                <div className="relative flex-1 md:max-w-xs w-full">
-                  <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground/60" />
-                  <Input 
-                    placeholder="Procurar aluno..." 
-                    className="pl-9 bg-muted/40 border-border h-10 rounded-xl"
-                    value={searchQuery || ''}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                  />
-                </div>
-                <div className="flex flex-row items-center gap-3 w-full md:max-w-md">
-                  <Button 
-                    variant="outline" 
-                    onClick={exportToExcel} 
-                    className="flex-1 h-10 border border-border/80 bg-background/5 text-muted-foreground hover:text-foreground font-semibold rounded-xl text-xs sm:text-sm shadow-sm flex items-center justify-center gap-2 cursor-pointer transition-all" 
-                    title="Exportar para Excel" 
-                    disabled={selectedClass.students.length === 0}
-                  >
-                    <Download className="h-4 w-4 shrink-0" />
-                    <span>Exportar</span>
-                  </Button>
-                  <Dialog open={isAddStudentOpen} onOpenChange={setIsAddStudentOpen}>
-                    <DialogTrigger render={
-                      <Button className="flex-1 h-10 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl text-xs sm:text-sm shadow-sm flex items-center justify-center gap-2 cursor-pointer border-0 transition-all" />
-                    }>
-                      <UserPlus className="h-4 w-4 shrink-0" />
-                      <span>Adicionar Aluno</span>
-                    </DialogTrigger>
+                
+                {/* Row 2: Search and Actions */}
+                <div className="flex flex-col md:flex-row items-stretch md:items-center gap-2 sm:gap-3 w-full">
+                  {/* Search box */}
+                  <div className="relative flex-1 w-full">
+                    <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground/60 focus:text-primary transition-colors" />
+                    <Input 
+                      placeholder="Procurar aluno..." 
+                      className="pl-8.5 bg-muted/45 border-border/80 focus:border-purple-500 hover:bg-muted/60 h-8.5 rounded-lg text-xs"
+                      value={searchQuery || ''}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                    />
+                  </div>
+                  
+                  {/* Action Buttons */}
+                  <div className="flex items-center gap-2 w-full md:w-auto md:min-w-[280px]">
+                    <Button 
+                      variant="outline" 
+                      onClick={exportToExcel} 
+                      className="flex-1 md:flex-none h-8.5 px-3 border border-purple-200 dark:border-purple-900/50 bg-purple-50/10 dark:bg-purple-950/10 text-purple-700 dark:text-purple-300 hover:bg-purple-50 hover:text-purple-800 dark:hover:bg-purple-900/30 font-semibold rounded-lg text-xs shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer transition-all md:w-28" 
+                      title="Exportar para Excel" 
+                      disabled={selectedClass.students.length === 0}
+                    >
+                      <Download className="h-3.5 w-3.5 shrink-0 text-purple-600 dark:text-purple-400" />
+                      <span>Exportar</span>
+                    </Button>
+                    
+                    <Dialog open={isAddStudentOpen} onOpenChange={setIsAddStudentOpen}>
+                      <DialogTrigger render={
+                        <Button className="flex-2 md:flex-none h-8.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-lg text-xs shadow-sm flex items-center justify-center gap-1.5 cursor-pointer border-0 transition-all md:w-40" />
+                      }>
+                        <UserPlus className="h-3.5 w-3.5 shrink-0" />
+                        <span>Adicionar Aluno</span>
+                      </DialogTrigger>
                   <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                       <DialogTitle>Adicionar Novo Aluno</DialogTitle>
@@ -1766,6 +1749,7 @@ export default function App() {
                 </Dialog>
               </div>
               </div>
+              </div>
             </div>
 
             <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
@@ -1839,9 +1823,31 @@ export default function App() {
                           </TableHeader>
                           <TableBody>
                             {filteredStudents.map((student, idx) => (
-                              <TableRow key={student.id} className="h-16 hover:bg-muted/40 transition-colors odd:bg-muted/15 even:bg-transparent">
+                              <TableRow 
+                                key={student.id} 
+                                className={`h-16 transition-all duration-200 border-l-2 sm:border-l-4 ${
+                                  student.id === highlightedStudentId 
+                                    ? 'bg-purple-500/10 dark:bg-purple-500/20 border-l-purple-500 shadow-sm font-medium' 
+                                    : 'hover:bg-muted/40 odd:bg-muted/15 even:bg-transparent border-l-transparent'
+                                }`}
+                              >
                                 <TableCell className="font-medium text-muted-foreground align-middle">{student.studentNumber || '-'}</TableCell>
-                                <TableCell className="font-semibold text-foreground align-middle">{student.name}</TableCell>
+                                <TableCell 
+                                  className={`font-semibold align-middle cursor-pointer transition-colors select-none ${
+                                    student.id === highlightedStudentId 
+                                      ? 'text-purple-600 dark:text-purple-400 font-extrabold' 
+                                      : 'text-foreground hover:text-purple-600 dark:hover:text-purple-400'
+                                  }`}
+                                  onClick={() => setHighlightedStudentId(prev => prev === student.id ? null : student.id)}
+                                  title="Clique para destacar este aluno"
+                                >
+                                  <div className="flex items-center gap-1.5">
+                                    <span>{student.name}</span>
+                                    {student.id === highlightedStudentId && (
+                                      <span className="inline-flex h-2 w-2 rounded-full bg-purple-500 animate-pulse" />
+                                    )}
+                                  </div>
+                                </TableCell>
                                 <TableCell className="align-middle">
                                   <div className="flex flex-col items-center justify-center">
                                     <Input 
@@ -1957,9 +1963,31 @@ export default function App() {
                           </TableHeader>
                           <TableBody>
                             {filteredStudents.map((student, idx) => (
-                              <TableRow key={student.id} className="h-16 hover:bg-muted/40 transition-colors odd:bg-muted/15 even:bg-transparent">
+                              <TableRow 
+                                key={student.id} 
+                                className={`h-16 transition-all duration-200 border-l-2 sm:border-l-4 ${
+                                  student.id === highlightedStudentId 
+                                    ? 'bg-purple-500/10 dark:bg-purple-500/20 border-l-purple-500 shadow-sm font-medium' 
+                                    : 'hover:bg-muted/40 odd:bg-muted/15 even:bg-transparent border-l-transparent'
+                                }`}
+                              >
                                 <TableCell className="font-medium text-muted-foreground align-middle">{student.studentNumber || '-'}</TableCell>
-                                <TableCell className="font-semibold text-foreground align-middle">{student.name}</TableCell>
+                                <TableCell 
+                                  className={`font-semibold align-middle cursor-pointer transition-colors select-none ${
+                                    student.id === highlightedStudentId 
+                                      ? 'text-purple-600 dark:text-purple-400 font-extrabold' 
+                                      : 'text-foreground hover:text-purple-600 dark:hover:text-purple-400'
+                                  }`}
+                                  onClick={() => setHighlightedStudentId(prev => prev === student.id ? null : student.id)}
+                                  title="Clique para destacar este aluno"
+                                >
+                                  <div className="flex items-center gap-1.5">
+                                    <span>{student.name}</span>
+                                    {student.id === highlightedStudentId && (
+                                      <span className="inline-flex h-2 w-2 rounded-full bg-purple-500 animate-pulse" />
+                                    )}
+                                  </div>
+                                </TableCell>
                                 <TableCell className="text-sm text-muted-foreground align-middle">{student.dob ? new Date(student.dob).toLocaleDateString('pt-PT') : '-'}</TableCell>
                                 <TableCell className="text-sm text-muted-foreground align-middle">{student.birthplace || '-'}</TableCell>
                                 <TableCell className="text-sm text-muted-foreground align-middle">{student.address || '-'}</TableCell>
@@ -2018,9 +2046,31 @@ export default function App() {
                       </TableHeader>
                       <TableBody>
                         {filteredStudents.map((student, idx) => (
-                          <TableRow key={student.id} className="h-16 hover:bg-muted/40 transition-colors odd:bg-muted/15 even:bg-transparent">
+                          <TableRow 
+                            key={student.id} 
+                            className={`h-16 transition-all duration-200 border-l-2 sm:border-l-4 ${
+                              student.id === highlightedStudentId 
+                                ? 'bg-purple-500/10 dark:bg-purple-500/20 border-l-purple-500 shadow-sm font-medium' 
+                                : 'hover:bg-muted/40 odd:bg-muted/15 even:bg-transparent border-l-transparent'
+                            }`}
+                          >
                             <TableCell className="font-medium text-muted-foreground align-middle">{student.studentNumber || '-'}</TableCell>
-                            <TableCell className="font-semibold text-foreground align-middle">{student.name}</TableCell>
+                            <TableCell 
+                              className={`font-semibold align-middle cursor-pointer transition-colors select-none ${
+                                student.id === highlightedStudentId 
+                                  ? 'text-purple-600 dark:text-purple-400 font-extrabold' 
+                                  : 'text-foreground hover:text-purple-600 dark:hover:text-purple-400'
+                              }`}
+                              onClick={() => setHighlightedStudentId(prev => prev === student.id ? null : student.id)}
+                              title="Clique para destacar este aluno"
+                            >
+                              <div className="flex items-center gap-1.5">
+                                <span>{student.name}</span>
+                                {student.id === highlightedStudentId && (
+                                  <span className="inline-flex h-2 w-2 rounded-full bg-purple-500 animate-pulse" />
+                                )}
+                              </div>
+                            </TableCell>
                             <TableCell className="align-middle">
                               <div className="flex flex-col items-center justify-center">
                                 <Input 
@@ -2125,6 +2175,26 @@ export default function App() {
           </div>
         )}
       </main>
+
+      {/* Footer */}
+      <footer className="w-full border-t border-border/40 py-4 mt-auto">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left text-xs text-muted-foreground/80 font-medium">
+          <p>
+            &copy; {new Date().getFullYear()} EduGestão. Todos os direitos reservados.
+          </p>
+          <p className="flex items-center gap-1.5">
+            <span>Desenvolvido por</span>
+            <a 
+              href="https://www.linkedin.com/in/saidehassan" 
+              target="_blank" 
+              rel="noreferrer" 
+              className="font-bold text-primary hover:text-primary/85 hover:underline transition-all cursor-pointer inline-flex items-center"
+            >
+              Saide Hassan
+            </a>
+          </p>
+        </div>
+      </footer>
     </div>
   );
 }
