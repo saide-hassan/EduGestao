@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Users, BookOpen, School, GraduationCap, ChevronLeft, Trash2, UserPlus, Save, Search, Download, Pencil, Home, LogOut, Star, Layers, Sun, Moon, Upload, FileSpreadsheet, FileText, UploadCloud, Check } from 'lucide-react';
+import { Plus, Users, BookOpen, School, GraduationCap, ChevronLeft, Trash2, UserPlus, Save, Search, Download, Pencil, Home, LogOut, Star, Layers, Sun, Moon, Upload, FileSpreadsheet, FileText, UploadCloud, Check, AlertTriangle, X, ChevronDown } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import mammoth from 'mammoth';
 import { motion } from 'motion/react';
@@ -112,6 +112,52 @@ const calculateGeneralAverage = (grades: Grades) => {
 
 const calculateAverage = (grades: Grades) => {
   return calculateGeneralAverage(grades);
+};
+
+type ApoioAlertStatus = 'red' | 'orange' | 'none';
+
+const getApoioAlertStatus = (student: Student, trimester: '1' | '2' | '3'): ApoioAlertStatus => {
+  const grades = getStudentGrades(student, trimester);
+  
+  const parseGrade = (val: string | undefined): number | null => {
+    if (!val || val.trim() === '-' || val.trim() === '') return null;
+    const num = parseFloat(val.replace(',', '.'));
+    return isNaN(num) ? null : num;
+  };
+
+  const acs1Val = parseGrade(grades.acs1);
+  const acs2Val = parseGrade(grades.acs2);
+
+  const mediaGeralStr = calculateGeneralAverage(grades);
+  const mediaGeralVal = mediaGeralStr !== '-' ? parseFloat(mediaGeralStr.replace(',', '.')) : null;
+
+  // Rule 3: "se a média geral for abaixo de 10 o alerta deve ser vermelho"
+  if (mediaGeralVal !== null && mediaGeralVal < 10) {
+    return 'red';
+  }
+
+  // Rule 4: "e se o aluno tiver média geral 10, 11, ou 12, enquanto tem notas de ACS 1 e 2 negativas, o alerta passa a ser laranja."
+  if (mediaGeralVal !== null && mediaGeralVal >= 10 && mediaGeralVal <= 12) {
+    const acs1Neg = acs1Val !== null && acs1Val < 10;
+    const acs2Neg = acs2Val !== null && acs2Val < 10;
+    if (acs1Neg && acs2Neg) {
+      return 'orange';
+    }
+  }
+
+  // Rule 2: "na ACS 2 se o aluno tirar uma nota positiva, o alerta deve passar para laranja"
+  // Here, ACS 1 is negative and ACS 2 is positive (>= 10)
+  if (acs1Val !== null && acs1Val < 10 && acs2Val !== null && acs2Val >= 10) {
+    return 'orange';
+  }
+
+  // Rule 1: "Os alertas de apoio devem aparecer logo na ACS 1 que o aluno tirar negativa"
+  // Default color for active alert on negative ACS 1 is red
+  if (acs1Val !== null && acs1Val < 10) {
+    return 'red';
+  }
+
+  return 'none';
 };
 
 const getGradeColor = (val: string, isAverage = false) => {
@@ -257,6 +303,21 @@ export default function App() {
   
   // Add Class State
   const [highlightedStudentId, setHighlightedStudentId] = useState<string | null>(null);
+  const [alertActiveForClass, setAlertActiveForClass] = useState<string | null>(null);
+  const [showApoioBanner, setShowApoioBanner] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (selectedClassId) {
+      if (alertActiveForClass !== selectedClassId) {
+        setAlertActiveForClass(selectedClassId);
+        setShowApoioBanner(true);
+      }
+    } else {
+      setAlertActiveForClass(null);
+      setShowApoioBanner(false);
+    }
+  }, [selectedClassId, alertActiveForClass]);
+
   const [isAddClassOpen, setIsAddClassOpen] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [editingClass, setEditingClass] = useState<ClassData | null>(null);
@@ -760,6 +821,15 @@ export default function App() {
     return (a.name || '').localeCompare(b.name || '');
   }) || [];
 
+  const studentsNeedingApoio = (selectedClass?.students.filter(student => {
+    return getApoioAlertStatus(student, selectedTrimester) !== 'none';
+  }) || []).sort((a, b) => {
+    const numA = parseInt(a.studentNumber || '9999', 10);
+    const numB = parseInt(b.studentNumber || '9999', 10);
+    if (!isNaN(numA) && !isNaN(numB) && numA !== numB) return numA - numB;
+    return (a.name || '').localeCompare(b.name || '');
+  });
+
   const exportToExcel = () => {
     if (!selectedClass) return;
 
@@ -771,46 +841,143 @@ export default function App() {
     const hasAp = studentGradesList.some(g => (g.ap || '').trim() !== '');
     const hasExame = studentGradesList.some(g => (g.exame || '').trim() !== '');
 
-    const gradesData = selectedClass.students.map(student => {
+    const hasMedia = hasAcs1 || hasAcs2 || hasAcs3;
+    const hasMediaGeral = hasMedia && hasAp;
+
+    const trimesterText = `${selectedTrimester}º Trimestre`;
+    let levelName = selectedClass.level || '';
+    if (!levelName.toLowerCase().includes('classe')) {
+      if (levelName.includes('ª') || levelName.includes('º') || /^\d+$/.test(levelName)) {
+        levelName = `${levelName} Classe`;
+      }
+    }
+    const sectionName = selectedClass.section ? ` ${selectedClass.section}` : '';
+    const titleText = `Pauta de ${selectedClass.subject} - ${trimesterText} - ${levelName}${sectionName}`;
+
+    // 1. Build Grades data as AOA for beautiful formatting
+    const aoaGrades: any[][] = [
+      [titleText.toUpperCase()], // Row 0: Large Header
+      [`Escola: ${selectedClass.school || 'EduGestão'} | Ano Lectivo: ${selectedClass.academicYear || '-'}`], // Row 1: Informative Subheader
+      [], // Row 2: Empty Spacer for breathing room
+    ];
+
+    // Headers Row (Row 3)
+    const gradesHeaders = ['Nº', 'Nome do Aluno'];
+    if (hasAcs1) gradesHeaders.push('ACS 1');
+    if (hasAcs2) gradesHeaders.push('ACS 2');
+    if (hasAcs3) gradesHeaders.push('ACS 3');
+    if (hasMedia) gradesHeaders.push('Média');
+    if (hasAp) gradesHeaders.push('AP');
+    if (hasExame) gradesHeaders.push('Exame');
+    if (hasMediaGeral) gradesHeaders.push('Média Geral');
+
+    aoaGrades.push(gradesHeaders);
+
+    // Sort students by studentNumber or name for elegant ordering
+    const sortedStudentsForExport = [...selectedClass.students].sort((a, b) => {
+      const numA = parseInt(a.studentNumber || '999999', 10);
+      const numB = parseInt(b.studentNumber || '999999', 10);
+      if (!isNaN(numA) && !isNaN(numB) && numA !== numB) return numA - numB;
+      return (a.name || '').localeCompare(b.name || '');
+    });
+
+    sortedStudentsForExport.forEach(student => {
       const studentGrades = getStudentGrades(student, selectedTrimester);
-      const row: Record<string, string> = {
-        'Nº': student.studentNumber || '-',
-        'Nome do Aluno': student.name,
-      };
-      if (hasAcs1) row['ACS 1'] = studentGrades.acs1;
-      if (hasAcs2) row['ACS 2'] = studentGrades.acs2;
-      if (hasAcs3) row['ACS 3'] = studentGrades.acs3;
+      const row: any[] = [
+        student.studentNumber || '-',
+        student.name,
+      ];
+      if (hasAcs1) row.push(studentGrades.acs1 || '');
+      if (hasAcs2) row.push(studentGrades.acs2 || '');
+      if (hasAcs3) row.push(studentGrades.acs3 || '');
+      if (hasMedia) row.push(calculateAcsAverage(studentGrades));
+      if (hasAp) row.push(studentGrades.ap || '');
+      if (hasExame) row.push(studentGrades.exame || '');
+      if (hasMediaGeral) row.push(calculateGeneralAverage(studentGrades));
       
-      row['Média'] = calculateAcsAverage(studentGrades);
-      
-      if (hasAp) row['AP'] = studentGrades.ap;
-      if (hasExame) row['Exame'] = studentGrades.exame;
-      
-      row['Média Geral'] = calculateGeneralAverage(studentGrades);
-      return row;
+      aoaGrades.push(row);
     });
 
     const wb = XLSX.utils.book_new();
-    const wsGrades = XLSX.utils.json_to_sheet(gradesData);
+    const wsGrades = XLSX.utils.aoa_to_sheet(aoaGrades);
+
+    // Merge title and subtitle rows beautifully over the computed content width
+    wsGrades['!merges'] = [
+      { s: { r: 0, c: 0 }, e: { r: 0, c: Math.max(gradesHeaders.length - 1, 1) } },
+      { s: { r: 1, c: 0 }, e: { r: 1, c: Math.max(gradesHeaders.length - 1, 1) } }
+    ];
+
+    // Helper function to auto-fit columns based on real content length
+    const calculateColWidths = (aoa: any[][], startRow: number) => {
+      if (!aoa || aoa.length <= startRow) return [];
+      const numCols = aoa[startRow].length;
+      return Array.from({ length: numCols }, (_, colIndex) => {
+        let maxLen = 8;
+        for (let rowIndex = startRow; rowIndex < aoa.length; rowIndex++) {
+          const val = aoa[rowIndex][colIndex];
+          if (val !== undefined && val !== null) {
+            const strVal = String(val);
+            if (strVal.length > maxLen) {
+              maxLen = strVal.length;
+            }
+          }
+        }
+        // Perfect padding per column type
+        return { wch: Math.min(Math.max(maxLen + 4, colIndex === 1 ? 32 : 10), 50) };
+      });
+    };
+
+    wsGrades['!cols'] = calculateColWidths(aoaGrades, 3);
     XLSX.utils.book_append_sheet(wb, wsGrades, 'Avaliações');
 
+    // 2. Build Personal Data sheet if user is Director
     if (selectedClass.isDirector) {
-      const personalData = selectedClass.students.map(student => ({
-        'Nº': student.studentNumber || '-',
-        'Nome do Aluno': student.name,
-        'Data de Nascimento': student.dob ? new Date(student.dob).toLocaleDateString('pt-PT') : '',
-        'Local de Nascimento': student.birthplace || '',
-        'Morada': student.address || '',
-        'Encarregado de Educação': student.parentName || '',
-        'Profissão do EE': student.parentProfession || '',
-        'Contacto do EE': student.parentContact || '',
-        'Morada do EE': student.parentAddress || '',
-      }));
-      const wsPersonal = XLSX.utils.json_to_sheet(personalData);
+      const personalTitleText = `DADOS PESSOAIS - ${levelName}${sectionName} - ${selectedClass.subject}`;
+      const aoaPersonal: any[][] = [
+        [personalTitleText.toUpperCase()], // Row 0: Large Header
+        [`Escola: ${selectedClass.school || 'EduGestão'} | Ano Lectivo: ${selectedClass.academicYear || '-'}`], // Row 1: Subheader
+        [], // Row 2: Spacer
+      ];
+
+      const personalHeaders = [
+        'Nº',
+        'Nome do Aluno',
+        'Data de Nascimento',
+        'Local de Nascimento',
+        'Morada',
+        'Encarregado de Educação',
+        'Profissão do EE',
+        'Contacto do EE',
+        'Morada do EE'
+      ];
+      aoaPersonal.push(personalHeaders);
+
+      sortedStudentsForExport.forEach(student => {
+        aoaPersonal.push([
+          student.studentNumber || '-',
+          student.name,
+          student.dob ? new Date(student.dob).toLocaleDateString('pt-PT') : '',
+          student.birthplace || '-',
+          student.address || '-',
+          student.parentName || '-',
+          student.parentProfession || '-',
+          student.parentContact || '-',
+          student.parentAddress || '-'
+        ]);
+      });
+
+      const wsPersonal = XLSX.utils.aoa_to_sheet(aoaPersonal);
+      wsPersonal['!merges'] = [
+        { s: { r: 0, c: 0 }, e: { r: 0, c: personalHeaders.length - 1 } },
+        { s: { r: 1, c: 0 }, e: { r: 1, c: personalHeaders.length - 1 } }
+      ];
+      wsPersonal['!cols'] = calculateColWidths(aoaPersonal, 3);
       XLSX.utils.book_append_sheet(wb, wsPersonal, 'Dados Pessoais');
     }
 
-    const fileName = `Turma_${selectedClass.level}_${selectedClass.section}_${selectedClass.subject}.xlsx`;
+    const fileNameRaw = `${titleText}.xlsx`;
+    const fileName = fileNameRaw.replace(/\s+/g, ' ');
+
     XLSX.writeFile(wb, fileName);
   };
 
@@ -1953,6 +2120,87 @@ export default function App() {
                     </div>
                   </div>
 
+                  {showApoioBanner && studentsNeedingApoio.length > 0 && (
+                    <motion.div 
+                      initial={{ opacity: 0, height: 0, marginTop: 0 }}
+                      animate={{ opacity: 1, height: 'auto', marginTop: 16 }}
+                      transition={{ duration: 0.3 }}
+                      className="relative mx-5 p-4 rounded-xl border border-red-200/60 dark:border-red-900/40 bg-red-500/10 dark:bg-red-500/5 text-red-700 dark:text-red-400 font-medium"
+                    >
+                      {/* Close button at the top-right of the card */}
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        onClick={() => setShowApoioBanner(false)}
+                        className="absolute top-3 right-3 h-8 w-8 hover:bg-red-500/20 text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 rounded-lg cursor-pointer transition-colors z-20"
+                        title="Fechar Alerta"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+
+                      {/* Content Container */}
+                      <div className="pr-10">
+                        {/* Title with icon directly to the left */}
+                        <div className="flex items-center gap-2 mb-2">
+                          <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400 shrink-0 animate-pulse" />
+                          <h4 className="font-extrabold text-sm text-red-850 dark:text-red-300">
+                            Alerta de Apoio
+                          </h4>
+                        </div>
+
+                        <p className="text-xs text-red-750 dark:text-red-450 leading-relaxed">
+                          Há <strong className="font-extrabold">{studentsNeedingApoio.length}</strong> {studentsNeedingApoio.length === 1 ? 'aluno com alerta de apoio activo' : 'alunos com alertas de apoio activos'} neste período. Recomenda-se prestar o apoio pedagógico necessário a estes casos:
+                        </p>
+
+                        <div className="flex flex-wrap gap-2 mt-3">
+                          {studentsNeedingApoio.map(s => {
+                            const status = getApoioAlertStatus(s, selectedTrimester);
+                            const sGrades = getStudentGrades(s, selectedTrimester);
+                            const mediaGVal = calculateGeneralAverage(sGrades);
+                            
+                            // Determine display value
+                            let displayVal = mediaGVal;
+                            if (mediaGVal === '-') {
+                              // If no general average yet, show the negative ACS 1 grade that is triggering it
+                              displayVal = sGrades.acs1 || '-';
+                            }
+
+                            const isRed = status === 'red';
+
+                            return (
+                              <button 
+                                key={s.id} 
+                                onClick={() => {
+                                  setHighlightedStudentId(s.id);
+                                  const el = document.getElementById(`student-row-${s.id}`);
+                                  if (el) {
+                                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                  }
+                                }}
+                                className={`inline-flex items-center gap-1.5 border px-2.5 py-1 rounded-lg text-xs font-bold transition-all shadow-3xs cursor-pointer select-none ${
+                                  isRed 
+                                    ? 'bg-red-100 hover:bg-red-200 dark:bg-red-950/40 dark:hover:bg-red-950/60 border-red-300 dark:border-red-900/35 text-red-800 dark:text-red-300'
+                                    : 'bg-amber-100 hover:bg-amber-200 dark:bg-amber-950/30 dark:hover:bg-amber-950/50 border-amber-300 dark:border-amber-900/30 text-amber-800 dark:text-amber-300'
+                                }`}
+                                title="Clique para localizar na tabela"
+                              >
+                                <span className="opacity-70">Nº {s.studentNumber || '-'}</span>
+                                <span className="font-extrabold tracking-tight">{s.name.split(' ')[0]}</span>
+                                <span className={`text-[10px] font-extrabold px-1 py-0.2 rounded-md ${
+                                  isRed
+                                    ? 'bg-red-200/80 dark:bg-red-900/60 text-red-700 dark:text-red-400'
+                                    : 'bg-amber-200/80 dark:bg-amber-900/60 text-amber-700 dark:text-amber-400'
+                                }`}>
+                                  {displayVal}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+
                   {selectedClass.isDirector ? (
                   <div className="w-full">
                     {/* Segmented Control Switcher with Sliding Active Indicator */}
@@ -2014,7 +2262,8 @@ export default function App() {
                               return (
                                 <TableRow 
                                   key={student.id} 
-                                  className={`h-16 transition-all duration-200 border-l-2 sm:border-l-4 ${
+                                  id={`student-row-${student.id}`}
+                                  className={`scroll-mt-36 h-16 transition-all duration-200 border-l-2 sm:border-l-4 ${
                                     student.id === highlightedStudentId 
                                       ? 'bg-purple-500/10 dark:bg-purple-500/20 border-l-purple-500 shadow-sm font-medium' 
                                       : 'hover:bg-muted/40 odd:bg-muted/15 even:bg-transparent border-l-transparent'
@@ -2030,10 +2279,27 @@ export default function App() {
                                     onClick={() => setHighlightedStudentId(prev => prev === student.id ? null : student.id)}
                                     title="Clique para destacar este aluno"
                                   >
-                                    <div className="flex items-center gap-1.5">
+                                    <div className="flex items-center gap-1.5 flex-wrap">
                                       <span>{student.name}</span>
+                                      {(() => {
+                                        const status = getApoioAlertStatus(student, selectedTrimester);
+                                        if (status === 'none') return null;
+                                        const isRed = status === 'red';
+                                        return (
+                                          <span 
+                                            className={`inline-flex items-center gap-0.5 text-[9px] font-extrabold px-1.5 py-0.5 rounded-sm border uppercase tracking-widest leading-none shrink-0 ${
+                                              isRed
+                                                ? 'bg-red-100 dark:bg-red-950/45 text-red-600 dark:text-red-400 border-red-200/50 dark:border-red-900/20'
+                                                : 'bg-amber-100 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 border-amber-200/50 dark:border-amber-900/20'
+                                            }`} 
+                                            title={isRed ? "Necessita de Apoio Académico Crítico" : "Necessita de Orientação/Apoio Pedagógico"}
+                                          >
+                                            Apoio
+                                          </span>
+                                        );
+                                      })()}
                                       {student.id === highlightedStudentId && (
-                                        <span className="inline-flex h-2 w-2 rounded-full bg-purple-500 animate-pulse" />
+                                        <span className="inline-flex h-2 w-2 rounded-full bg-purple-500 animate-pulse shrink-0" />
                                       )}
                                     </div>
                                   </TableCell>
@@ -2106,6 +2372,21 @@ export default function App() {
                                         {calculateGeneralAverage(studentGrades)}
                                       </span>
                                       {renderGradeIndicator(calculateGeneralAverage(studentGrades))}
+                                      {(() => {
+                                        const status = getApoioAlertStatus(student, selectedTrimester);
+                                        if (status === 'none') return null;
+                                        const isRed = status === 'red';
+                                        return (
+                                          <div className={`flex items-center gap-1 mt-1 border px-1.5 py-0.5 rounded-full select-none text-[9px] font-bold max-w-fit mx-auto shadow-3xs ${
+                                            isRed
+                                              ? 'bg-red-100 dark:bg-red-950/30 border-red-200/60 dark:border-red-900/30 text-red-600 dark:text-red-400'
+                                              : 'bg-amber-100 dark:bg-amber-950/20 border-amber-200/60 dark:border-amber-900/30 text-amber-600 dark:text-amber-400'
+                                          }`}>
+                                            <AlertTriangle className={`h-2.5 w-2.5 shrink-0 animate-pulse ${isRed ? 'text-red-600 dark:text-red-400' : 'text-amber-500 dark:text-amber-400'}`} />
+                                            <span>Apoio</span>
+                                          </div>
+                                        );
+                                      })()}
                                     </div>
                                   </TableCell>
                                   <TableCell className="align-middle text-right">
@@ -2240,7 +2521,8 @@ export default function App() {
                           return (
                             <TableRow 
                               key={student.id} 
-                              className={`h-16 transition-all duration-200 border-l-2 sm:border-l-4 ${
+                              id={`student-row-${student.id}`}
+                              className={`scroll-mt-36 h-16 transition-all duration-200 border-l-2 sm:border-l-4 ${
                                 student.id === highlightedStudentId 
                                   ? 'bg-purple-500/10 dark:bg-purple-500/20 border-l-purple-500 shadow-sm font-medium' 
                                   : 'hover:bg-muted/40 odd:bg-muted/15 even:bg-transparent border-l-transparent'
@@ -2256,10 +2538,27 @@ export default function App() {
                                 onClick={() => setHighlightedStudentId(prev => prev === student.id ? null : student.id)}
                                 title="Clique para destacar este aluno"
                               >
-                                <div className="flex items-center gap-1.5">
+                                <div className="flex items-center gap-1.5 flex-wrap">
                                   <span>{student.name}</span>
+                                  {(() => {
+                                    const status = getApoioAlertStatus(student, selectedTrimester);
+                                    if (status === 'none') return null;
+                                    const isRed = status === 'red';
+                                    return (
+                                      <span 
+                                        className={`inline-flex items-center gap-0.5 text-[9px] font-extrabold px-1.5 py-0.5 rounded-sm border uppercase tracking-widest leading-none shrink-0 ${
+                                          isRed
+                                            ? 'bg-red-100 dark:bg-red-950/45 text-red-600 dark:text-red-400 border-red-200/50 dark:border-red-900/20'
+                                            : 'bg-amber-100 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 border-amber-200/50 dark:border-amber-900/20'
+                                        }`} 
+                                        title={isRed ? "Necessita de Apoio Académico Crítico" : "Necessita de Orientação/Apoio Pedagógico"}
+                                      >
+                                        Apoio
+                                      </span>
+                                    );
+                                  })()}
                                   {student.id === highlightedStudentId && (
-                                    <span className="inline-flex h-2 w-2 rounded-full bg-purple-500 animate-pulse" />
+                                    <span className="inline-flex h-2 w-2 rounded-full bg-purple-500 animate-pulse shrink-0" />
                                   )}
                                 </div>
                               </TableCell>
@@ -2332,6 +2631,21 @@ export default function App() {
                                     {calculateGeneralAverage(studentGrades)}
                                   </span>
                                   {renderGradeIndicator(calculateGeneralAverage(studentGrades))}
+                                  {(() => {
+                                    const status = getApoioAlertStatus(student, selectedTrimester);
+                                    if (status === 'none') return null;
+                                    const isRed = status === 'red';
+                                    return (
+                                      <div className={`flex items-center gap-1 mt-1 border px-1.5 py-0.5 rounded-full select-none text-[9px] font-bold max-w-fit mx-auto shadow-3xs ${
+                                        isRed
+                                          ? 'bg-red-100 dark:bg-red-950/30 border-red-200/60 dark:border-red-900/30 text-red-600 dark:text-red-400'
+                                          : 'bg-amber-100 dark:bg-amber-950/20 border-amber-200/60 dark:border-amber-900/30 text-amber-600 dark:text-amber-400'
+                                      }`}>
+                                        <AlertTriangle className={`h-2.5 w-2.5 shrink-0 animate-pulse ${isRed ? 'text-red-600 dark:text-red-400' : 'text-amber-500 dark:text-amber-400'}`} />
+                                        <span>Apoio</span>
+                                      </div>
+                                    );
+                                  })()}
                                 </div>
                               </TableCell>
                               <TableCell className="align-middle text-right">
