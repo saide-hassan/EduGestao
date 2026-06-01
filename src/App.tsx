@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Users, BookOpen, School, GraduationCap, ChevronLeft, Trash2, UserPlus, Save, Search, Download, Pencil, Home, LogOut, Star, Layers, Sun, Moon, Upload, FileSpreadsheet, FileText, UploadCloud, Check, AlertTriangle, X, ChevronDown } from 'lucide-react';
+import { Plus, Users, BookOpen, School, GraduationCap, ChevronLeft, Trash2, UserPlus, Save, Search, Download, Pencil, Home, LogOut, Star, Layers, Sun, Moon, Upload, FileSpreadsheet, FileText, UploadCloud, Check, AlertTriangle, X, ChevronDown, Cloud } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import mammoth from 'mammoth';
 import { motion } from 'motion/react';
@@ -16,8 +16,8 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { WelcomeScreen } from '@/components/welcome-screen';
 import { LoginScreen } from '@/components/login-screen';
-import { auth, db, logout } from '@/lib/firebase';
-import { onAuthStateChanged, User } from 'firebase/auth';
+import { auth, db, logout, getCachedAccessToken, setCachedAccessToken, signInWithGoogle } from '@/lib/firebase';
+import { onAuthStateChanged, User, GoogleAuthProvider } from 'firebase/auth';
 import { collection, onSnapshot, doc, setDoc, deleteDoc, query, where } from 'firebase/firestore';
 import { toast } from 'sonner';
 
@@ -305,6 +305,7 @@ export default function App() {
   const [highlightedStudentId, setHighlightedStudentId] = useState<string | null>(null);
   const [alertActiveForClass, setAlertActiveForClass] = useState<string | null>(null);
   const [showApoioBanner, setShowApoioBanner] = useState<boolean>(false);
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
 
   useEffect(() => {
     if (selectedClassId) {
@@ -830,8 +831,8 @@ export default function App() {
     return (a.name || '').localeCompare(b.name || '');
   });
 
-  const exportToExcel = () => {
-    if (!selectedClass) return;
+  const buildExcelWorkbook = () => {
+    if (!selectedClass) return null;
 
     const studentGradesList = selectedClass.students.map(s => getStudentGrades(s, selectedTrimester));
 
@@ -978,7 +979,137 @@ export default function App() {
     const fileNameRaw = `${titleText}.xlsx`;
     const fileName = fileNameRaw.replace(/\s+/g, ' ');
 
-    XLSX.writeFile(wb, fileName);
+    return { wb, fileName };
+  };
+
+  const exportToExcel = () => {
+    const result = buildExcelWorkbook();
+    if (!result) return;
+    XLSX.writeFile(result.wb, result.fileName);
+  };
+
+  const syncToGoogleDrive = async () => {
+    if (!selectedClass) return;
+    
+    setIsSyncing(true);
+    const toastId = toast.loading("A preparar ficheiro excel para o Google Drive...");
+    
+    try {
+      let token = getCachedAccessToken();
+      
+      // Se não houver token em memória, solicitar autorização com popup
+      if (!token) {
+        toast.loading("Por favor, autorize nas definições do Google na janela emergente...", { id: toastId });
+        
+        const loginVal = await signInWithGoogle();
+        const credential = GoogleAuthProvider.credentialFromResult(loginVal);
+        token = credential?.accessToken || null;
+        
+        if (!token) {
+          throw new Error("Não foi possível obter a autorização do Google Drive.");
+        }
+      }
+      
+      const result = buildExcelWorkbook();
+      if (!result) {
+        throw new Error("Nenhum dado disponível para sincronizar.");
+      }
+      
+      toast.loading("A ligar ao Google Drive...", { id: toastId });
+      
+      // Escrever como array do XLSX e criar Blob
+      const wbout = XLSX.write(result.wb, { bookType: 'xlsx', type: 'array' });
+      const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      
+      // Procurar se arquivo com o mesmo nome já existe (para atualizar em vez de duplicar)
+      const queryStr = encodeURIComponent(`name = '${result.fileName.replace(/'/g, "\\'")}' and trashed = false`);
+      const searchRes = await fetch(`https://www.googleapis.com/drive/v3/files?q=${queryStr}&fields=files(id)`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      if (!searchRes.ok) {
+        // Se a chamada falhar, limpa token expirado
+        setCachedAccessToken(null);
+        throw new Error("Sessão do Google Drive expirada. Se faz favor, tente novamente para autorizar.");
+      }
+      
+      const searchData = await searchRes.json();
+      let fileId = null;
+      if (searchData.files && searchData.files.length > 0) {
+        fileId = searchData.files[0].id;
+      }
+      
+      if (fileId) {
+        // Atualizar ficheiro existente
+        toast.loading("A atualizar pauta existente no seu Google Drive...", { id: toastId });
+        
+        const updateRes = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, {
+          method: 'PATCH',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+          },
+          body: blob
+        });
+        
+        if (!updateRes.ok) {
+          throw new Error("Não foi possível atualizar o ficheiro no Google Drive.");
+        }
+        
+        toast.success("Sincronizado!", {
+          id: toastId,
+          description: "A pauta foi atualizada com sucesso no seu Google Drive!"
+        });
+      } else {
+        // Criar novo ficheiro
+        toast.loading("A criar nova pauta no seu Google Drive...", { id: toastId });
+        
+        const createMetadataRes = await fetch('https://www.googleapis.com/drive/v3/files', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            name: result.fileName,
+            mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+          })
+        });
+        
+        if (!createMetadataRes.ok) {
+          throw new Error("Erro ao criar os metadados do ficheiro no Google Drive.");
+        }
+        
+        const metadata = await createMetadataRes.json();
+        const newFileId = metadata.id;
+        
+        const uploadRes = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${newFileId}?uploadType=media`, {
+          method: 'PATCH',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+          },
+          body: blob
+        });
+        
+        if (!uploadRes.ok) {
+          throw new Error("Erro ao carregar o conteúdo do ficheiro para o Google Drive.");
+        }
+        
+        toast.success("Sincronizado!", {
+          id: toastId,
+          description: "A pauta foi gravada com sucesso no seu Google Drive!"
+        });
+      }
+    } catch (error: any) {
+      console.error("Google Drive sync error: ", error);
+      toast.error("Falha na sincronização", {
+        id: toastId,
+        description: error.message || "Ocorreu um erro ao sincronizar com o Google Drive."
+      });
+    } finally {
+      setIsSyncing(false);
+    }
   };
 
   const sortedClasses = [...classes].sort((a, b) => {
@@ -1662,24 +1793,37 @@ export default function App() {
                   </div>
                   
                   {/* Action Buttons */}
-                  <div className="flex items-center gap-2 w-full md:w-auto md:min-w-[280px]">
+                  <div className="flex flex-wrap xs:flex-nowrap items-center gap-2 w-full md:w-auto shrink-0">
                     <Button 
                       variant="outline" 
                       onClick={exportToExcel} 
-                      className="flex-1 md:flex-none h-8.5 px-3 border border-purple-200 dark:border-purple-900/50 bg-purple-50/10 dark:bg-purple-950/10 text-purple-700 dark:text-purple-300 hover:bg-purple-50 hover:text-purple-800 dark:hover:bg-purple-900/30 font-semibold rounded-lg text-xs shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer transition-all md:w-28" 
+                      className="flex-1 xs:flex-none whitespace-nowrap h-8.5 px-3 border border-purple-200 dark:border-purple-900/50 bg-purple-50/10 dark:bg-purple-950/10 text-purple-700 dark:text-purple-300 hover:bg-purple-50 hover:text-purple-800 dark:hover:bg-purple-900/30 font-semibold rounded-lg text-xs shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer transition-all" 
                       title="Exportar para Excel" 
                       disabled={selectedClass.students.length === 0}
                     >
                       <Download className="h-3.5 w-3.5 shrink-0 text-purple-600 dark:text-purple-400" />
                       <span>Exportar</span>
                     </Button>
+
+                    <Button 
+                      variant="outline" 
+                      onClick={syncToGoogleDrive} 
+                      className="flex-1 xs:flex-none whitespace-nowrap h-8.5 px-3 border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/10 dark:bg-emerald-950/10 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 hover:text-emerald-800 dark:hover:bg-emerald-900/30 font-semibold rounded-lg text-xs shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer transition-all" 
+                      title="Sincronizar com o Google Drive" 
+                      disabled={isSyncing || selectedClass.students.length === 0}
+                    >
+                      <Cloud className={`h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-400 ${isSyncing ? 'animate-pulse' : ''}`} />
+                      <span className="hidden xs:inline">{isSyncing ? 'A Sincronizar...' : 'Sincronizar'}</span>
+                      <span className="xs:hidden">{isSyncing ? 'Sinc...' : 'Sinc.'}</span>
+                    </Button>
                     
                     <Dialog open={isAddStudentOpen} onOpenChange={setIsAddStudentOpen}>
                       <DialogTrigger render={
-                        <Button className="flex-2 md:flex-none h-8.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-lg text-xs shadow-sm flex items-center justify-center gap-1.5 cursor-pointer border-0 transition-all md:w-40" />
+                        <Button className="flex-1 xs:flex-none whitespace-nowrap h-8.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-lg text-xs shadow-sm flex items-center justify-center gap-1.5 cursor-pointer border-0 transition-all px-3 sm:px-4" />
                       }>
                         <UserPlus className="h-3.5 w-3.5 shrink-0" />
-                        <span>Adicionar Aluno</span>
+                        <span className="hidden xs:inline">Adicionar Aluno</span>
+                        <span className="xs:hidden">Add Aluno</span>
                       </DialogTrigger>
                   <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
                     <DialogHeader>

@@ -30,18 +30,37 @@ export const db = initializeFirestore(app, {
 
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
+googleProvider.addScope('https://www.googleapis.com/auth/drive.file');
+
+// Cache the access token in memory
+let cachedAccessToken: string | null = null;
+
+export const setCachedAccessToken = (token: string | null) => {
+  cachedAccessToken = token;
+};
+
+export const getCachedAccessToken = () => {
+  return cachedAccessToken;
+};
 
 export const signInWithGoogle = async () => {
   try {
-    await signInWithPopup(auth, googleProvider);
+    const result = await signInWithPopup(auth, googleProvider);
+    const credential = GoogleAuthProvider.credentialFromResult(result);
+    if (credential?.accessToken) {
+      cachedAccessToken = credential.accessToken;
+    }
+    return result;
   } catch (error) {
     console.error("Error signing in with Google", error);
+    throw error;
   }
 };
 
 export const logout = async () => {
   try {
     await signOut(auth);
+    cachedAccessToken = null;
   } catch (error) {
     console.error("Error signing out", error);
   }
