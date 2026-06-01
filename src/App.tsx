@@ -2144,12 +2144,12 @@ export default function App() {
                         <div className="flex items-center gap-2 mb-2">
                           <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400 shrink-0 animate-pulse" />
                           <h4 className="font-extrabold text-sm text-red-850 dark:text-red-300">
-                            Alerta de Apoio
+                            Alerta!
                           </h4>
                         </div>
 
-                        <p className="text-xs text-red-750 dark:text-red-450 leading-relaxed">
-                          Há <strong className="font-extrabold">{studentsNeedingApoio.length}</strong> {studentsNeedingApoio.length === 1 ? 'aluno com alerta de apoio activo' : 'alunos com alertas de apoio activos'} neste período. Recomenda-se prestar o apoio pedagógico necessário a estes casos:
+                        <p className="text-xs text-red-750 dark:text-red-450 leading-relaxed text-justify">
+                          Há <strong className="font-extrabold">{studentsNeedingApoio.length}</strong> {studentsNeedingApoio.length === 1 ? 'aluno com alertas activos' : 'alunos com alertas activos'} neste período. Recomenda-se prestar o apoio pedagógico necessário a estes casos:
                         </p>
 
                         <div className="flex flex-wrap gap-2 mt-3">
@@ -2292,9 +2292,9 @@ export default function App() {
                                                 ? 'bg-red-100 dark:bg-red-950/45 text-red-600 dark:text-red-400 border-red-200/50 dark:border-red-900/20'
                                                 : 'bg-amber-100 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 border-amber-200/50 dark:border-amber-900/20'
                                             }`} 
-                                            title={isRed ? "Necessita de Apoio Académico Crítico" : "Necessita de Orientação/Apoio Pedagógico"}
+                                            title={isRed ? "Necessita de Alerta Académico Crítico" : "Necessita de Orientação/Alerta Pedagógico"}
                                           >
-                                            Apoio
+                                            Alerta
                                           </span>
                                         );
                                       })()}
@@ -2383,7 +2383,7 @@ export default function App() {
                                               : 'bg-amber-100 dark:bg-amber-950/20 border-amber-200/60 dark:border-amber-900/30 text-amber-600 dark:text-amber-400'
                                           }`}>
                                             <AlertTriangle className={`h-2.5 w-2.5 shrink-0 animate-pulse ${isRed ? 'text-red-600 dark:text-red-400' : 'text-amber-500 dark:text-amber-400'}`} />
-                                            <span>Apoio</span>
+                                            <span>Alerta</span>
                                           </div>
                                         );
                                       })()}
@@ -2551,9 +2551,9 @@ export default function App() {
                                             ? 'bg-red-100 dark:bg-red-950/45 text-red-600 dark:text-red-400 border-red-200/50 dark:border-red-900/20'
                                             : 'bg-amber-100 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 border-amber-200/50 dark:border-amber-900/20'
                                         }`} 
-                                        title={isRed ? "Necessita de Apoio Académico Crítico" : "Necessita de Orientação/Apoio Pedagógico"}
+                                        title={isRed ? "Necessita de Alerta Académico Crítico" : "Necessita de Orientação/Alerta Pedagógico"}
                                       >
-                                        Apoio
+                                        Alerta
                                       </span>
                                     );
                                   })()}
@@ -2642,7 +2642,7 @@ export default function App() {
                                           : 'bg-amber-100 dark:bg-amber-950/20 border-amber-200/60 dark:border-amber-900/30 text-amber-600 dark:text-amber-400'
                                       }`}>
                                         <AlertTriangle className={`h-2.5 w-2.5 shrink-0 animate-pulse ${isRed ? 'text-red-600 dark:text-red-400' : 'text-amber-500 dark:text-amber-400'}`} />
-                                        <span>Apoio</span>
+                                        <span>Alerta</span>
                                       </div>
                                     );
                                   })()}
