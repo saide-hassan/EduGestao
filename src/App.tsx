@@ -485,6 +485,7 @@ export default function App() {
       await setDoc(doc(db, 'classes', selectedClass.id), updatedClass);
       toast.success('Aluno guardado com sucesso!');
       setNewStudent({ studentNumber: '', name: '', dob: '', birthplace: '', address: '', parentName: '', parentProfession: '', parentAddress: '', parentContact: '' });
+      setIsAddStudentOpen(false);
     } catch (error) {
       console.error("Error adding student:", error);
       toast.error('Erro ao guardar aluno.');
@@ -1765,7 +1766,7 @@ export default function App() {
           </div>
         ) : (
           // Class Details - Students and Grades
-          <div className="space-y-4 pt-[156px] xs:pt-[164px] md:pt-[110px] animate-in fade-in duration-300">
+          <div className="space-y-4 pt-[196px] xs:pt-[164px] md:pt-[110px] animate-in fade-in duration-300">
             <div className="fixed top-16 left-0 right-0 z-20 bg-background/95 backdrop-blur-md border-b border-border shadow-xs py-3 sm:py-3.5">
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 {/* Row 1: Context & Navigation Header */}
@@ -1809,8 +1810,7 @@ export default function App() {
                     title="Importar Lista de Alunos"
                   >
                     <Upload className="h-3.5 w-3.5 shrink-0" />
-                    <span className="hidden xs:inline text-[11px] sm:text-xs">Importar Alunos</span>
-                    <span className="xs:hidden text-[11px]">Importar</span>
+                    <span className="text-[11px] sm:text-xs">Importar Alunos</span>
                   </Button>
                 </div>
                 
@@ -1828,37 +1828,35 @@ export default function App() {
                   </div>
                   
                   {/* Action Buttons */}
-                  <div className="flex flex-wrap xs:flex-nowrap items-center gap-2 w-full md:w-auto shrink-0">
+                  <div className="flex flex-wrap items-center gap-2 w-full md:w-auto shrink-0">
                     <Button 
                       variant="outline" 
                       onClick={exportToExcel} 
-                      className="flex-1 xs:flex-none whitespace-nowrap h-8.5 px-3 border border-purple-200 dark:border-purple-900/50 bg-purple-50/10 dark:bg-purple-950/10 text-purple-700 dark:text-purple-300 hover:bg-purple-50 hover:text-purple-800 dark:hover:bg-purple-900/30 font-semibold rounded-lg text-xs shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer transition-all" 
+                      className="flex-1 sm:flex-none whitespace-nowrap h-8.5 px-3 border border-purple-200 dark:border-purple-900/50 bg-purple-50/10 dark:bg-purple-950/10 text-purple-700 dark:text-purple-300 hover:bg-purple-50 hover:text-purple-800 dark:hover:bg-purple-900/30 font-semibold rounded-lg text-xs shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer transition-all" 
                       title="Exportar para Excel" 
                       disabled={selectedClass.students.length === 0}
                     >
-                      <Download className="h-3.5 w-3.5 shrink-0 text-purple-600 dark:text-purple-400" />
+                      <Download className="h-3.5 w-3.5 shrink-0 text-purple-500/80 dark:text-purple-400/80" />
                       <span>Exportar</span>
                     </Button>
 
                     <Button 
                       variant="outline" 
                       onClick={syncToGoogleDrive} 
-                      className="flex-1 xs:flex-none whitespace-nowrap h-8.5 px-3 border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/10 dark:bg-emerald-950/10 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 hover:text-emerald-800 dark:hover:bg-emerald-900/30 font-semibold rounded-lg text-xs shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer transition-all" 
+                      className="flex-1 sm:flex-none whitespace-nowrap h-8.5 px-3 border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/10 dark:bg-emerald-950/10 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 hover:text-emerald-800 dark:hover:bg-emerald-900/30 font-semibold rounded-lg text-xs shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer transition-all" 
                       title="Sincronizar com o Google Drive" 
                       disabled={isSyncing || selectedClass.students.length === 0}
                     >
-                      <Cloud className={`h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-400 ${isSyncing ? 'animate-pulse' : ''}`} />
-                      <span className="hidden xs:inline">{isSyncing ? 'A Sincronizar...' : 'Sincronizar'}</span>
-                      <span className="xs:hidden">{isSyncing ? 'Sinc...' : 'Sinc.'}</span>
+                      <Cloud className={`h-3.5 w-3.5 shrink-0 text-emerald-500/80 dark:text-emerald-400/80 ${isSyncing ? 'animate-pulse' : ''}`} />
+                      <span>{isSyncing ? 'A Sincronizar...' : 'Sincronizar'}</span>
                     </Button>
                     
                     <Dialog open={isAddStudentOpen} onOpenChange={setIsAddStudentOpen}>
                       <DialogTrigger render={
-                        <Button className="flex-1 xs:flex-none whitespace-nowrap h-8.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-lg text-xs shadow-sm flex items-center justify-center gap-1.5 cursor-pointer border-0 transition-all px-3 sm:px-4" />
+                        <Button className="flex-grow sm:flex-none w-full sm:w-auto whitespace-nowrap h-8.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-lg text-xs shadow-sm flex items-center justify-center gap-1.5 cursor-pointer border-0 transition-all px-3 sm:px-4" />
                       }>
-                        <UserPlus className="h-3.5 w-3.5 shrink-0" />
-                        <span className="hidden xs:inline">Adicionar Aluno</span>
-                        <span className="xs:hidden">Add Aluno</span>
+                        <UserPlus className="h-3.5 w-3.5 shrink-0 text-white/95" />
+                        <span>Adicionar Aluno</span>
                       </DialogTrigger>
                   <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
@@ -2311,7 +2309,7 @@ export default function App() {
                         variant="ghost" 
                         size="icon" 
                         onClick={() => setShowApoioBanner(false)}
-                        className="absolute top-3 right-3 h-8 w-8 hover:bg-red-500/20 text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 rounded-lg cursor-pointer transition-colors z-20"
+                        className="absolute top-3 right-3 h-8 w-8 hover:bg-red-500/20 text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 rounded-lg cursor-pointer transition-colors z-5"
                         title="Fechar Alerta"
                       >
                         <X className="h-4 w-4" />
