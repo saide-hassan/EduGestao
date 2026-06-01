@@ -32,15 +32,31 @@ export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 googleProvider.addScope('https://www.googleapis.com/auth/drive.file');
 
-// Cache the access token in memory
-let cachedAccessToken: string | null = null;
-
+// Cache the access token in localStorage with expiration to handle page refreshes
 export const setCachedAccessToken = (token: string | null) => {
-  cachedAccessToken = token;
+  if (token) {
+    localStorage.setItem('google_drive_token', token);
+    // Google OAuth access tokens typically expire in 3600 seconds (1 hour). 
+    // We set a conservative expiration of 50 minutes (3,000,000 ms) in the cache.
+    const expiresAt = Date.now() + 50 * 60 * 1000;
+    localStorage.setItem('google_drive_token_expires', expiresAt.toString());
+  } else {
+    localStorage.removeItem('google_drive_token');
+    localStorage.removeItem('google_drive_token_expires');
+  }
 };
 
 export const getCachedAccessToken = () => {
-  return cachedAccessToken;
+  const token = localStorage.getItem('google_drive_token');
+  const expiresStr = localStorage.getItem('google_drive_token_expires');
+  if (!token || !expiresStr) return null;
+  
+  const expiresAt = parseInt(expiresStr, 10);
+  if (Date.now() > expiresAt) {
+    setCachedAccessToken(null);
+    return null;
+  }
+  return token;
 };
 
 export const signInWithGoogle = async () => {
@@ -48,7 +64,7 @@ export const signInWithGoogle = async () => {
     const result = await signInWithPopup(auth, googleProvider);
     const credential = GoogleAuthProvider.credentialFromResult(result);
     if (credential?.accessToken) {
-      cachedAccessToken = credential.accessToken;
+      setCachedAccessToken(credential.accessToken);
     }
     return result;
   } catch (error) {
@@ -60,7 +76,7 @@ export const signInWithGoogle = async () => {
 export const logout = async () => {
   try {
     await signOut(auth);
-    cachedAccessToken = null;
+    setCachedAccessToken(null);
   } catch (error) {
     console.error("Error signing out", error);
   }
