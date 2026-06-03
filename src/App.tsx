@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Plus, Users, BookOpen, School, GraduationCap, ChevronLeft, Trash2, UserPlus, Save, Search, Download, Pencil, Home, LogOut, Star, Layers, Sun, Moon, Upload, FileSpreadsheet, FileText, UploadCloud, Check, AlertTriangle, X, ChevronDown, Cloud } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import mammoth from 'mammoth';
@@ -355,6 +355,90 @@ export default function App() {
   const [isImporting, setIsImporting] = useState(false);
   const [importMode, setImportMode] = useState<'file' | 'paste'>('file');
   const [pastedNames, setPastedNames] = useState('');
+
+  const isSystemPopState = useRef(false);
+
+  // Sincronizar estado inicial da história do browser quando a App carrega
+  useEffect(() => {
+    if (typeof window !== 'undefined' && !window.history.state) {
+      window.history.replaceState({ view: 'home' }, '');
+    }
+  }, []);
+
+  // Sincronizar transições de estado para a história do browser
+  useEffect(() => {
+    if (isSystemPopState.current) {
+      isSystemPopState.current = false;
+      return;
+    }
+
+    let targetState: any = { view: 'home' };
+    if (selectedClassId) {
+      targetState = {
+        view: 'class',
+        level: selectedLevel,
+        levelYear: selectedLevelYear,
+        classId: selectedClassId,
+      };
+    } else if (selectedLevel) {
+      targetState = {
+        view: 'level',
+        level: selectedLevel,
+        levelYear: selectedLevelYear,
+        classId: null,
+      };
+    }
+
+    const currentState = window.history.state;
+    const isDuplicate = 
+      currentState &&
+      currentState.view === targetState.view &&
+      currentState.level === targetState.level &&
+      currentState.levelYear === targetState.levelYear &&
+      currentState.classId === targetState.classId;
+
+    if (!isDuplicate) {
+      window.history.pushState(targetState, '');
+    }
+  }, [selectedLevel, selectedLevelYear, selectedClassId]);
+
+  // Lidar com o botão físico de voltar do telemóvel (popstate)
+  useEffect(() => {
+    const handlePopState = (event: PopStateEvent) => {
+      const state = event.state;
+      if (!state) return;
+
+      isSystemPopState.current = true;
+
+      // Fechar quaisquer popups abertos quando o utilizador retrocede no telemóvel
+      setIsAddClassOpen(false);
+      setIsAddStudentOpen(false);
+      setIsImportOpen(false);
+      setEditingClass(null);
+      setEditingStudent(null);
+      setStudentToDelete(null);
+      setClassToDelete(null);
+      setIsLogoutDialogOpen(false);
+      setIsDeleteDialogOpen(false);
+
+      if (state.view === 'class') {
+        setSelectedLevel(state.level ?? null);
+        setSelectedLevelYear(state.levelYear ?? null);
+        setSelectedClassId(state.classId ?? null);
+      } else if (state.view === 'level') {
+        setSelectedLevel(state.level ?? null);
+        setSelectedLevelYear(state.levelYear ?? null);
+        setSelectedClassId(null);
+      } else {
+        setSelectedLevel(null);
+        setSelectedLevelYear(null);
+        setSelectedClassId(null);
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   const selectedClass = classes.find(c => c.id === selectedClassId);
 
@@ -1346,9 +1430,13 @@ export default function App() {
                       variant="outline" 
                       size="sm" 
                       onClick={() => {
-                        setSelectedLevel(null);
-                        setSelectedLevelYear(null);
-                      }} 
+                        if (window.history.state && window.history.state.view === 'level') {
+                          window.history.back();
+                        } else {
+                          setSelectedLevel(null);
+                          setSelectedLevelYear(null);
+                        }
+                      }}
                       className="h-8 px-4 border border-border/85 bg-card/10 hover:bg-card/30 text-foreground hover:border-primary/30 transition-all rounded-full shadow-sm flex items-center gap-1.5 font-bold text-xs cursor-pointer shrink-0"
                       title="Voltar para Minhas Classes"
                     >
@@ -1774,7 +1862,13 @@ export default function App() {
                   <div className="flex items-center gap-2 min-w-0">
                     <Button 
                       variant="outline" 
-                      onClick={() => setSelectedClassId(null)} 
+                      onClick={() => {
+                        if (window.history.state && window.history.state.view === 'class') {
+                          window.history.back();
+                        } else {
+                          setSelectedClassId(null);
+                        }
+                      }}
                       className="h-8 w-8 p-0 border border-purple-200 dark:border-purple-900/40 bg-purple-50/20 dark:bg-purple-950/20 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/30 rounded-lg shadow-2xs flex items-center justify-center cursor-pointer transition-all shrink-0"
                       title="Voltar para Turmas"
                     >
