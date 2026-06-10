@@ -321,6 +321,38 @@ export default function App() {
 
   const [isAddClassOpen, setIsAddClassOpen] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
+
+  // PWA Install State
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [showInstallBanner, setShowInstallBanner] = useState(false);
+
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setShowInstallBanner(true);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    window.addEventListener('appinstalled', () => {
+      setDeferredPrompt(null);
+      setShowInstallBanner(false);
+    });
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  const handleInstallApp = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    console.log(`Escolha de instalação PWA: ${outcome}`);
+    setDeferredPrompt(null);
+    setShowInstallBanner(false);
+  };
   const [editingClass, setEditingClass] = useState<ClassData | null>(null);
   const [studentToDelete, setStudentToDelete] = useState<string | null>(null);
   const [newClass, setNewClass] = useState({
@@ -2974,6 +3006,41 @@ export default function App() {
           </p>
         </div>
       </footer>
+
+      {/* PWA Floating Install Prompt */}
+      {showInstallBanner && (
+        <motion.div 
+          initial={{ opacity: 0, y: 50, scale: 0.95 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: 0.4 }}
+          className="fixed bottom-6 right-6 z-50 max-w-sm p-4 rounded-xl border border-border/80 bg-card/95 backdrop-blur-md shadow-lg shadow-[#090B23]/40 flex gap-3 text-foreground"
+        >
+          <div className="h-12 w-12 rounded-lg bg-[#8C2EE6]/10 flex items-center justify-center shrink-0 border border-[#8C2EE6]/25">
+            <img src="/icon-512.png" alt="EduGestão Logo" className="h-10 w-10 object-contain rounded-md" referrerPolicy="no-referrer" />
+          </div>
+          
+          <div className="flex-1 min-w-0">
+            <h4 className="font-extrabold text-sm tracking-tight text-foreground">Instalar EduGestão</h4>
+            <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">Adicione o EduGestão ao ecrã principal para um acesso mais rápido e suporte offline.</p>
+            
+            <div className="flex gap-2 mt-3">
+              <Button 
+                onClick={handleInstallApp} 
+                className="h-8 rounded-lg bg-[#8C2EE6] hover:bg-[#8C2EE6]/90 text-white font-bold text-xs px-3 shadow-sm cursor-pointer border-0 transition-all"
+              >
+                Instalar
+              </Button>
+              <Button 
+                variant="ghost" 
+                onClick={() => setShowInstallBanner(false)} 
+                className="h-8 rounded-lg hover:bg-muted/50 text-muted-foreground hover:text-foreground font-semibold text-xs px-3 cursor-pointer transition-all"
+              >
+                Agora Não
+              </Button>
+            </div>
+          </div>
+        </motion.div>
+      )}
     </div>
   );
 }

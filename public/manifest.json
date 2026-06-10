@@ -1,0 +1,24 @@
+{
+  "name": "EduGestão - Sistema de Gestão Escolar",
+  "short_name": "EduGestão",
+  "description": "Sistema de Gestão Escolar modernizado para turmas, alunos e avaliações.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#090B23",
+  "theme_color": "#8C2EE6",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon-512.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
