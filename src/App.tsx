@@ -2397,106 +2397,63 @@ export default function App() {
                 </Dialog>
 
                 <Dialog open={!!notesStudent} onOpenChange={(open) => !open && setNotesStudent(null)}>
-                  <DialogContent className="max-sm:fixed max-sm:bottom-0 max-sm:top-auto max-sm:left-0 max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-b-none max-sm:rounded-t-2xl max-sm:max-w-full max-sm:w-full sm:max-w-[480px] max-h-[85vh] sm:max-h-[90vh] flex flex-col p-0 overflow-hidden bg-background">
-                    <DialogHeader className="p-5 pb-4 border-b border-border/50">
-                      <DialogTitle className="flex items-center gap-2 text-base font-extrabold text-foreground tracking-tight">
-                        <span>📝 Notas — {notesStudent?.name}</span>
+                  <DialogContent className="max-sm:fixed max-sm:bottom-0 max-sm:top-auto max-sm:left-0 max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-b-none max-sm:rounded-t-[24px] max-sm:max-w-full max-sm:w-full sm:max-w-[460px] max-h-[85vh] sm:max-h-[90vh] flex flex-col p-0 overflow-hidden bg-white dark:bg-zinc-900 border-0 shadow-md">
+                    <DialogHeader className="px-6 pt-5 pb-3 border-0">
+                      <DialogTitle className="flex items-center gap-2.5 text-[16px] font-bold text-foreground leading-none tracking-tight">
+                        <FileText className="h-5 w-5 text-[#7C3AED] shrink-0" />
+                        <span>Notas — {notesStudent?.name}</span>
                       </DialogTitle>
-                      <DialogDescription className="text-xs text-muted-foreground/90">
-                        Adicione, visualize ou elimine anotações e reflexões pedagógicas deste aluno.
-                      </DialogDescription>
                     </DialogHeader>
 
-                    <div className="flex-1 overflow-y-auto p-5 space-y-4">
-                      {/* Scrollable list of existing notes */}
-                      <div className="space-y-2">
-                        <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest leading-none">Histórico de Notas</Label>
-                        {localNotes.length === 0 ? (
-                          <div className="flex flex-col items-center justify-center p-6 border border-dashed rounded-xl bg-muted/20 text-center min-h-[140px]">
-                            <FileText className="h-7 w-7 text-muted-foreground/45 mb-1.5 stroke-[1.5]" />
-                            <p className="text-xs text-muted-foreground font-semibold">Nenhuma nota registada.</p>
-                            <p className="text-[10px] text-muted-foreground/60 mt-0.5 max-w-[280px]">As notas são úteis para monitorizar e registar ocorrências ou apoio pedagógico.</p>
-                          </div>
-                        ) : (
-                          <ScrollArea className="h-[220px] pr-2 rounded-xl border border-border/60 bg-muted/15 p-2.5">
-                            <div className="space-y-2.5">
-                              {localNotes.map((note) => (
-                                <motion.div 
-                                  key={note.id}
-                                  layout
-                                  initial={{ opacity: 0, y: 10 }}
-                                  animate={{ opacity: 1, y: 0 }}
-                                  exit={{ opacity: 0, scale: 0.95 }}
-                                  className="relative p-2.5 rounded-lg border border-border bg-background shadow-3xs flex flex-col gap-1 pr-8"
-                                >
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-[9px] font-bold font-mono text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/40 px-1.5 py-0.5 rounded-md leading-none">
-                                      {note.date}
-                                    </span>
-                                  </div>
-                                  <p className="text-xs text-foreground leading-relaxed break-words whitespace-pre-wrap font-medium">
+                    <div className="flex-1 overflow-y-auto px-6 py-1">
+                      {localNotes.length === 0 ? (
+                        <div className="py-4 flex justify-center items-center">
+                          <p className="text-xs text-muted-foreground/75 font-semibold text-center">Nenhuma nota ainda.</p>
+                        </div>
+                      ) : (
+                        <ScrollArea className="max-h-[180px] overflow-y-auto pr-1">
+                          <div className="divide-y divide-border/40">
+                            {localNotes.map((note) => (
+                              <div key={note.id} className="py-2.5 flex items-start justify-between gap-3 relative">
+                                <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                                  <span className="shrink-0 text-[10px] font-bold font-mono text-[#7C3AED] bg-purple-50 dark:bg-purple-950/30 px-2 py-0.5 rounded leading-none mt-0.5">
+                                    {note.date}
+                                  </span>
+                                  <p className="text-xs text-foreground/90 font-medium leading-normal break-words whitespace-pre-wrap flex-1">
                                     {note.text}
                                   </p>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="absolute top-1.5 right-1.5 h-5 w-5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 shrink-0 cursor-pointer p-0"
-                                    onClick={() => setLocalNotes(prev => prev.filter(n => n.id !== note.id))}
-                                    title="Eliminar Nota"
-                                  >
-                                    <X className="h-3 w-3" />
-                                  </Button>
-                                </motion.div>
-                              ))}
-                            </div>
-                          </ScrollArea>
-                        )}
-                      </div>
-
-                      {/* Text area to write a new note */}
-                      <div className="space-y-2.5 pt-3 border-t border-border/50">
-                        <Label htmlFor="new-note-textarea" className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest leading-none">Escrever Nota</Label>
-                        <div className="flex flex-col gap-2">
-                          <textarea
-                            id="new-note-textarea"
-                            className="flex min-h-[70px] w-full rounded-lg border border-input bg-muted/5 p-2.5 text-xs ring-offset-background placeholder:text-muted-foreground/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none font-semibold text-foreground focus:bg-background transition-all"
-                            placeholder="Escreve uma nota..."
-                            value={newNoteText}
-                            onChange={(e) => setNewNoteText(e.target.value)}
-                          />
-                          <div className="flex justify-end">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              disabled={!newNoteText.trim()}
-                              onClick={() => {
-                                if (!newNoteText.trim()) return;
-                                const dateObj = new Date();
-                                const formattedDate = `${String(dateObj.getDate()).padStart(2, '0')}/${String(dateObj.getMonth() + 1).padStart(2, '0')}/${dateObj.getFullYear()}`;
-                                const newNote: StudentNote = {
-                                  id: Math.random().toString(36).substring(2, 9),
-                                  date: formattedDate,
-                                  text: newNoteText.trim()
-                                };
-                                setLocalNotes(prev => [...prev, newNote]);
-                                setNewNoteText('');
-                              }}
-                              className="h-8 rounded-lg text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-900/40 hover:bg-purple-50 dark:hover:bg-purple-950/20 text-[10px] font-bold uppercase tracking-wider cursor-pointer"
-                            >
-                              <Plus className="h-3.5 w-3.5 mr-1" />
-                              Adicionar
-                            </Button>
+                                </div>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-5 w-5 rounded-md text-muted-foreground/50 hover:text-destructive hover:bg-destructive/10 shrink-0 cursor-pointer p-0 opacity-75 hover:opacity-100 transition-all"
+                                  onClick={() => setLocalNotes(prev => prev.filter(n => n.id !== note.id))}
+                                  title="Eliminar Nota"
+                                >
+                                  <X className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            ))}
                           </div>
-                        </div>
-                      </div>
+                        </ScrollArea>
+                      )}
                     </div>
 
-                    <DialogFooter className="p-4 bg-muted/40 border-t border-border/50 flex items-center justify-end gap-3">
+                    <div className="px-6 py-2">
+                      <textarea
+                        id="new-note-textarea"
+                        className="flex min-h-[80px] max-h-[120px] w-full rounded-[12px] border border-[#C4B5FD] dark:border-[#C4B5FD]/40 bg-background p-3 text-xs placeholder:text-muted-foreground/60 focus-visible:outline-none focus:border-[#7C3AED] focus:ring-1 focus:ring-[#7C3AED] disabled:cursor-not-allowed disabled:opacity-50 resize-none font-semibold text-foreground transition-all"
+                        placeholder="Escreve uma nota..."
+                        value={newNoteText}
+                        onChange={(e) => setNewNoteText(e.target.value)}
+                      />
+                    </div>
+
+                    <div className="px-6 pb-5 pt-3 flex items-center justify-end gap-3 w-full">
                       <Button 
                         variant="outline" 
                         onClick={() => setNotesStudent(null)}
-                        className="h-8 rounded-lg font-bold text-[11px] uppercase tracking-wider border border-border text-foreground hover:bg-muted cursor-pointer"
+                        className="flex-1 h-10 rounded-xl font-bold text-xs uppercase tracking-wider border border-border text-foreground hover:bg-muted cursor-pointer"
                       >
                         Cancelar
                       </Button>
@@ -2504,7 +2461,6 @@ export default function App() {
                         onClick={async () => {
                           if (!notesStudent) return;
                           let finalNotes = [...localNotes];
-                          // If there's pending text in textarea, automatically append it
                           if (newNoteText.trim()) {
                             const dateObj = new Date();
                             const formattedDate = `${String(dateObj.getDate()).padStart(2, '0')}/${String(dateObj.getMonth() + 1).padStart(2, '0')}/${dateObj.getFullYear()}`;
@@ -2518,11 +2474,11 @@ export default function App() {
                           await handleSaveNotes(notesStudent.id, finalNotes);
                           setNotesStudent(null);
                         }}
-                        className="h-8 rounded-lg font-bold text-[11px] uppercase tracking-wider text-white bg-[#7C3AED] hover:bg-[#6D28D9] transition-colors shadow-xs cursor-pointer"
+                        className="flex-1 h-10 rounded-xl font-bold text-xs uppercase tracking-wider text-white bg-[#7C3AED] hover:bg-[#6D28D9] transition-colors shadow-xs cursor-pointer"
                       >
                         Salvar
                       </Button>
-                    </DialogFooter>
+                    </div>
                   </DialogContent>
                 </Dialog>
 
