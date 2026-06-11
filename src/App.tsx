@@ -2868,7 +2868,14 @@ export default function App() {
                                         onClick={() => setNotesStudent(student)}
                                         title="Notas do Aluno"
                                       >
-                                        <FileText className="h-4 w-4" />
+                                        <div className="relative">
+                                          <FileText className="h-4 w-4" />
+                                          {student.notes && student.notes.length > 0 && (
+                                            <span className="absolute -top-1.5 -right-2 bg-red-600 text-white text-[9px] font-extrabold px-1 rounded-full h-3.5 min-w-[14px] flex items-center justify-center border border-white dark:border-zinc-900 leading-none">
+                                              {student.notes.length}
+                                            </span>
+                                          )}
+                                        </div>
                                       </Button>
                                       <Button 
                                         variant="ghost" 
@@ -2957,7 +2964,14 @@ export default function App() {
                                       onClick={() => setNotesStudent(student)}
                                       title="Notas do Aluno"
                                     >
-                                      <FileText className="h-4 w-4" />
+                                      <div className="relative">
+                                        <FileText className="h-4 w-4" />
+                                        {student.notes && student.notes.length > 0 && (
+                                          <span className="absolute -top-1.5 -right-2 bg-red-600 text-white text-[9px] font-extrabold px-1 rounded-full h-3.5 min-w-[14px] flex items-center justify-center border border-white dark:border-zinc-900 leading-none">
+                                            {student.notes.length}
+                                          </span>
+                                        )}
+                                      </div>
                                     </Button>
                                     <Button 
                                       variant="ghost" 
@@ -3145,7 +3159,14 @@ export default function App() {
                                     onClick={() => setNotesStudent(student)}
                                     title="Notas do Aluno"
                                   >
-                                    <FileText className="h-4 w-4" />
+                                    <div className="relative">
+                                      <FileText className="h-4 w-4" />
+                                      {student.notes && student.notes.length > 0 && (
+                                        <span className="absolute -top-1.5 -right-2 bg-red-600 text-white text-[9px] font-extrabold px-1 rounded-full h-3.5 min-w-[14px] flex items-center justify-center border border-white dark:border-zinc-900 leading-none">
+                                          {student.notes.length}
+                                        </span>
+                                      )}
+                                    </div>
                                   </Button>
                                   <Button 
                                     variant="ghost" 
