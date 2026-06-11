@@ -46,7 +46,7 @@ export function ThemeProvider({
         activeTheme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"
       }
       root.classList.add(activeTheme)
-      metaThemeColor.setAttribute('content', activeTheme === 'dark' ? '#13111A' : '#D4CBEB');
+      metaThemeColor.setAttribute('content', activeTheme === 'dark' ? '#090B23' : '#D4CBEB');
     };
 
     applyTheme();

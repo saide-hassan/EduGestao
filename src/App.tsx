@@ -326,6 +326,32 @@ export default function App() {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
 
+  // Shadow on scroll-up State
+  const [showHeaderShadow, setShowHeaderShadow] = useState(false);
+
+  useEffect(() => {
+    let lastScrollY = typeof window !== 'undefined' ? window.scrollY : 0;
+    
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+      
+      if (currentScrollY <= 10) {
+        setShowHeaderShadow(false);
+      } else if (currentScrollY < lastScrollY) {
+        // Scrolling up! Show the box shadow dynamically
+        setShowHeaderShadow(true);
+      } else {
+        // Scrolling down! Hide the shadow for a clean look
+        setShowHeaderShadow(false);
+      }
+      
+      lastScrollY = currentScrollY;
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
   useEffect(() => {
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
@@ -1326,7 +1352,11 @@ export default function App() {
   return (
     <div className="min-h-screen flex flex-col text-foreground font-sans">
       {/* Header */}
-      <header className="bg-card/85 backdrop-blur-md border-b border-border sticky top-0 z-30">
+      <header className={`bg-background sticky top-0 z-30 transition-all duration-300 ease-in-out ${
+        showHeaderShadow 
+          ? 'shadow-lg shadow-[#090B23]/35 dark:shadow-[0_10px_30px_rgba(0,0,0,0.55)] border-b border-border/20 dark:border-[#1F255C]/40' 
+          : ''
+      }`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2 text-primary">
             <GraduationCap className="h-6 w-6 text-primary" />
