@@ -1363,6 +1363,11 @@ export default function App() {
             <h1 className="text-xl font-semibold tracking-tight">EduGestão</h1>
           </div>
           <div className="flex items-center gap-2 sm:gap-4">
+            {selectedClass && selectedClass.isDirector && (
+              <span className="bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[10px] sm:text-xs font-extrabold px-2 sm:px-2.5 py-1 rounded-lg shadow-2xs shrink-0 leading-none mr-0.5 animate-in fade-in zoom-in duration-200">
+                DT
+              </span>
+            )}
             {/* Circular user avatar with popup custom dropdown */}
             <div className="relative">
               <button
@@ -1507,9 +1512,8 @@ export default function App() {
 
                     <div className="flex items-center gap-2 min-w-0">
                       <h2 className="text-base sm:text-lg font-bold tracking-tight text-foreground truncate">
-                        {selectedLevel}
+                        {selectedLevel && !selectedLevel.toLowerCase().includes('classe') ? `${selectedLevel} Classe` : selectedLevel}
                       </h2>
-                      <GraduationCap className="h-4 w-4 sm:h-5 sm:w-5 text-primary shrink-0" />
                     </div>
                   </div>
                 </div>
@@ -1941,32 +1945,18 @@ export default function App() {
                       <h2 className="text-base sm:text-xl font-extrabold text-foreground tracking-tight leading-none truncate">
                         {`${selectedClass.level.replace(/\s*[Cc]lasse\s*/i, '').trim()} ${selectedClass.section}`}
                       </h2>
-                      <span className="bg-purple-100 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 text-[10px] sm:text-xs font-semibold px-2 py-0.5 rounded-full border border-purple-200/50 dark:border-purple-900/30 shrink-0 truncate max-w-[80px] xs:max-w-[120px] sm:max-w-none">
-                        {selectedClass.subject}
-                      </span>
-                      {selectedClass.isDirector && (
-                        <span className="bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[9px] font-extrabold px-1.5 py-0.5 rounded-md shadow-2xs shrink-0 leading-none">
-                          DT
-                        </span>
-                      )}
                     </div>
                   </div>
                   
                   <Button
                     variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setPreviewStudents([]);
-                      setImportError('');
-                      setImportMode('file');
-                      setPastedNames('');
-                      setIsImportOpen(true);
-                    }}
-                    className="h-8 rounded-lg border border-purple-200/80 dark:border-purple-900/45 bg-purple-50/50 dark:bg-purple-950/25 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/35 text-xs font-bold cursor-pointer flex items-center justify-center gap-1.5 px-2.5 py-1 shadow-2xs transition-all w-fit border-0"
-                    title="Importar Lista de Alunos"
+                    onClick={syncToGoogleDrive}
+                    className="h-8 rounded-lg border border-emerald-200/80 dark:border-emerald-900/45 bg-emerald-50/50 dark:bg-emerald-950/25 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/35 text-xs font-bold cursor-pointer flex items-center justify-center gap-1.5 px-2.5 py-1 shadow-2xs transition-all w-fit border-0"
+                    title="Sincronizar com o Google Drive"
+                    disabled={isSyncing || selectedClass.students.length === 0}
                   >
-                    <Upload className="h-3.5 w-3.5 shrink-0" />
-                    <span className="text-[11px] sm:text-xs">Importar Alunos</span>
+                    <Cloud className={`h-3.5 w-3.5 shrink-0 text-emerald-500/80 dark:text-emerald-400/80 ${isSyncing ? 'animate-pulse' : ''}`} />
+                    <span className="text-[11px] sm:text-xs">{isSyncing ? 'Sincronizando...' : 'Sincronizar'}</span>
                   </Button>
                 </div>
                 
@@ -1998,13 +1988,18 @@ export default function App() {
 
                     <Button 
                       variant="outline" 
-                      onClick={syncToGoogleDrive} 
-                      className="flex-1 sm:flex-none whitespace-nowrap h-8.5 px-3 border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/10 dark:bg-emerald-950/10 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 hover:text-emerald-800 dark:hover:bg-emerald-900/30 font-semibold rounded-lg text-xs shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer transition-all" 
-                      title="Sincronizar com o Google Drive" 
-                      disabled={isSyncing || selectedClass.students.length === 0}
+                      onClick={() => {
+                        setPreviewStudents([]);
+                        setImportError('');
+                        setImportMode('file');
+                        setPastedNames('');
+                        setIsImportOpen(true);
+                      }}
+                      className="flex-1 sm:flex-none whitespace-nowrap h-8.5 px-3 border border-purple-200 dark:border-purple-900/50 bg-purple-50/10 dark:bg-purple-950/10 text-purple-700 dark:text-purple-300 hover:bg-purple-50 hover:text-purple-800 dark:hover:bg-purple-900/30 font-semibold rounded-lg text-xs shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer transition-all" 
+                      title="Importar Alunos"
                     >
-                      <Cloud className={`h-3.5 w-3.5 shrink-0 text-emerald-500/80 dark:text-emerald-400/80 ${isSyncing ? 'animate-pulse' : ''}`} />
-                      <span>{isSyncing ? 'A Sincronizar...' : 'Sincronizar'}</span>
+                      <Upload className="h-3.5 w-3.5 shrink-0 text-purple-500/80 dark:text-purple-400/80" />
+                      <span>Importar</span>
                     </Button>
                     
                     <Dialog open={isAddStudentOpen} onOpenChange={setIsAddStudentOpen}>
