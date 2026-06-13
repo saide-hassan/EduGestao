@@ -2501,7 +2501,7 @@ export default function App() {
               </div>
             </div>
 
-            <div className="bg-card rounded-2xl border border-border shadow-sm">
+            <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
               {selectedClass.students.length === 0 ? (
                 <div className="text-center py-16">
                   <Users className="h-10 w-10 text-muted-foreground/50 mx-auto mb-3" />
@@ -2517,7 +2517,7 @@ export default function App() {
               ) : (
                 <div className="w-full flex flex-col">
                   {/* Trimester Tabs - Option A Placement */}
-                  <div className="px-5 pt-5 pb-4 border-b border-border/40 bg-muted/15 dark:bg-muted/5 rounded-t-2xl">
+                  <div className="px-5 pt-5 pb-4 border-b border-border/40 bg-muted/15 dark:bg-muted/5">
                     <div className="flex flex-col gap-1.5">
                       <span className="text-[10px] font-bold uppercase tracking-wider text-[#7B2FBE] dark:text-purple-400 font-mono">
                         Período Lectivo
@@ -2703,7 +2703,7 @@ export default function App() {
                     {activeTab === 'avaliacoes' ? (
                       <div className="overflow-x-auto">
                         <Table>
-                          <TableHeader className="sticky top-[196px] xs:top-[164px] md:top-[110px] z-10 bg-muted/95 dark:bg-zinc-900/95 backdrop-blur-xs shadow-xs">
+                          <TableHeader className="bg-muted/50">
                             <TableRow className="h-12 border-b border-border/50">
                               <TableHead className="w-[60px] font-bold text-foreground">Nº</TableHead>
                               <TableHead className="w-[250px] font-bold text-foreground">Nome do Aluno</TableHead>
@@ -2897,7 +2897,7 @@ export default function App() {
                     ) : (
                       <div className="overflow-x-auto">
                         <Table>
-                          <TableHeader className="sticky top-[196px] xs:top-[164px] md:top-[110px] z-10 bg-muted/95 dark:bg-zinc-900/95 backdrop-blur-xs shadow-xs">
+                          <TableHeader className="bg-muted/50">
                             <TableRow className="h-12 border-b border-border/50">
                               <TableHead className="w-[60px] font-bold text-foreground">Nº</TableHead>
                               <TableHead className="w-[200px] font-bold text-foreground">Nome do Aluno</TableHead>
@@ -2994,7 +2994,7 @@ export default function App() {
                 ) : (
                   <div className="overflow-x-auto">
                     <Table>
-                      <TableHeader className="sticky top-[196px] xs:top-[164px] md:top-[110px] z-10 bg-muted/95 dark:bg-zinc-900/95 backdrop-blur-xs shadow-xs">
+                      <TableHeader className="bg-muted/50">
                         <TableRow className="h-12 border-b border-border/50">
                           <TableHead className="w-[60px] font-bold text-foreground">Nº</TableHead>
                           <TableHead className="w-[250px] font-bold text-foreground">Nome do Aluno</TableHead>
