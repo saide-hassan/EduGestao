@@ -1755,7 +1755,7 @@ export default function App() {
                       Eliminar Classe
                     </DialogTitle>
                     <DialogDescription>
-                      Esta ação não pode ser desfeita. Isto irá eliminar permanentemente todas as <strong>turmas</strong>, <strong>alunos</strong> e <strong>notas</strong> associadas à {levelToDelete?.level} ({levelToDelete?.year}).
+                      Esta ação não pode ser desfeita. Isto irá eliminar permanentemente todas as <strong>turmas</strong>, <strong>alunos</strong> e <strong>notas</strong> associadas à {levelToDelete?.level && !levelToDelete.level.toLowerCase().includes('classe') ? `${levelToDelete.level} Classe` : levelToDelete?.level} ({levelToDelete?.year}).
                     </DialogDescription>
                   </DialogHeader>
                   <DialogFooter className="gap-2 sm:gap-0">
@@ -1826,7 +1826,7 @@ export default function App() {
                       <div className="flex flex-col text-left">
                         <div className="flex justify-between items-start gap-2">
                           <h3 className="text-xl font-bold tracking-tight text-foreground group-hover:text-primary transition-colors">
-                            {item.level}
+                            {item.level.toLowerCase().includes('classe') ? item.level : `${item.level} Classe`}
                           </h3>
                           <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${accent.bg} ${accent.text} shrink-0`}>
                             {item.year}
