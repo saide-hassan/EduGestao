@@ -2701,20 +2701,20 @@ export default function App() {
                     </div>
 
                     {activeTab === 'avaliacoes' ? (
-                      <div className="overflow-x-auto">
+                      <div className="h-[calc(100vh-250px)] sm:h-[calc(100vh-270px)] md:h-[calc(100vh-220px)] lg:h-[calc(100vh-200px)] min-h-[350px] overflow-auto relative scrollbar-thin border border-border/10 rounded-xl shadow-3xs bg-muted/5 dark:bg-[#12163b]/10">
                         <Table>
-                          <TableHeader className="bg-muted/50">
-                            <TableRow className="h-12 border-b border-border/50">
-                              <TableHead className="w-[60px] font-bold text-foreground">Nº</TableHead>
-                              <TableHead className="w-[250px] font-bold text-foreground">Nome do Aluno</TableHead>
-                              <TableHead className="w-[90px] text-center font-bold text-foreground">ACS 1</TableHead>
-                              <TableHead className="w-[90px] text-center font-bold text-foreground">ACS 2</TableHead>
-                              <TableHead className="w-[90px] text-center font-bold text-foreground">ACS 3</TableHead>
-                              <TableHead className="w-[90px] text-center font-bold text-purple-600 dark:text-purple-400">Média</TableHead>
-                              <TableHead className="w-[90px] text-center font-bold text-foreground">AP</TableHead>
-                              <TableHead className="w-[90px] text-center font-bold text-foreground">Exame</TableHead>
-                              <TableHead className="w-[100px] text-center font-bold text-foreground">Média Geral</TableHead>
-                              <TableHead className="w-[140px] text-center font-bold text-foreground">Ações</TableHead>
+                          <TableHeader className="sticky top-0 z-10 bg-muted shadow-sm border-b border-border/80">
+                            <TableRow className="h-12 border-b border-border/50 bg-muted">
+                              <TableHead className="w-[60px] font-bold text-foreground bg-muted">Nº</TableHead>
+                              <TableHead className="w-[250px] font-bold text-foreground bg-muted">Nome do Aluno</TableHead>
+                              <TableHead className="w-[90px] text-center font-bold text-foreground bg-muted">ACS 1</TableHead>
+                              <TableHead className="w-[90px] text-center font-bold text-foreground bg-muted">ACS 2</TableHead>
+                              <TableHead className="w-[90px] text-center font-bold text-foreground bg-muted">ACS 3</TableHead>
+                              <TableHead className="w-[90px] text-center font-bold text-purple-600 dark:text-purple-400 bg-muted">Média</TableHead>
+                              <TableHead className="w-[90px] text-center font-bold text-foreground bg-muted">AP</TableHead>
+                              <TableHead className="w-[90px] text-center font-bold text-foreground bg-muted">Exame</TableHead>
+                              <TableHead className="w-[100px] text-center font-bold text-foreground bg-muted">Média Geral</TableHead>
+                              <TableHead className="w-[140px] text-center font-bold text-foreground bg-muted">Ações</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
@@ -2895,18 +2895,18 @@ export default function App() {
                         </Table>
                       </div>
                     ) : (
-                      <div className="overflow-x-auto">
+                      <div className="h-[calc(100vh-250px)] sm:h-[calc(100vh-270px)] md:h-[calc(100vh-220px)] lg:h-[calc(100vh-200px)] min-h-[350px] overflow-auto relative scrollbar-thin border border-border/10 rounded-xl shadow-3xs bg-muted/5 dark:bg-[#12163b]/10">
                         <Table>
-                          <TableHeader className="bg-muted/50">
-                            <TableRow className="h-12 border-b border-border/50">
-                              <TableHead className="w-[60px] font-bold text-foreground">Nº</TableHead>
-                              <TableHead className="w-[200px] font-bold text-foreground">Nome do Aluno</TableHead>
-                              <TableHead className="w-[120px] font-bold text-foreground">Data Nasc.</TableHead>
-                              <TableHead className="w-[150px] font-bold text-foreground">Local Nasc.</TableHead>
-                              <TableHead className="w-[150px] font-bold text-foreground">Morada</TableHead>
-                              <TableHead className="w-[200px] font-bold text-foreground">Encarregado (EE)</TableHead>
-                              <TableHead className="w-[120px] font-bold text-foreground">Contacto EE</TableHead>
-                              <TableHead className="w-[140px] text-center font-bold text-foreground">Ações</TableHead>
+                          <TableHeader className="sticky top-0 z-10 bg-muted shadow-sm border-b border-border/80">
+                            <TableRow className="h-12 border-b border-border/50 bg-muted">
+                              <TableHead className="w-[60px] font-bold text-foreground bg-muted">Nº</TableHead>
+                              <TableHead className="w-[200px] font-bold text-foreground bg-muted">Nome do Aluno</TableHead>
+                              <TableHead className="w-[120px] font-bold text-foreground bg-muted">Data Nasc.</TableHead>
+                              <TableHead className="w-[150px] font-bold text-foreground bg-muted">Local Nasc.</TableHead>
+                              <TableHead className="w-[150px] font-bold text-foreground bg-muted">Morada</TableHead>
+                              <TableHead className="w-[200px] font-bold text-foreground bg-muted">Encarregado (EE)</TableHead>
+                              <TableHead className="w-[120px] font-bold text-foreground bg-muted">Contacto EE</TableHead>
+                              <TableHead className="w-[140px] text-center font-bold text-foreground bg-muted">Ações</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
@@ -2992,20 +2992,20 @@ export default function App() {
                     )}
                   </div>
                 ) : (
-                  <div className="overflow-x-auto">
+                  <div className="h-[calc(100vh-250px)] sm:h-[calc(100vh-270px)] md:h-[calc(100vh-220px)] lg:h-[calc(100vh-200px)] min-h-[350px] overflow-auto relative scrollbar-thin border border-border/10 rounded-xl shadow-3xs bg-muted/5 dark:bg-[#12163b]/10">
                     <Table>
-                      <TableHeader className="bg-muted/50">
-                        <TableRow className="h-12 border-b border-border/50">
-                          <TableHead className="w-[60px] font-bold text-foreground">Nº</TableHead>
-                          <TableHead className="w-[250px] font-bold text-foreground">Nome do Aluno</TableHead>
-                          <TableHead className="w-[90px] text-center font-bold text-foreground">ACS 1</TableHead>
-                          <TableHead className="w-[90px] text-center font-bold text-foreground">ACS 2</TableHead>
-                          <TableHead className="w-[90px] text-center font-bold text-foreground">ACS 3</TableHead>
-                          <TableHead className="w-[90px] text-center font-bold text-purple-600 dark:text-purple-400">Média</TableHead>
-                          <TableHead className="w-[90px] text-center font-bold text-foreground">AP</TableHead>
-                          <TableHead className="w-[90px] text-center font-bold text-foreground">Exame</TableHead>
-                          <TableHead className="w-[100px] text-center font-bold text-foreground">Média Geral</TableHead>
-                          <TableHead className="w-[140px] text-center font-bold text-foreground">Ações</TableHead>
+                      <TableHeader className="sticky top-0 z-10 bg-muted shadow-sm border-b border-border/80">
+                        <TableRow className="h-12 border-b border-border/50 bg-muted">
+                          <TableHead className="w-[60px] font-bold text-foreground bg-muted">Nº</TableHead>
+                          <TableHead className="w-[250px] font-bold text-foreground bg-muted">Nome do Aluno</TableHead>
+                          <TableHead className="w-[90px] text-center font-bold text-foreground bg-muted">ACS 1</TableHead>
+                          <TableHead className="w-[90px] text-center font-bold text-foreground bg-muted">ACS 2</TableHead>
+                          <TableHead className="w-[90px] text-center font-bold text-foreground bg-muted">ACS 3</TableHead>
+                          <TableHead className="w-[90px] text-center font-bold text-purple-600 dark:text-purple-400 bg-muted">Média</TableHead>
+                          <TableHead className="w-[90px] text-center font-bold text-foreground bg-muted">AP</TableHead>
+                          <TableHead className="w-[90px] text-center font-bold text-foreground bg-muted">Exame</TableHead>
+                          <TableHead className="w-[100px] text-center font-bold text-foreground bg-muted">Média Geral</TableHead>
+                          <TableHead className="w-[140px] text-center font-bold text-foreground bg-muted">Ações</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
