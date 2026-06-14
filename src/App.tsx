@@ -310,6 +310,7 @@ export default function App() {
   
   // Add Class State
   const [highlightedStudentId, setHighlightedStudentId] = useState<string | null>(null);
+  const [highlightedColumn, setHighlightedColumn] = useState<string | null>(null);
   const [alertActiveForClass, setAlertActiveForClass] = useState<string | null>(null);
   const [showApoioBanner, setShowApoioBanner] = useState<boolean>(false);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
@@ -1401,7 +1402,7 @@ export default function App() {
       {/* Header */}
       <header className={`bg-background sticky top-0 z-30 transition-all duration-300 ease-in-out ${
         showHeaderShadow 
-          ? 'shadow-lg shadow-[#090B23]/35 dark:shadow-[0_10px_30px_rgba(0,0,0,0.55)] border-b border-border/20 dark:border-[#1F255C]/40' 
+          ? 'border-b border-border/20 dark:border-[#1F255C]/40' 
           : ''
       }`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
@@ -2703,16 +2704,16 @@ export default function App() {
                     {activeTab === 'avaliacoes' ? (
                       <div className="h-[calc(100vh-250px)] sm:h-[calc(100vh-270px)] md:h-[calc(100vh-220px)] lg:h-[calc(100vh-200px)] min-h-[350px] overflow-auto relative scrollbar-thin border border-border/10 rounded-xl shadow-3xs bg-muted/5 dark:bg-[#12163b]/10">
                         <Table>
-                          <TableHeader className="sticky top-0 z-10 bg-muted shadow-sm border-b border-border/80">
+                          <TableHeader className="sticky top-0 z-10 bg-muted border-b border-border/80">
                             <TableRow className="h-12 border-b border-border/50 bg-muted">
                               <TableHead className="w-[60px] font-bold text-foreground bg-muted">Nº</TableHead>
                               <TableHead className="w-[250px] font-bold text-foreground bg-muted">Nome do Aluno</TableHead>
-                              <TableHead className="w-[90px] text-center font-bold text-foreground bg-muted">ACS 1</TableHead>
-                              <TableHead className="w-[90px] text-center font-bold text-foreground bg-muted">ACS 2</TableHead>
-                              <TableHead className="w-[90px] text-center font-bold text-foreground bg-muted">ACS 3</TableHead>
+                              <TableHead className={`w-[90px] text-center font-bold transition-all duration-150 ${highlightedColumn === 'acs1' ? 'text-purple-600 dark:text-purple-400 bg-purple-500/10 dark:bg-purple-500/20 font-extrabold border-x border-purple-500/10' : 'text-foreground bg-muted'}`}>ACS 1</TableHead>
+                              <TableHead className={`w-[90px] text-center font-bold transition-all duration-150 ${highlightedColumn === 'acs2' ? 'text-purple-600 dark:text-purple-400 bg-purple-500/10 dark:bg-purple-500/20 font-extrabold border-x border-purple-500/10' : 'text-foreground bg-muted'}`}>ACS 2</TableHead>
+                              <TableHead className={`w-[90px] text-center font-bold transition-all duration-150 ${highlightedColumn === 'acs3' ? 'text-purple-600 dark:text-purple-400 bg-purple-500/10 dark:bg-purple-500/20 font-extrabold border-x border-purple-500/10' : 'text-foreground bg-muted'}`}>ACS 3</TableHead>
                               <TableHead className="w-[90px] text-center font-bold text-purple-600 dark:text-purple-400 bg-muted">Média</TableHead>
-                              <TableHead className="w-[90px] text-center font-bold text-foreground bg-muted">AP</TableHead>
-                              <TableHead className="w-[90px] text-center font-bold text-foreground bg-muted">Exame</TableHead>
+                              <TableHead className={`w-[90px] text-center font-bold transition-all duration-150 ${highlightedColumn === 'ap' ? 'text-purple-600 dark:text-purple-400 bg-purple-500/10 dark:bg-purple-500/20 font-extrabold border-x border-purple-500/10' : 'text-foreground bg-muted'}`}>AP</TableHead>
+                              <TableHead className={`w-[90px] text-center font-bold transition-all duration-150 ${highlightedColumn === 'exame' ? 'text-purple-600 dark:text-purple-400 bg-purple-500/10 dark:bg-purple-500/20 font-extrabold border-x border-purple-500/10' : 'text-foreground bg-muted'}`}>Exame</TableHead>
                               <TableHead className="w-[100px] text-center font-bold text-foreground bg-muted">Média Geral</TableHead>
                               <TableHead className="w-[140px] text-center font-bold text-foreground bg-muted">Ações</TableHead>
                             </TableRow>
@@ -2764,34 +2765,40 @@ export default function App() {
                                       )}
                                     </div>
                                   </TableCell>
-                                  <TableCell className="align-middle">
+                                  <TableCell className={`align-middle transition-colors duration-150 ${highlightedColumn === 'acs1' ? 'bg-purple-500/5 dark:bg-purple-500/10 border-x border-purple-500/10' : ''}`}>
                                     <div className="flex flex-col items-center justify-center">
                                       <Input 
                                         className={`h-8 w-16 text-center px-1 border-transparent hover:border-border focus:border-primary bg-transparent hover:bg-background/50 transition-all font-semibold ${getGradeColor(studentGrades.acs1)}`}
                                         value={studentGrades.acs1 || ''} 
                                         onChange={(e) => updateGrade(student.id, 'acs1', e.target.value)}
+                                        onFocus={() => setHighlightedColumn('acs1')}
+                                        onClick={() => setHighlightedColumn('acs1')}
                                         placeholder="-"
                                       />
                                       {renderGradeIndicator(studentGrades.acs1)}
                                     </div>
                                   </TableCell>
-                                  <TableCell className="align-middle">
+                                  <TableCell className={`align-middle transition-colors duration-150 ${highlightedColumn === 'acs2' ? 'bg-purple-500/5 dark:bg-purple-500/10 border-x border-purple-500/10' : ''}`}>
                                     <div className="flex flex-col items-center justify-center">
                                       <Input 
                                         className={`h-8 w-16 text-center px-1 border-transparent hover:border-border focus:border-primary bg-transparent hover:bg-background/50 transition-all font-semibold ${getGradeColor(studentGrades.acs2)}`}
                                         value={studentGrades.acs2 || ''} 
                                         onChange={(e) => updateGrade(student.id, 'acs2', e.target.value)}
+                                        onFocus={() => setHighlightedColumn('acs2')}
+                                        onClick={() => setHighlightedColumn('acs2')}
                                         placeholder="-"
                                       />
                                       {renderGradeIndicator(studentGrades.acs2)}
                                     </div>
                                   </TableCell>
-                                  <TableCell className="align-middle">
+                                  <TableCell className={`align-middle transition-colors duration-150 ${highlightedColumn === 'acs3' ? 'bg-purple-500/5 dark:bg-purple-500/10 border-x border-purple-500/10' : ''}`}>
                                     <div className="flex flex-col items-center justify-center">
                                       <Input 
                                         className={`h-8 w-16 text-center px-1 border-transparent hover:border-border focus:border-primary bg-transparent hover:bg-background/50 transition-all font-semibold ${getGradeColor(studentGrades.acs3)}`}
                                         value={studentGrades.acs3 || ''} 
                                         onChange={(e) => updateGrade(student.id, 'acs3', e.target.value)}
+                                        onFocus={() => setHighlightedColumn('acs3')}
+                                        onClick={() => setHighlightedColumn('acs3')}
                                         placeholder="-"
                                       />
                                       {renderGradeIndicator(studentGrades.acs3)}
@@ -2805,23 +2812,27 @@ export default function App() {
                                       {renderGradeIndicator(calculateAcsAverage(studentGrades))}
                                     </div>
                                   </TableCell>
-                                  <TableCell className="align-middle">
+                                  <TableCell className={`align-middle transition-colors duration-150 ${highlightedColumn === 'ap' ? 'bg-purple-500/5 dark:bg-purple-500/10 border-x border-purple-500/10' : ''}`}>
                                     <div className="flex flex-col items-center justify-center">
                                       <Input 
                                         className={`h-8 w-16 text-center px-1 border-transparent hover:border-border focus:border-primary bg-transparent hover:bg-background/50 transition-all font-semibold ${getGradeColor(studentGrades.ap)}`}
                                         value={studentGrades.ap || ''} 
                                         onChange={(e) => updateGrade(student.id, 'ap', e.target.value)}
+                                        onFocus={() => setHighlightedColumn('ap')}
+                                        onClick={() => setHighlightedColumn('ap')}
                                         placeholder="-"
                                       />
                                       {renderGradeIndicator(studentGrades.ap)}
                                     </div>
                                   </TableCell>
-                                  <TableCell className="align-middle">
+                                  <TableCell className={`align-middle transition-colors duration-150 ${highlightedColumn === 'exame' ? 'bg-purple-500/5 dark:bg-purple-500/10 border-x border-purple-500/10' : ''}`}>
                                     <div className="flex flex-col items-center justify-center">
                                       <Input 
                                         className={`h-8 w-16 text-center px-1 border-transparent hover:border-border focus:border-primary bg-transparent hover:bg-background/50 transition-all font-semibold ${getGradeColor(studentGrades.exame)}`}
                                         value={studentGrades.exame || ''} 
                                         onChange={(e) => updateGrade(student.id, 'exame', e.target.value)}
+                                        onFocus={() => setHighlightedColumn('exame')}
+                                        onClick={() => setHighlightedColumn('exame')}
                                         placeholder="-"
                                       />
                                       {renderGradeIndicator(studentGrades.exame)}
@@ -2897,7 +2908,7 @@ export default function App() {
                     ) : (
                       <div className="h-[calc(100vh-250px)] sm:h-[calc(100vh-270px)] md:h-[calc(100vh-220px)] lg:h-[calc(100vh-200px)] min-h-[350px] overflow-auto relative scrollbar-thin border border-border/10 rounded-xl shadow-3xs bg-muted/5 dark:bg-[#12163b]/10">
                         <Table>
-                          <TableHeader className="sticky top-0 z-10 bg-muted shadow-sm border-b border-border/80">
+                          <TableHeader className="sticky top-0 z-10 bg-muted border-b border-border/80">
                             <TableRow className="h-12 border-b border-border/50 bg-muted">
                               <TableHead className="w-[60px] font-bold text-foreground bg-muted">Nº</TableHead>
                               <TableHead className="w-[200px] font-bold text-foreground bg-muted">Nome do Aluno</TableHead>
@@ -2994,16 +3005,16 @@ export default function App() {
                 ) : (
                   <div className="h-[calc(100vh-250px)] sm:h-[calc(100vh-270px)] md:h-[calc(100vh-220px)] lg:h-[calc(100vh-200px)] min-h-[350px] overflow-auto relative scrollbar-thin border border-border/10 rounded-xl shadow-3xs bg-muted/5 dark:bg-[#12163b]/10">
                     <Table>
-                      <TableHeader className="sticky top-0 z-10 bg-muted shadow-sm border-b border-border/80">
+                      <TableHeader className="sticky top-0 z-10 bg-muted border-b border-border/80">
                         <TableRow className="h-12 border-b border-border/50 bg-muted">
                           <TableHead className="w-[60px] font-bold text-foreground bg-muted">Nº</TableHead>
                           <TableHead className="w-[250px] font-bold text-foreground bg-muted">Nome do Aluno</TableHead>
-                          <TableHead className="w-[90px] text-center font-bold text-foreground bg-muted">ACS 1</TableHead>
-                          <TableHead className="w-[90px] text-center font-bold text-foreground bg-muted">ACS 2</TableHead>
-                          <TableHead className="w-[90px] text-center font-bold text-foreground bg-muted">ACS 3</TableHead>
+                          <TableHead className={`w-[90px] text-center font-bold transition-all duration-150 ${highlightedColumn === 'acs1' ? 'text-purple-600 dark:text-purple-400 bg-purple-500/10 dark:bg-purple-500/20 font-extrabold border-x border-purple-500/10' : 'text-foreground bg-muted'}`}>ACS 1</TableHead>
+                          <TableHead className={`w-[90px] text-center font-bold transition-all duration-150 ${highlightedColumn === 'acs2' ? 'text-purple-600 dark:text-purple-400 bg-purple-500/10 dark:bg-purple-500/20 font-extrabold border-x border-purple-500/10' : 'text-foreground bg-muted'}`}>ACS 2</TableHead>
+                          <TableHead className={`w-[90px] text-center font-bold transition-all duration-150 ${highlightedColumn === 'acs3' ? 'text-purple-600 dark:text-purple-400 bg-purple-500/10 dark:bg-purple-500/20 font-extrabold border-x border-purple-500/10' : 'text-foreground bg-muted'}`}>ACS 3</TableHead>
                           <TableHead className="w-[90px] text-center font-bold text-purple-600 dark:text-purple-400 bg-muted">Média</TableHead>
-                          <TableHead className="w-[90px] text-center font-bold text-foreground bg-muted">AP</TableHead>
-                          <TableHead className="w-[90px] text-center font-bold text-foreground bg-muted">Exame</TableHead>
+                          <TableHead className={`w-[90px] text-center font-bold transition-all duration-150 ${highlightedColumn === 'ap' ? 'text-purple-600 dark:text-purple-400 bg-purple-500/10 dark:bg-purple-500/20 font-extrabold border-x border-purple-500/10' : 'text-foreground bg-muted'}`}>AP</TableHead>
+                          <TableHead className={`w-[90px] text-center font-bold transition-all duration-150 ${highlightedColumn === 'exame' ? 'text-purple-600 dark:text-purple-400 bg-purple-500/10 dark:bg-purple-500/20 font-extrabold border-x border-purple-500/10' : 'text-foreground bg-muted'}`}>Exame</TableHead>
                           <TableHead className="w-[100px] text-center font-bold text-foreground bg-muted">Média Geral</TableHead>
                           <TableHead className="w-[140px] text-center font-bold text-foreground bg-muted">Ações</TableHead>
                         </TableRow>
@@ -3055,34 +3066,40 @@ export default function App() {
                                   )}
                                 </div>
                               </TableCell>
-                              <TableCell className="align-middle">
+                              <TableCell className={`align-middle transition-colors duration-150 ${highlightedColumn === 'acs1' ? 'bg-purple-500/5 dark:bg-purple-500/10 border-x border-purple-500/10' : ''}`}>
                                 <div className="flex flex-col items-center justify-center">
                                   <Input 
                                     className={`h-8 w-16 text-center px-1 border-transparent hover:border-border focus:border-primary bg-transparent hover:bg-background/50 transition-all font-semibold ${getGradeColor(studentGrades.acs1)}`}
                                     value={studentGrades.acs1 || ''} 
                                     onChange={(e) => updateGrade(student.id, 'acs1', e.target.value)}
+                                    onFocus={() => setHighlightedColumn('acs1')}
+                                    onClick={() => setHighlightedColumn('acs1')}
                                     placeholder="-"
                                   />
                                   {renderGradeIndicator(studentGrades.acs1)}
                                 </div>
                               </TableCell>
-                              <TableCell className="align-middle">
+                              <TableCell className={`align-middle transition-colors duration-150 ${highlightedColumn === 'acs2' ? 'bg-purple-500/5 dark:bg-purple-500/10 border-x border-purple-500/10' : ''}`}>
                                 <div className="flex flex-col items-center justify-center">
                                   <Input 
                                     className={`h-8 w-16 text-center px-1 border-transparent hover:border-border focus:border-primary bg-transparent hover:bg-background/50 transition-all font-semibold ${getGradeColor(studentGrades.acs2)}`}
                                     value={studentGrades.acs2 || ''} 
                                     onChange={(e) => updateGrade(student.id, 'acs2', e.target.value)}
+                                    onFocus={() => setHighlightedColumn('acs2')}
+                                    onClick={() => setHighlightedColumn('acs2')}
                                     placeholder="-"
                                   />
                                   {renderGradeIndicator(studentGrades.acs2)}
                                 </div>
                               </TableCell>
-                              <TableCell className="align-middle">
+                              <TableCell className={`align-middle transition-colors duration-150 ${highlightedColumn === 'acs3' ? 'bg-purple-500/5 dark:bg-purple-500/10 border-x border-purple-500/10' : ''}`}>
                                 <div className="flex flex-col items-center justify-center">
                                   <Input 
                                     className={`h-8 w-16 text-center px-1 border-transparent hover:border-border focus:border-primary bg-transparent hover:bg-background/50 transition-all font-semibold ${getGradeColor(studentGrades.acs3)}`}
                                     value={studentGrades.acs3 || ''} 
                                     onChange={(e) => updateGrade(student.id, 'acs3', e.target.value)}
+                                    onFocus={() => setHighlightedColumn('acs3')}
+                                    onClick={() => setHighlightedColumn('acs3')}
                                     placeholder="-"
                                   />
                                   {renderGradeIndicator(studentGrades.acs3)}
@@ -3096,23 +3113,27 @@ export default function App() {
                                   {renderGradeIndicator(calculateAcsAverage(studentGrades))}
                                 </div>
                               </TableCell>
-                              <TableCell className="align-middle">
+                              <TableCell className={`align-middle transition-colors duration-150 ${highlightedColumn === 'ap' ? 'bg-purple-500/5 dark:bg-purple-500/10 border-x border-purple-500/10' : ''}`}>
                                 <div className="flex flex-col items-center justify-center">
                                   <Input 
                                     className={`h-8 w-16 text-center px-1 border-transparent hover:border-border focus:border-primary bg-transparent hover:bg-background/50 transition-all font-semibold ${getGradeColor(studentGrades.ap)}`}
                                     value={studentGrades.ap || ''} 
                                     onChange={(e) => updateGrade(student.id, 'ap', e.target.value)}
+                                    onFocus={() => setHighlightedColumn('ap')}
+                                    onClick={() => setHighlightedColumn('ap')}
                                     placeholder="-"
                                   />
                                   {renderGradeIndicator(studentGrades.ap)}
                                 </div>
                               </TableCell>
-                              <TableCell className="align-middle">
+                              <TableCell className={`align-middle transition-colors duration-150 ${highlightedColumn === 'exame' ? 'bg-purple-500/5 dark:bg-purple-500/10 border-x border-purple-500/10' : ''}`}>
                                 <div className="flex flex-col items-center justify-center">
                                   <Input 
                                     className={`h-8 w-16 text-center px-1 border-transparent hover:border-border focus:border-primary bg-transparent hover:bg-background/50 transition-all font-semibold ${getGradeColor(studentGrades.exame)}`}
                                     value={studentGrades.exame || ''} 
                                     onChange={(e) => updateGrade(student.id, 'exame', e.target.value)}
+                                    onFocus={() => setHighlightedColumn('exame')}
+                                    onClick={() => setHighlightedColumn('exame')}
                                     placeholder="-"
                                   />
                                   {renderGradeIndicator(studentGrades.exame)}
