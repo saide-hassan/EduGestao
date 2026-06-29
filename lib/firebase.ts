@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
-import { initializeFirestore } from 'firebase/firestore';
+import { initializeFirestore, enableIndexedDbPersistence } from 'firebase/firestore';
 
 import aiStudioConfig from '../firebase-applet-config.json';
 
@@ -27,6 +27,19 @@ export const db = initializeFirestore(app, {
   experimentalForceLongPolling: true,
   ignoreUndefinedProperties: true
 }, dbId);
+
+// Activar persistência offline do Firestore (IndexedDB)
+if (typeof window !== 'undefined') {
+  enableIndexedDbPersistence(db).catch((err) => {
+    if (err.code === 'failed-precondition') {
+      console.warn("A persistência do Firestore falhou (múltiplos separadores abertos).");
+    } else if (err.code === 'unimplemented') {
+      console.warn("O navegador atual não suporta persistência offline do Firestore.");
+    } else {
+      console.error("Erro ao ativar persistência offline do Firestore:", err);
+    }
+  });
+}
 
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();

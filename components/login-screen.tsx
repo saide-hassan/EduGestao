@@ -18,7 +18,8 @@ import {
   GraduationCap,
   Calendar,
   Users,
-  FileSpreadsheet
+  FileSpreadsheet,
+  CloudOff
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { auth, signInWithGoogle } from '@/lib/firebase';
@@ -29,8 +30,25 @@ import {
 } from 'firebase/auth';
 import firebaseConfig from '../firebase-applet-config.json';
 
-export function LoginScreen() {
+interface LoginScreenProps {
+  onEnterOffline?: () => void;
+}
+
+export function LoginScreen({ onEnterOffline }: LoginScreenProps) {
   const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
+
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
   
   // Field States
   const [name, setName] = useState('');
@@ -337,6 +355,21 @@ export function LoginScreen() {
                 
                 {/* Feedback Alerts */}
                 <AnimatePresence mode="wait">
+                  {!isOnline && (
+                    <motion.div 
+                      initial={{ opacity: 0, height: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, height: 'auto', scale: 1 }}
+                      exit={{ opacity: 0, height: 0, scale: 0.95 }}
+                      className="bg-amber-500/10 dark:bg-amber-950/20 text-amber-700 dark:text-amber-300 p-2.5 rounded-xl border border-amber-500/20 text-[0.70rem] font-medium flex gap-2 mb-2.5 shrink-0 shadow-sm"
+                    >
+                      <CloudOff className="h-4 w-4 shrink-0 text-amber-500 mt-0.5 animate-pulse" />
+                      <div className="flex-1 space-y-0.5">
+                        <span className="font-extrabold block">Sem Ligação à Internet</span>
+                        <span className="leading-relaxed block">Pode continuar utilizando e visualizando a pauta e dados dos alunos através do botão de <strong>Modo Offline</strong> abaixo.</span>
+                      </div>
+                    </motion.div>
+                  )}
+
                   {errorMessage && (
                     <motion.div 
                       initial={{ opacity: 0, height: 0, scale: 0.95 }}
@@ -568,6 +601,18 @@ export function LoginScreen() {
                       {isGoogleLoading ? 'A ligar...' : 'Continuar com o Google'}
                     </Button>
                   </>
+                )}
+
+                {onEnterOffline && (
+                  <Button 
+                    type="button"
+                    variant="secondary"
+                    className="w-full text-xs font-bold h-[40px] mt-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/20 hover:scale-[1.01] transition-all duration-200 cursor-pointer flex items-center justify-center gap-2 rounded-[11px] shrink-0"
+                    onClick={onEnterOffline}
+                  >
+                    <CloudOff className="h-4 w-4 shrink-0 text-amber-500 animate-pulse" />
+                    <span>Entrar em Modo Offline</span>
+                  </Button>
                 )}
               </CardContent>
 

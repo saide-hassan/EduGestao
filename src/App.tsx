@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Users, BookOpen, School, GraduationCap, ChevronLeft, Trash2, UserPlus, Save, Search, Download, Pencil, Home, LogOut, Star, Layers, Sun, Moon, Upload, FileSpreadsheet, FileText, UploadCloud, Check, AlertTriangle, X, ChevronDown, Cloud } from 'lucide-react';
+import { Plus, Users, BookOpen, School, GraduationCap, ChevronLeft, Trash2, UserPlus, Save, Search, Download, Pencil, Home, LogOut, Star, Layers, Sun, Moon, Upload, FileSpreadsheet, FileText, UploadCloud, Check, AlertTriangle, X, ChevronDown, Cloud, Wifi, WifiOff, CloudLightning, CloudOff } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import mammoth from 'mammoth';
 import { motion } from 'motion/react';
@@ -270,8 +270,38 @@ export default function App() {
   
   const isDark = theme === "dark" || (theme === "system" && typeof window !== 'undefined' && window.matchMedia("(prefers-color-scheme: dark)").matches);
 
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<any | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
+  const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleOnline = () => {
+      setIsOnline(true);
+      toast.success("Ligação à Internet restabelecida! A sincronizar dados com a nuvem...", { 
+        id: 'network-status',
+        duration: 4000
+      });
+    };
+
+    const handleOffline = () => {
+      setIsOnline(false);
+      toast.warning("Ligação à Internet perdida. O EduGestão está a funcionar em Modo Offline. Todas as alterações serão guardadas localmente.", { 
+        id: 'network-status',
+        duration: 5000
+      });
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
   const [classes, setClasses] = useState<ClassData[]>([]);
   const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
   const [selectedLevel, setSelectedLevel] = useState<string | null>(null);
@@ -280,9 +310,43 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'avaliacoes' | 'dados'>('avaliacoes');
   const [hasSeenWelcome, setHasSeenWelcome] = useLocalStorage<boolean>('edugestao-has-seen-welcome', false);
   
+  const handleEnterOffline = () => {
+    const offlineUser = {
+      uid: 'offline-user',
+      email: 'offline@edugestao.local',
+      displayName: 'Utilizador Offline',
+      photoURL: null,
+      isOfflineMode: true
+    };
+    localStorage.setItem('edugestao-offline-user', JSON.stringify(offlineUser));
+    setUser(offlineUser);
+    toast.success("Sessão Offline iniciada! Os seus dados serão guardados apenas no navegador.");
+  };
+
+  const handleLogout = async () => {
+    localStorage.removeItem('edugestao-offline-user');
+    setUser(null);
+    await logout();
+    toast.success("Sessão terminada com sucesso!");
+  };
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
+      if (currentUser) {
+        setUser(currentUser);
+        localStorage.removeItem('edugestao-offline-user');
+      } else {
+        const savedOffline = localStorage.getItem('edugestao-offline-user');
+        if (savedOffline) {
+          try {
+            setUser(JSON.parse(savedOffline));
+          } catch (e) {
+            setUser(null);
+          }
+        } else {
+          setUser(null);
+        }
+      }
       setIsAuthReady(true);
     });
     return () => unsubscribe();
@@ -1167,6 +1231,74 @@ export default function App() {
       XLSX.utils.book_append_sheet(wb, wsPersonal, 'Dados Pessoais');
     }
 
+    // 3. Build Student Notes / Comments sheet (diferente da de avaliações)
+    const notesTitleText = `NOTAS E ANOTAÇÕES DOS ALUNOS - ${levelName}${sectionName} - ${selectedClass.subject}`;
+    const aoaNotes: any[][] = [
+      [notesTitleText.toUpperCase()], // Row 0: Large Header
+      [`Escola: ${selectedClass.school || 'EduGestão'} | Ano Lectivo: ${selectedClass.academicYear || '-'}`], // Row 1: Subheader
+      [], // Row 2: Spacer
+    ];
+
+    const notesHeaders = [
+      'Nº',
+      'Nome do Aluno',
+      'Data da Anotação',
+      'Anotação / Feedback'
+    ];
+    aoaNotes.push(notesHeaders);
+
+    sortedStudentsForExport.forEach(student => {
+      const studentNotes = student.notes || [];
+      if (studentNotes.length === 0) {
+        aoaNotes.push([
+          student.studentNumber || '-',
+          student.name,
+          '-',
+          'Nenhuma anotação registada'
+        ]);
+      } else {
+        studentNotes.forEach(note => {
+          aoaNotes.push([
+            student.studentNumber || '-',
+            student.name,
+            note.date || '-',
+            note.text || '-'
+          ]);
+        });
+      }
+    });
+
+    const wsNotes = XLSX.utils.aoa_to_sheet(aoaNotes);
+    wsNotes['!merges'] = [
+      { s: { r: 0, c: 0 }, e: { r: 0, c: notesHeaders.length - 1 } },
+      { s: { r: 1, c: 0 }, e: { r: 1, c: notesHeaders.length - 1 } }
+    ];
+    
+    // Auto-fit notes columns beautifully
+    const calculateNotesColWidths = (aoa: any[][], startRow: number) => {
+      if (!aoa || aoa.length <= startRow) return [];
+      const numCols = aoa[startRow].length;
+      return Array.from({ length: numCols }, (_, colIndex) => {
+        let maxLen = 8;
+        for (let rowIndex = startRow; rowIndex < aoa.length; rowIndex++) {
+          const val = aoa[rowIndex][colIndex];
+          if (val !== undefined && val !== null) {
+            const strVal = String(val);
+            if (strVal.length > maxLen) {
+              maxLen = strVal.length;
+            }
+          }
+        }
+        // Custom column widths: student number, name, date, and note content
+        if (colIndex === 1) return { wch: 32 }; // Student Name
+        if (colIndex === 3) return { wch: Math.min(Math.max(maxLen + 4, 30), 80) }; // Note Text (longer)
+        return { wch: Math.min(Math.max(maxLen + 4, 10), 50) };
+      });
+    };
+    
+    wsNotes['!cols'] = calculateNotesColWidths(aoaNotes, 3);
+    XLSX.utils.book_append_sheet(wb, wsNotes, 'Notas dos Alunos');
+
     const fileNameRaw = `${titleText}.xlsx`;
     const fileName = fileNameRaw.replace(/\s+/g, ' ');
 
@@ -1404,7 +1536,7 @@ export default function App() {
   }
 
   if (!user) {
-    return <LoginScreen />;
+    return <LoginScreen onEnterOffline={handleEnterOffline} />;
   }
 
   return (
@@ -1417,8 +1549,34 @@ export default function App() {
       }`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2 text-primary">
-            <GraduationCap className="h-6 w-6 text-primary" />
-            <h1 className="text-xl font-semibold tracking-tight">EduGestão</h1>
+            <GraduationCap className="h-6 w-6 text-primary shrink-0" />
+            <h1 className="text-xl font-semibold tracking-tight hidden sm:block">EduGestão</h1>
+            
+            {/* Real-time Connection status badge */}
+            <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border transition-all select-none ${
+              isOnline 
+                ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400' 
+                : 'bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400'
+            }`}>
+              {isOnline ? (
+                <>
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  <span>Online</span>
+                </>
+              ) : (
+                <>
+                  <WifiOff className="h-3 w-3 text-amber-500 shrink-0" />
+                  <span>Offline</span>
+                </>
+              )}
+            </div>
+            
+            {user?.isOfflineMode && (
+              <div className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/10 border border-purple-500/20 text-purple-600 dark:text-purple-400 animate-in fade-in duration-300">
+                <CloudOff className="h-3 w-3 shrink-0" />
+                <span>Modo Local</span>
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-2 sm:gap-4">
             {selectedClass && selectedClass.isDirector && (
@@ -1502,6 +1660,25 @@ export default function App() {
         </div>
       </header>
 
+      {/* Network / Connection status banner explaining the offline sync process */}
+      {!isOnline && (
+        <div className="bg-amber-500 text-black px-4 py-2.5 text-center text-xs font-semibold flex items-center justify-center gap-2.5 shadow-sm border-b border-amber-600/30 transition-all select-none animate-in slide-in-from-top-4 duration-300 z-25">
+          <WifiOff className="h-4 w-4 shrink-0 text-black animate-pulse" />
+          <span>
+            <strong>Modo Offline Activo:</strong> Ligação à Internet perdida. As suas alterações e notas estão a ser <strong>guardadas localmente</strong> no seu dispositivo e serão <strong>sincronizadas automaticamente</strong> com a nuvem assim que a ligação for restaurada.
+          </span>
+        </div>
+      )}
+
+      {user?.isOfflineMode && isOnline && (
+        <div className="bg-purple-600 text-white px-4 py-2.5 text-center text-xs font-semibold flex items-center justify-center gap-2.5 shadow-sm border-b border-purple-700 transition-all select-none animate-in slide-in-from-top-4 duration-300 z-25">
+          <CloudLightning className="h-4 w-4 shrink-0 text-white animate-bounce" />
+          <span>
+            <strong>Sessão Local Activa:</strong> O seu navegador está em modo local offline. Todas as turmas, alunos e pautas são guardados apenas no seu navegador de forma segura.
+          </span>
+        </div>
+      )}
+
       {/* Logout Centered Confirmation Modal */}
       {isLogoutDialogOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -1531,7 +1708,7 @@ export default function App() {
               <Button 
                 onClick={() => {
                   setIsLogoutDialogOpen(false);
-                  logout();
+                  handleLogout();
                 }}
                 className="flex-1 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl h-10 text-xs cursor-pointer border-0"
               >
