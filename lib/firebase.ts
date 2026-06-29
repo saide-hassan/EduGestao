@@ -36,9 +36,11 @@ googleProvider.addScope('https://www.googleapis.com/auth/drive.file');
 export const setCachedAccessToken = (token: string | null) => {
   if (token) {
     localStorage.setItem('google_drive_token', token);
-    // Google OAuth access tokens typically expire in 3600 seconds (1 hour). 
-    // We set a conservative expiration of 50 minutes (3,000,000 ms) in the cache.
-    const expiresAt = Date.now() + 50 * 60 * 1000;
+    // Google OAuth access tokens typically expire in 3,600 seconds (1 hour).
+    // We set a long cache of 30 days so the token stays stored on the device.
+    // We will handle actual 1-hour expiration by catching 401 Unauthorized errors 
+    // and renewing the token dynamically with a transparent popup.
+    const expiresAt = Date.now() + 30 * 24 * 60 * 60 * 1000;
     localStorage.setItem('google_drive_token_expires', expiresAt.toString());
   } else {
     localStorage.removeItem('google_drive_token');
@@ -59,8 +61,13 @@ export const getCachedAccessToken = () => {
   return token;
 };
 
-export const signInWithGoogle = async () => {
+export const signInWithGoogle = async (email?: string) => {
   try {
+    if (email) {
+      googleProvider.setCustomParameters({ login_hint: email });
+    } else {
+      googleProvider.setCustomParameters({});
+    }
     const result = await signInWithPopup(auth, googleProvider);
     const credential = GoogleAuthProvider.credentialFromResult(result);
     if (credential?.accessToken) {

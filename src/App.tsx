@@ -1205,17 +1205,20 @@ export default function App() {
     try {
       let token = getCachedAccessToken();
       
-      // Se não houver token em memória ou se este tiver expirado, solicitar autorização com popup
-      if (!token) {
-        toast.loading("Por favor, autorize nas definições do Google na janela emergente...", { id: toastId });
-        
-        const loginVal = await signInWithGoogle();
+      const getNewToken = async () => {
+        toast.loading("A autorizar com o Google na janela emergente...", { id: toastId });
+        const loginVal = await signInWithGoogle(user?.email || undefined);
         const credential = GoogleAuthProvider.credentialFromResult(loginVal);
-        token = credential?.accessToken || null;
-        
-        if (!token) {
+        const newToken = credential?.accessToken || null;
+        if (!newToken) {
           throw new Error("Não foi possível obter o token de acesso do Google Drive. Inicie sessão com uma conta Google e tente novamente.");
         }
+        return newToken;
+      };
+
+      // Se não houver token em memória, solicitar autorização
+      if (!token) {
+        token = await getNewToken();
       }
       
       const result = buildExcelWorkbook();
@@ -1223,23 +1226,45 @@ export default function App() {
         throw new Error("Nenhum dado disponível para sincronizar.");
       }
       
-      toast.loading("A ligar ao Google Drive...", { id: toastId });
-      
       // Escrever como array do XLSX e criar Blob
       const wbout = XLSX.write(result.wb, { bookType: 'xlsx', type: 'array' });
       const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
       
+      // Função para efetuar pedidos à API do Google Drive com suporte a auto-refresh do token em caso de 401
+      const fetchGoogleApi = async (url: string, options: RequestInit): Promise<Response> => {
+        let res = await fetch(url, {
+          ...options,
+          headers: {
+            ...options.headers,
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
+        if (res.status === 401) {
+          // Token expirou no Google Drive. Obter um novo token e repetir o pedido transparentemente
+          setCachedAccessToken(null);
+          token = await getNewToken();
+          
+          res = await fetch(url, {
+            ...options,
+            headers: {
+              ...options.headers,
+              'Authorization': `Bearer ${token}`
+            }
+          });
+        }
+        return res;
+      };
+
+      toast.loading("A ligar ao Google Drive...", { id: toastId });
+      
       // Procurar se arquivo com o mesmo nome já existe (para atualizar em vez de duplicar)
       const queryStr = encodeURIComponent(`name = '${result.fileName.replace(/'/g, "\\'")}' and trashed = false`);
-      const searchRes = await fetch(`https://www.googleapis.com/drive/v3/files?q=${queryStr}&fields=files(id)`, {
-        headers: { Authorization: `Bearer ${token}` }
+      const searchRes = await fetchGoogleApi(`https://www.googleapis.com/drive/v3/files?q=${queryStr}&fields=files(id)`, {
+        method: 'GET'
       });
       
       if (!searchRes.ok) {
-        if (searchRes.status === 401) {
-          setCachedAccessToken(null);
-          throw new Error("Sessão do Google Drive expirada ou inválida. Por favor, clique novamente em 'Sincronizar' para reautorizar.");
-        }
         const errorMsg = await parseGoogleApiError(searchRes, "Erro ao procurar pauta no Google Drive.");
         throw new Error(errorMsg);
       }
@@ -1254,20 +1279,15 @@ export default function App() {
         // Atualizar ficheiro existente
         toast.loading("A atualizar pauta existente no seu Google Drive...", { id: toastId });
         
-        const updateRes = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, {
+        const updateRes = await fetchGoogleApi(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, {
           method: 'PATCH',
           headers: {
-            'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
           },
           body: blob
         });
         
         if (!updateRes.ok) {
-          if (updateRes.status === 401) {
-            setCachedAccessToken(null);
-            throw new Error("Sessão do Google Drive expirada. Se faz favor, tente sincronizar novamente.");
-          }
           const errorMsg = await parseGoogleApiError(updateRes, "Não foi possível atualizar o ficheiro no Google Drive.");
           throw new Error(errorMsg);
         }
@@ -1280,10 +1300,9 @@ export default function App() {
         // Criar novo ficheiro
         toast.loading("A criar nova pauta no seu Google Drive...", { id: toastId });
         
-        const createMetadataRes = await fetch('https://www.googleapis.com/drive/v3/files', {
+        const createMetadataRes = await fetchGoogleApi('https://www.googleapis.com/drive/v3/files', {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
@@ -1293,10 +1312,6 @@ export default function App() {
         });
         
         if (!createMetadataRes.ok) {
-          if (createMetadataRes.status === 401) {
-            setCachedAccessToken(null);
-            throw new Error("Sessão do Google Drive expirada. Se faz favor, tente sincronizar novamente.");
-          }
           const errorMsg = await parseGoogleApiError(createMetadataRes, "Erro ao criar os metadados do ficheiro no Google Drive.");
           throw new Error(errorMsg);
         }
@@ -1304,20 +1319,15 @@ export default function App() {
         const metadata = await createMetadataRes.json();
         const newFileId = metadata.id;
         
-        const uploadRes = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${newFileId}?uploadType=media`, {
+        const uploadRes = await fetchGoogleApi(`https://www.googleapis.com/upload/drive/v3/files/${newFileId}?uploadType=media`, {
           method: 'PATCH',
           headers: {
-            'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
           },
           body: blob
         });
         
         if (!uploadRes.ok) {
-          if (uploadRes.status === 401) {
-            setCachedAccessToken(null);
-            throw new Error("Sessão do Google Drive expirada. Se faz favor, tente sincronizar novamente.");
-          }
           const errorMsg = await parseGoogleApiError(uploadRes, "Erro ao carregar o conteúdo do ficheiro para o Google Drive.");
           throw new Error(errorMsg);
         }
