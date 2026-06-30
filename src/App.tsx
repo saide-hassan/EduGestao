@@ -1660,16 +1660,6 @@ export default function App() {
         </div>
       </header>
 
-      {/* Network / Connection status banner explaining the offline sync process */}
-      {!isOnline && (
-        <div className="bg-amber-500 text-black px-4 py-2.5 text-center text-xs font-semibold flex items-center justify-center gap-2.5 shadow-sm border-b border-amber-600/30 transition-all select-none animate-in slide-in-from-top-4 duration-300 z-25">
-          <WifiOff className="h-4 w-4 shrink-0 text-black animate-pulse" />
-          <span>
-            <strong>Modo Offline Activo:</strong> Ligação à Internet perdida. As suas alterações e notas estão a ser <strong>guardadas localmente</strong> no seu dispositivo e serão <strong>sincronizadas automaticamente</strong> com a nuvem assim que a ligação for restaurada.
-          </span>
-        </div>
-      )}
-
       {user?.isOfflineMode && isOnline && (
         <div className="bg-purple-600 text-white px-4 py-2.5 text-center text-xs font-semibold flex items-center justify-center gap-2.5 shadow-sm border-b border-purple-700 transition-all select-none animate-in slide-in-from-top-4 duration-300 z-25">
           <CloudLightning className="h-4 w-4 shrink-0 text-white animate-bounce" />
