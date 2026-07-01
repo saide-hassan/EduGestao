@@ -1299,7 +1299,9 @@ export default function App() {
     wsNotes['!cols'] = calculateNotesColWidths(aoaNotes, 3);
     XLSX.utils.book_append_sheet(wb, wsNotes, 'Notas dos Alunos');
 
-    const fileNameRaw = `${titleText}.xlsx`;
+    const rawLevel = selectedClass.level || '';
+    const shortFileName = `${rawLevel}${sectionName} - ${selectedTrimester}º Trimestre - ${selectedClass.subject}`;
+    const fileNameRaw = `${shortFileName}.xlsx`;
     const fileName = fileNameRaw.replace(/\s+/g, ' ');
 
     return { wb, fileName };
