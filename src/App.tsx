@@ -560,6 +560,18 @@ export default function App() {
       const state = event.state;
       if (!state) return;
 
+      if (hasUnsyncedChanges && selectedClassId) {
+        // Restaurar o estado na história do browser para impedir a saída
+        window.history.pushState({
+          view: 'class',
+          level: selectedLevel,
+          levelYear: selectedLevelYear,
+          classId: selectedClassId,
+        }, '');
+        setIsUnsyncedModalOpen(true);
+        return;
+      }
+
       isSystemPopState.current = true;
 
       // Fechar quaisquer popups abertos quando o utilizador retrocede no telemóvel
@@ -590,7 +602,7 @@ export default function App() {
 
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
+  }, [hasUnsyncedChanges, selectedClassId, selectedLevel, selectedLevelYear]);
 
   const selectedClass = classes.find(c => c.id === selectedClassId);
 
