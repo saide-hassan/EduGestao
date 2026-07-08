@@ -304,6 +304,13 @@ export default function App() {
 
   const [classes, setClasses] = useState<ClassData[]>([]);
   const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
+  const [hasUnsyncedChanges, setHasUnsyncedChanges] = useState(false);
+  const [isUnsyncedModalOpen, setIsUnsyncedModalOpen] = useState(false);
+
+  useEffect(() => {
+    setHasUnsyncedChanges(false);
+    setIsUnsyncedModalOpen(false);
+  }, [selectedClassId]);
   const [selectedLevel, setSelectedLevel] = useState<string | null>(null);
   const [selectedLevelYear, setSelectedLevelYear] = useState<string | null>(null);
   const [selectedTrimester, setSelectedTrimester] = useState<'1' | '2' | '3'>('1');
@@ -715,6 +722,7 @@ export default function App() {
       toast.success('Aluno guardado com sucesso!');
       setNewStudent({ studentNumber: '', name: '', dob: '', birthplace: '', address: '', parentName: '', parentProfession: '', parentAddress: '', parentContact: '' });
       setIsAddStudentOpen(false);
+      setHasUnsyncedChanges(true);
     } catch (error) {
       console.error("Error adding student:", error);
       toast.error('Erro ao guardar aluno.');
@@ -959,6 +967,7 @@ export default function App() {
       setIsImportOpen(false);
       setPreviewStudents([]);
       setImportError('');
+      setHasUnsyncedChanges(true);
     } catch (error) {
       console.error("Error committing imported students:", error);
       toast.error('Erro ao guardar os alunos no banco de dados.');
@@ -978,6 +987,7 @@ export default function App() {
     try {
       await setDoc(doc(db, 'classes', selectedClass.id), updatedClass);
       setEditingStudent(null);
+      setHasUnsyncedChanges(true);
     } catch (error) {
       console.error("Error updating student:", error);
     }
@@ -1013,6 +1023,7 @@ export default function App() {
     
     try {
       await setDoc(doc(db, 'classes', selectedClass.id), updatedClass);
+      setHasUnsyncedChanges(true);
     } catch (error) {
       console.error("Error updating grade:", error);
     }
@@ -1033,6 +1044,7 @@ export default function App() {
     try {
       await setDoc(doc(db, 'classes', selectedClass.id), updatedClass);
       setStudentToDelete(null);
+      setHasUnsyncedChanges(true);
     } catch (error) {
       console.error("Error deleting student:", error);
     }
@@ -1057,6 +1069,7 @@ export default function App() {
     try {
       await setDoc(doc(db, 'classes', selectedClass.id), updatedClass);
       toast.success("Notas guardadas com sucesso!");
+      setHasUnsyncedChanges(true);
     } catch (error) {
       console.error("Error saving student notes:", error);
       toast.error("Ocorreu um erro ao guardar as notas.");
@@ -1330,8 +1343,8 @@ export default function App() {
     return `${defaultMsg} (Erro HTTP ${res.status}: ${res.statusText})`;
   };
 
-  const syncToGoogleDrive = async () => {
-    if (!selectedClass) return;
+  const syncToGoogleDrive = async (): Promise<boolean> => {
+    if (!selectedClass) return false;
     
     setIsSyncing(true);
     const toastId = toast.loading("A preparar ficheiro excel para o Google Drive...");
@@ -1471,12 +1484,16 @@ export default function App() {
           description: "A pauta foi gravada com sucesso no seu Google Drive!"
         });
       }
+      setHasUnsyncedChanges(false);
+      setIsUnsyncedModalOpen(false);
+      return true;
     } catch (error: any) {
       console.error("Google Drive sync error: ", error);
       toast.error("Falha na sincronização", {
         id: toastId,
         description: error.message || "Ocorreu um erro ao sincronizar com o Google Drive."
       });
+      return false;
     } finally {
       setIsSyncing(false);
     }
@@ -1705,6 +1722,65 @@ export default function App() {
                 className="flex-1 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl h-10 text-xs cursor-pointer border-0"
               >
                 Sair
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Unsaved / Unsynced Changes Confirmation Modal */}
+      {isUnsyncedModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          {/* Semi-transparent dark overlay */}
+          <div 
+            className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity" 
+            onClick={() => setIsUnsyncedModalOpen(false)} 
+          />
+          
+          {/* Centered Modal Card */}
+          <div className="relative bg-card border border-border rounded-2xl max-w-md w-full p-6 shadow-2xl animate-in zoom-in-95 duration-200 z-10">
+            <div className="flex items-center gap-2 text-amber-500 mb-2">
+              <AlertTriangle className="h-5 w-5 shrink-0" />
+              <h3 className="text-lg font-bold text-foreground">
+                Sincronização Pendente
+              </h3>
+            </div>
+            
+            <p className="text-sm text-muted-foreground mb-4 leading-relaxed">
+              Não foi feita a sincronização dos dados com o Google Drive. Se voltar agora, as suas alterações mais recentes não serão guardadas no Drive.
+            </p>
+
+            <p className="text-xs text-amber-500 dark:text-amber-400 font-bold mb-6 flex items-center gap-1.5 bg-amber-500/10 p-2.5 rounded-xl border border-amber-500/20">
+              <Cloud className="h-4 w-4 shrink-0" />
+              <span>Sincronize primeiro para manter a sua pauta atualizada!</span>
+            </p>
+            
+            <div className="space-y-3">
+              {/* Prominent identical Sync Button */}
+              <Button
+                onClick={async () => {
+                  const success = await syncToGoogleDrive();
+                  if (success) {
+                    if (window.history.state && window.history.state.view === 'class') {
+                      window.history.back();
+                    } else {
+                      setSelectedClassId(null);
+                    }
+                  }
+                }}
+                className="w-full h-11 bg-emerald-600 hover:bg-emerald-500 disabled:bg-emerald-600/50 text-white font-extrabold rounded-xl text-xs cursor-pointer border-0 flex items-center justify-center gap-2 shadow-md shadow-emerald-600/10 hover:shadow-lg transition-all"
+                disabled={isSyncing || !selectedClass || selectedClass.students.length === 0}
+              >
+                <Cloud className={`h-4 w-4 shrink-0 text-white ${isSyncing ? 'animate-pulse' : ''}`} />
+                <span>{isSyncing ? 'A Sincronizar...' : 'Sincronizar com o Google Drive'}</span>
+              </Button>
+
+              <Button 
+                variant="outline" 
+                onClick={() => setIsUnsyncedModalOpen(false)}
+                className="w-full rounded-xl h-11 text-xs font-bold cursor-pointer border border-border/85"
+              >
+                Fechar e continuar a editar
               </Button>
             </div>
           </div>
@@ -2156,10 +2232,14 @@ export default function App() {
                     <Button 
                       variant="outline" 
                       onClick={() => {
-                        if (window.history.state && window.history.state.view === 'class') {
-                          window.history.back();
+                        if (hasUnsyncedChanges) {
+                          setIsUnsyncedModalOpen(true);
                         } else {
-                          setSelectedClassId(null);
+                          if (window.history.state && window.history.state.view === 'class') {
+                            window.history.back();
+                          } else {
+                            setSelectedClassId(null);
+                          }
                         }
                       }}
                       className="h-8 w-8 p-0 border border-purple-200 dark:border-purple-900/40 bg-purple-50/20 dark:bg-purple-950/20 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/30 rounded-lg shadow-2xs flex items-center justify-center cursor-pointer transition-all shrink-0"
