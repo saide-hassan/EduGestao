@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Users, BookOpen, School, GraduationCap, ChevronLeft, Trash2, UserPlus, Save, Search, Download, Pencil, Home, LogOut, Star, Layers, Sun, Moon, Upload, FileSpreadsheet, FileText, UploadCloud, Check, AlertTriangle, X, ChevronDown, Cloud, Wifi, WifiOff, CloudLightning, CloudOff } from 'lucide-react';
+import { Plus, Users, BookOpen, School, GraduationCap, ChevronLeft, Trash2, UserPlus, Save, Search, Download, Pencil, Home, LogOut, Star, Layers, Sun, Moon, Upload, FileSpreadsheet, FileText, UploadCloud, Check, AlertTriangle, X, ChevronDown, Cloud, Wifi, WifiOff, CloudLightning, CloudOff, CheckCircle2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import mammoth from 'mammoth';
 import { motion } from 'motion/react';
@@ -121,50 +121,57 @@ const calculateAverage = (grades: Grades) => {
   return calculateGeneralAverage(grades);
 };
 
-type ApoioAlertStatus = 'red' | 'orange' | 'none';
+type ApoioAlertStatus = 'red' | 'orange' | 'green' | 'none';
 
-const getApoioAlertStatus = (student: Student, trimester: '1' | '2' | '3'): ApoioAlertStatus => {
+const getRepresentativeGrade = (student: Student, trimester: '1' | '2' | '3'): number | null => {
   const grades = getStudentGrades(student, trimester);
   
-  const parseGrade = (val: string | undefined): number | null => {
-    if (!val || val.trim() === '-' || val.trim() === '') return null;
-    const num = parseFloat(val.replace(',', '.'));
-    return isNaN(num) ? null : num;
+  const parseGradeVal = (v: string | undefined): number | null => {
+    if (!v || v.trim() === '' || v.trim() === '-') return null;
+    const n = parseFloat(v.replace(',', '.'));
+    return isNaN(n) ? null : n;
   };
 
-  const acs1Val = parseGrade(grades.acs1);
-  const acs2Val = parseGrade(grades.acs2);
-
+  // 1. Try General Average first
   const mediaGeralStr = calculateGeneralAverage(grades);
-  const mediaGeralVal = mediaGeralStr !== '-' ? parseFloat(mediaGeralStr.replace(',', '.')) : null;
+  if (mediaGeralStr !== '-') {
+    const n = parseFloat(mediaGeralStr.replace(',', '.'));
+    if (!isNaN(n)) return n;
+  }
 
-  // Rule 3: "se a média geral for abaixo de 10 o alerta deve ser vermelho"
-  if (mediaGeralVal !== null && mediaGeralVal < 10) {
+  // 2. Try ACS Average
+  const acsAvgStr = calculateAcsAverage(grades);
+  if (acsAvgStr !== '-') {
+    const n = parseFloat(acsAvgStr.replace(',', '.'));
+    if (!isNaN(n)) return n;
+  }
+
+  // 3. Try individual grades in sequence (ACS1, ACS2, ACS3, AP, Exame)
+  const acs1 = parseGradeVal(grades.acs1);
+  if (acs1 !== null) return acs1;
+  const acs2 = parseGradeVal(grades.acs2);
+  if (acs2 !== null) return acs2;
+  const acs3 = parseGradeVal(grades.acs3);
+  if (acs3 !== null) return acs3;
+  const ap = parseGradeVal(grades.ap);
+  if (ap !== null) return ap;
+  const exame = parseGradeVal(grades.exame);
+  if (exame !== null) return exame;
+
+  return null;
+};
+
+const getApoioAlertStatus = (student: Student, trimester: '1' | '2' | '3'): ApoioAlertStatus => {
+  const representativeGrade = getRepresentativeGrade(student, trimester);
+  if (representativeGrade === null) return 'none';
+  
+  if (representativeGrade < 7) {
     return 'red';
-  }
-
-  // Rule 4: "e se o aluno tiver média geral 10, 11, ou 12, enquanto tem notas de ACS 1 e 2 negativas, o alerta passa a ser laranja."
-  if (mediaGeralVal !== null && mediaGeralVal >= 10 && mediaGeralVal <= 12) {
-    const acs1Neg = acs1Val !== null && acs1Val < 10;
-    const acs2Neg = acs2Val !== null && acs2Val < 10;
-    if (acs1Neg && acs2Neg) {
-      return 'orange';
-    }
-  }
-
-  // Rule 2: "na ACS 2 se o aluno tirar uma nota positiva, o alerta deve passar para laranja"
-  // Here, ACS 1 is negative and ACS 2 is positive (>= 10)
-  if (acs1Val !== null && acs1Val < 10 && acs2Val !== null && acs2Val >= 10) {
+  } else if (representativeGrade >= 7 && representativeGrade <= 11) {
     return 'orange';
+  } else {
+    return 'green';
   }
-
-  // Rule 1: "Os alertas de apoio devem aparecer logo na ACS 1 que o aluno tirar negativa"
-  // Default color for active alert on negative ACS 1 is red
-  if (acs1Val !== null && acs1Val < 10) {
-    return 'red';
-  }
-
-  return 'none';
 };
 
 const getGradeColor = (val: string, isAverage = false) => {
@@ -1165,16 +1172,21 @@ export default function App() {
     sortedStudentsForExport.forEach(student => {
       const studentGrades = getStudentGrades(student, selectedTrimester);
       const row: any[] = [
-        student.studentNumber || '-',
+        student.studentNumber || '',
         student.name,
       ];
       if (hasAcs1) row.push(studentGrades.acs1 || '');
       if (hasAcs2) row.push(studentGrades.acs2 || '');
       if (hasAcs3) row.push(studentGrades.acs3 || '');
-      if (hasMedia) row.push(calculateAcsAverage(studentGrades));
+      
+      const acsAvg = calculateAcsAverage(studentGrades);
+      if (hasMedia) row.push(acsAvg === '-' ? '' : acsAvg);
+      
       if (hasAp) row.push(studentGrades.ap || '');
       if (hasExame) row.push(studentGrades.exame || '');
-      if (hasMediaGeral) row.push(calculateGeneralAverage(studentGrades));
+      
+      const genAvg = calculateGeneralAverage(studentGrades);
+      if (hasMediaGeral) row.push(genAvg === '-' ? '' : genAvg);
       
       aoaGrades.push(row);
     });
@@ -1235,15 +1247,15 @@ export default function App() {
 
       sortedStudentsForExport.forEach(student => {
         aoaPersonal.push([
-          student.studentNumber || '-',
+          student.studentNumber || '',
           student.name,
           student.dob ? new Date(student.dob).toLocaleDateString('pt-PT') : '',
-          student.birthplace || '-',
-          student.address || '-',
-          student.parentName || '-',
-          student.parentProfession || '-',
-          student.parentContact || '-',
-          student.parentAddress || '-'
+          student.birthplace || '',
+          student.address || '',
+          student.parentName || '',
+          student.parentProfession || '',
+          student.parentContact || '',
+          student.parentAddress || ''
         ]);
       });
 
@@ -1276,18 +1288,18 @@ export default function App() {
       const studentNotes = student.notes || [];
       if (studentNotes.length === 0) {
         aoaNotes.push([
-          student.studentNumber || '-',
+          student.studentNumber || '',
           student.name,
-          '-',
-          'Nenhuma anotação registada'
+          '',
+          ''
         ]);
       } else {
         studentNotes.forEach(note => {
           aoaNotes.push([
-            student.studentNumber || '-',
+            student.studentNumber || '',
             student.name,
-            note.date || '-',
-            note.text || '-'
+            note.date || '',
+            note.text || ''
           ]);
         });
       }
@@ -2853,86 +2865,143 @@ export default function App() {
                     </div>
                   </div>
 
-                  {showApoioBanner && studentsNeedingApoio.length > 0 && (
-                    <motion.div 
-                      initial={{ opacity: 0, height: 0, marginTop: 0 }}
-                      animate={{ opacity: 1, height: 'auto', marginTop: 16 }}
-                      transition={{ duration: 0.3 }}
-                      className="relative mx-5 p-4 rounded-xl border border-red-200/60 dark:border-red-900/40 bg-red-500/10 dark:bg-red-500/5 text-red-700 dark:text-red-400 font-medium"
-                    >
-                      {/* Close button at the top-right of the card */}
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        onClick={() => setShowApoioBanner(false)}
-                        className="absolute top-3 right-3 h-8 w-8 hover:bg-red-500/20 text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 rounded-lg cursor-pointer transition-colors z-5"
-                        title="Fechar Alerta"
+                  {showApoioBanner && studentsNeedingApoio.length > 0 && (() => {
+                    const statusCounts = studentsNeedingApoio.reduce((acc, s) => {
+                      const status = getApoioAlertStatus(s, selectedTrimester);
+                      acc[status] = (acc[status] || 0) + 1;
+                      return acc;
+                    }, {} as Record<string, number>);
+
+                    const redCount = statusCounts['red'] || 0;
+                    const orangeCount = statusCounts['orange'] || 0;
+                    const greenCount = statusCounts['green'] || 0;
+
+                    const totalActiveCount = redCount + orangeCount;
+
+                    // Container styles based on severity
+                    let bannerClass = "border-red-200/60 dark:border-red-900/40 bg-red-500/10 dark:bg-red-500/5 text-red-700 dark:text-red-400";
+                    let titleText = "Alerta!";
+                    let bannerTitleClass = "text-red-800 dark:text-red-300";
+                    let bannerIcon = <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400 shrink-0 animate-pulse" />;
+                    let closeButtonClass = "hover:bg-red-500/20 text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300";
+
+                    if (redCount > 0) {
+                      bannerClass = "border-red-200/60 dark:border-red-900/40 bg-red-500/10 dark:bg-red-500/5 text-red-700 dark:text-red-400";
+                      titleText = "Alerta!";
+                      bannerTitleClass = "text-red-850 dark:text-red-350 font-extrabold";
+                      bannerIcon = <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400 shrink-0 animate-pulse" />;
+                      closeButtonClass = "hover:bg-red-500/20 text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300";
+                    } else if (orangeCount > 0) {
+                      bannerClass = "border-amber-200/60 dark:border-amber-900/40 bg-amber-500/10 dark:bg-amber-500/5 text-amber-700 dark:text-amber-400";
+                      titleText = "Atenção!";
+                      bannerTitleClass = "text-amber-850 dark:text-amber-350 font-extrabold";
+                      bannerIcon = <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0" />;
+                      closeButtonClass = "hover:bg-amber-500/20 text-amber-500 hover:text-amber-750 dark:text-amber-400 dark:hover:text-amber-300";
+                    } else {
+                      bannerClass = "border-emerald-200/60 dark:border-emerald-900/40 bg-emerald-500/10 dark:bg-emerald-500/5 text-emerald-700 dark:text-emerald-400";
+                      titleText = "Desempenho Estável!";
+                      bannerTitleClass = "text-emerald-850 dark:text-emerald-350 font-extrabold";
+                      bannerIcon = <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400 shrink-0" />;
+                      closeButtonClass = "hover:bg-emerald-500/20 text-emerald-500 hover:text-emerald-750 dark:text-emerald-400 dark:hover:text-emerald-300";
+                    }
+
+                    return (
+                      <motion.div 
+                        initial={{ opacity: 0, height: 0, marginTop: 0 }}
+                        animate={{ opacity: 1, height: 'auto', marginTop: 16 }}
+                        transition={{ duration: 0.3 }}
+                        className={`relative mx-5 p-4 rounded-xl border font-medium ${bannerClass}`}
                       >
-                        <X className="h-4 w-4" />
-                      </Button>
+                        {/* Close button at the top-right of the card */}
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          onClick={() => setShowApoioBanner(false)}
+                          className={`absolute top-3 right-3 h-8 w-8 rounded-lg cursor-pointer transition-colors z-5 ${closeButtonClass}`}
+                          title="Fechar Alerta"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
 
-                      {/* Content Container */}
-                      <div className="pr-10">
-                        {/* Title with icon directly to the left */}
-                        <div className="flex items-center gap-2 mb-2">
-                          <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400 shrink-0 animate-pulse" />
-                          <h4 className="font-extrabold text-sm text-red-850 dark:text-red-300">
-                            Alerta!
-                          </h4>
+                        {/* Content Container */}
+                        <div className="pr-10">
+                          {/* Title with icon directly to the left */}
+                          <div className="flex items-center gap-2 mb-2">
+                            {bannerIcon}
+                            <h4 className={`text-sm ${bannerTitleClass}`}>
+                              {titleText}
+                            </h4>
+                          </div>
+
+                          <p className="text-xs leading-relaxed text-justify opacity-90">
+                            {totalActiveCount > 0 ? (
+                              <>
+                                Há <strong className="font-extrabold">{totalActiveCount}</strong> {totalActiveCount === 1 ? 'aluno com alertas activos' : 'alunos com alertas activos'} neste período. Recomenda-se prestar o apoio pedagógico necessário a estes casos:
+                              </>
+                            ) : (
+                              <>
+                                Todos os alunos encontram-se com aproveitamento pedagógico estável (médias a partir de 12 valores). Continue com o excelente acompanhamento!
+                              </>
+                            )}
+                          </p>
+
+                          <div className="flex flex-wrap gap-2 mt-3">
+                            {studentsNeedingApoio.map(s => {
+                              const status = getApoioAlertStatus(s, selectedTrimester);
+                              const sGrades = getStudentGrades(s, selectedTrimester);
+                              const mediaGVal = calculateGeneralAverage(sGrades);
+                              
+                              // Determine display value
+                              let displayVal = mediaGVal;
+                              if (mediaGVal === '-') {
+                                // If no general average yet, show the current representative grade or ACS 1
+                                displayVal = sGrades.acs1 || sGrades.acs2 || sGrades.acs3 || sGrades.ap || '-';
+                              }
+
+                              const isRed = status === 'red';
+                              const isOrange = status === 'orange';
+                              const isGreen = status === 'green';
+
+                              let badgeStyle = '';
+                              let scoreStyle = '';
+
+                              if (isRed) {
+                                badgeStyle = 'bg-red-100 hover:bg-red-200 dark:bg-red-950/40 dark:hover:bg-red-950/60 border-red-300 dark:border-red-900/35 text-red-800 dark:text-red-300';
+                                scoreStyle = 'bg-red-200/80 dark:bg-red-900/60 text-red-700 dark:text-red-400';
+                              } else if (isOrange) {
+                                badgeStyle = 'bg-amber-100 hover:bg-amber-200 dark:bg-amber-950/30 dark:hover:bg-amber-950/50 border-amber-300 dark:border-amber-900/30 text-amber-800 dark:text-amber-300';
+                                scoreStyle = 'bg-amber-200/80 dark:bg-amber-900/60 text-amber-700 dark:text-amber-400';
+                              } else if (isGreen) {
+                                badgeStyle = 'bg-emerald-100 hover:bg-emerald-200 dark:bg-emerald-950/30 dark:hover:bg-emerald-950/50 border-emerald-300 dark:border-emerald-900/30 text-emerald-800 dark:text-emerald-300';
+                                scoreStyle = 'bg-emerald-200/80 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-400';
+                              }
+
+                              return (
+                                <button 
+                                  key={s.id} 
+                                  onClick={() => {
+                                    setHighlightedStudentId(s.id);
+                                    const el = document.getElementById(`student-row-${s.id}`);
+                                    if (el) {
+                                      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                    }
+                                  }}
+                                  className={`inline-flex items-center gap-1.5 border px-2.5 py-1 rounded-lg text-xs font-bold transition-all shadow-3xs cursor-pointer select-none ${badgeStyle}`}
+                                  title="Clique para localizar na tabela"
+                                >
+                                  <span className="opacity-70">Nº {s.studentNumber || '-'}</span>
+                                  <span className="font-extrabold tracking-tight">{s.name.split(' ')[0]}</span>
+                                  <span className={`text-[10px] font-extrabold px-1 py-0.2 rounded-md ${scoreStyle}`}>
+                                    {displayVal}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
                         </div>
-
-                        <p className="text-xs text-red-750 dark:text-red-450 leading-relaxed text-justify">
-                          Há <strong className="font-extrabold">{studentsNeedingApoio.length}</strong> {studentsNeedingApoio.length === 1 ? 'aluno com alertas activos' : 'alunos com alertas activos'} neste período. Recomenda-se prestar o apoio pedagógico necessário a estes casos:
-                        </p>
-
-                        <div className="flex flex-wrap gap-2 mt-3">
-                          {studentsNeedingApoio.map(s => {
-                            const status = getApoioAlertStatus(s, selectedTrimester);
-                            const sGrades = getStudentGrades(s, selectedTrimester);
-                            const mediaGVal = calculateGeneralAverage(sGrades);
-                            
-                            // Determine display value
-                            let displayVal = mediaGVal;
-                            if (mediaGVal === '-') {
-                              // If no general average yet, show the negative ACS 1 grade that is triggering it
-                              displayVal = sGrades.acs1 || '-';
-                            }
-
-                            const isRed = status === 'red';
-
-                            return (
-                              <button 
-                                key={s.id} 
-                                onClick={() => {
-                                  setHighlightedStudentId(s.id);
-                                  const el = document.getElementById(`student-row-${s.id}`);
-                                  if (el) {
-                                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                  }
-                                }}
-                                className={`inline-flex items-center gap-1.5 border px-2.5 py-1 rounded-lg text-xs font-bold transition-all shadow-3xs cursor-pointer select-none ${
-                                  isRed 
-                                    ? 'bg-red-100 hover:bg-red-200 dark:bg-red-950/40 dark:hover:bg-red-950/60 border-red-300 dark:border-red-900/35 text-red-800 dark:text-red-300'
-                                    : 'bg-amber-100 hover:bg-amber-200 dark:bg-amber-950/30 dark:hover:bg-amber-950/50 border-amber-300 dark:border-amber-900/30 text-amber-800 dark:text-amber-300'
-                                }`}
-                                title="Clique para localizar na tabela"
-                              >
-                                <span className="opacity-70">Nº {s.studentNumber || '-'}</span>
-                                <span className="font-extrabold tracking-tight">{s.name.split(' ')[0]}</span>
-                                <span className={`text-[10px] font-extrabold px-1 py-0.2 rounded-md ${
-                                  isRed
-                                    ? 'bg-red-200/80 dark:bg-red-900/60 text-red-700 dark:text-red-400'
-                                    : 'bg-amber-200/80 dark:bg-amber-900/60 text-amber-700 dark:text-amber-400'
-                                }`}>
-                                  {displayVal}
-                                </span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    </motion.div>
-                  )}
+                      </motion.div>
+                    );
+                  })()}
 
                   {selectedClass.isDirector ? (
                   <div className="w-full">
@@ -3017,17 +3086,31 @@ export default function App() {
                                       {(() => {
                                         const status = getApoioAlertStatus(student, selectedTrimester);
                                         if (status === 'none') return null;
-                                        const isRed = status === 'red';
+                                        
+                                        let badgeColorClass = '';
+                                        let badgeLabel = 'Alerta';
+                                        let titleTooltip = '';
+
+                                        if (status === 'red') {
+                                          badgeColorClass = 'bg-red-100 dark:bg-red-950/45 text-red-600 dark:text-red-400 border-red-200/50 dark:border-red-900/20';
+                                          badgeLabel = 'Crítico';
+                                          titleTooltip = 'Nota abaixo de 7 valores';
+                                        } else if (status === 'orange') {
+                                          badgeColorClass = 'bg-amber-100 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 border-amber-200/50 dark:border-amber-900/20';
+                                          badgeLabel = 'Atenção';
+                                          titleTooltip = 'Nota entre 7 e 11 valores';
+                                        } else if (status === 'green') {
+                                          badgeColorClass = 'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border-emerald-200/50 dark:border-emerald-900/20';
+                                          badgeLabel = 'Estável';
+                                          titleTooltip = 'Nota entre 12 e 20 valores';
+                                        }
+
                                         return (
                                           <span 
-                                            className={`inline-flex items-center gap-0.5 text-[9px] font-extrabold px-1.5 py-0.5 rounded-sm border uppercase tracking-widest leading-none shrink-0 ${
-                                              isRed
-                                                ? 'bg-red-100 dark:bg-red-950/45 text-red-600 dark:text-red-400 border-red-200/50 dark:border-red-900/20'
-                                                : 'bg-amber-100 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 border-amber-200/50 dark:border-amber-900/20'
-                                            }`} 
-                                            title={isRed ? "Necessita de Alerta Académico Crítico" : "Necessita de Orientação/Alerta Pedagógico"}
+                                            className={`inline-flex items-center gap-0.5 text-[9px] font-extrabold px-1.5 py-0.5 rounded-sm border uppercase tracking-widest leading-none shrink-0 ${badgeColorClass}`} 
+                                            title={titleTooltip}
                                           >
-                                            Alerta
+                                            {badgeLabel}
                                           </span>
                                         );
                                       })()}
@@ -3118,15 +3201,29 @@ export default function App() {
                                       {(() => {
                                         const status = getApoioAlertStatus(student, selectedTrimester);
                                         if (status === 'none') return null;
-                                        const isRed = status === 'red';
+                                        
+                                        let badgeColorClass = '';
+                                        let badgeLabel = 'Alerta';
+                                        let iconEl = null;
+
+                                        if (status === 'red') {
+                                          badgeColorClass = 'bg-red-100 dark:bg-red-950/30 border-red-200/60 dark:border-red-900/30 text-red-600 dark:text-red-400';
+                                          badgeLabel = 'Crítico';
+                                          iconEl = <AlertTriangle className="h-2.5 w-2.5 shrink-0 animate-pulse text-red-600 dark:text-red-400" />;
+                                        } else if (status === 'orange') {
+                                          badgeColorClass = 'bg-amber-100 dark:bg-amber-950/20 border-amber-200/60 dark:border-amber-900/30 text-amber-600 dark:text-amber-400';
+                                          badgeLabel = 'Atenção';
+                                          iconEl = <AlertTriangle className="h-2.5 w-2.5 shrink-0 text-amber-500 dark:text-amber-400" />;
+                                        } else if (status === 'green') {
+                                          badgeColorClass = 'bg-emerald-100 dark:bg-emerald-950/20 border-emerald-200/60 dark:border-emerald-900/30 text-emerald-600 dark:text-emerald-400';
+                                          badgeLabel = 'Estável';
+                                          iconEl = <CheckCircle2 className="h-2.5 w-2.5 shrink-0 text-emerald-500 dark:text-emerald-400" />;
+                                        }
+
                                         return (
-                                          <div className={`flex items-center gap-1 mt-1 border px-1.5 py-0.5 rounded-full select-none text-[9px] font-bold max-w-fit mx-auto shadow-3xs ${
-                                            isRed
-                                              ? 'bg-red-100 dark:bg-red-950/30 border-red-200/60 dark:border-red-900/30 text-red-600 dark:text-red-400'
-                                              : 'bg-amber-100 dark:bg-amber-950/20 border-amber-200/60 dark:border-amber-900/30 text-amber-600 dark:text-amber-400'
-                                          }`}>
-                                            <AlertTriangle className={`h-2.5 w-2.5 shrink-0 animate-pulse ${isRed ? 'text-red-600 dark:text-red-400' : 'text-amber-500 dark:text-amber-400'}`} />
-                                            <span>Alerta</span>
+                                          <div className={`flex items-center gap-1 mt-1 border px-1.5 py-0.5 rounded-full select-none text-[9px] font-bold max-w-fit mx-auto shadow-3xs ${badgeColorClass}`}>
+                                            {iconEl}
+                                            <span>{badgeLabel}</span>
                                           </div>
                                         );
                                       })()}
@@ -3318,17 +3415,31 @@ export default function App() {
                                   {(() => {
                                     const status = getApoioAlertStatus(student, selectedTrimester);
                                     if (status === 'none') return null;
-                                    const isRed = status === 'red';
+                                    
+                                    let badgeColorClass = '';
+                                    let badgeLabel = 'Alerta';
+                                    let titleTooltip = '';
+
+                                    if (status === 'red') {
+                                      badgeColorClass = 'bg-red-100 dark:bg-red-950/45 text-red-600 dark:text-red-400 border-red-200/50 dark:border-red-900/20';
+                                      badgeLabel = 'Crítico';
+                                      titleTooltip = 'Nota abaixo de 7 valores';
+                                    } else if (status === 'orange') {
+                                      badgeColorClass = 'bg-amber-100 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 border-amber-200/50 dark:border-amber-900/20';
+                                      badgeLabel = 'Atenção';
+                                      titleTooltip = 'Nota entre 7 e 11 valores';
+                                    } else if (status === 'green') {
+                                      badgeColorClass = 'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border-emerald-200/50 dark:border-emerald-900/20';
+                                      badgeLabel = 'Estável';
+                                      titleTooltip = 'Nota entre 12 e 20 valores';
+                                    }
+
                                     return (
                                       <span 
-                                        className={`inline-flex items-center gap-0.5 text-[9px] font-extrabold px-1.5 py-0.5 rounded-sm border uppercase tracking-widest leading-none shrink-0 ${
-                                          isRed
-                                            ? 'bg-red-100 dark:bg-red-950/45 text-red-600 dark:text-red-400 border-red-200/50 dark:border-red-900/20'
-                                            : 'bg-amber-100 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 border-amber-200/50 dark:border-amber-900/20'
-                                        }`} 
-                                        title={isRed ? "Necessita de Alerta Académico Crítico" : "Necessita de Orientação/Alerta Pedagógico"}
+                                        className={`inline-flex items-center gap-0.5 text-[9px] font-extrabold px-1.5 py-0.5 rounded-sm border uppercase tracking-widest leading-none shrink-0 ${badgeColorClass}`} 
+                                        title={titleTooltip}
                                       >
-                                        Alerta
+                                        {badgeLabel}
                                       </span>
                                     );
                                   })()}
@@ -3419,15 +3530,29 @@ export default function App() {
                                   {(() => {
                                     const status = getApoioAlertStatus(student, selectedTrimester);
                                     if (status === 'none') return null;
-                                    const isRed = status === 'red';
+                                    
+                                    let badgeColorClass = '';
+                                    let badgeLabel = 'Alerta';
+                                    let iconEl = null;
+
+                                    if (status === 'red') {
+                                      badgeColorClass = 'bg-red-100 dark:bg-red-950/30 border-red-200/60 dark:border-red-900/30 text-red-600 dark:text-red-400';
+                                      badgeLabel = 'Crítico';
+                                      iconEl = <AlertTriangle className="h-2.5 w-2.5 shrink-0 animate-pulse text-red-600 dark:text-red-400" />;
+                                    } else if (status === 'orange') {
+                                      badgeColorClass = 'bg-amber-100 dark:bg-amber-950/20 border-amber-200/60 dark:border-amber-900/30 text-amber-600 dark:text-amber-400';
+                                      badgeLabel = 'Atenção';
+                                      iconEl = <AlertTriangle className="h-2.5 w-2.5 shrink-0 text-amber-500 dark:text-amber-400" />;
+                                    } else if (status === 'green') {
+                                      badgeColorClass = 'bg-emerald-100 dark:bg-emerald-950/20 border-emerald-200/60 dark:border-emerald-900/30 text-emerald-600 dark:text-emerald-400';
+                                      badgeLabel = 'Estável';
+                                      iconEl = <CheckCircle2 className="h-2.5 w-2.5 shrink-0 text-emerald-500 dark:text-emerald-400" />;
+                                    }
+
                                     return (
-                                      <div className={`flex items-center gap-1 mt-1 border px-1.5 py-0.5 rounded-full select-none text-[9px] font-bold max-w-fit mx-auto shadow-3xs ${
-                                        isRed
-                                          ? 'bg-red-100 dark:bg-red-950/30 border-red-200/60 dark:border-red-900/30 text-red-600 dark:text-red-400'
-                                          : 'bg-amber-100 dark:bg-amber-950/20 border-amber-200/60 dark:border-amber-900/30 text-amber-600 dark:text-amber-400'
-                                      }`}>
-                                        <AlertTriangle className={`h-2.5 w-2.5 shrink-0 animate-pulse ${isRed ? 'text-red-600 dark:text-red-400' : 'text-amber-500 dark:text-amber-400'}`} />
-                                        <span>Alerta</span>
+                                      <div className={`flex items-center gap-1 mt-1 border px-1.5 py-0.5 rounded-full select-none text-[9px] font-bold max-w-fit mx-auto shadow-3xs ${badgeColorClass}`}>
+                                        {iconEl}
+                                        <span>{badgeLabel}</span>
                                       </div>
                                     );
                                   })()}
