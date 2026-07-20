@@ -1110,7 +1110,7 @@ export default function App() {
   }) || [];
 
   const studentsNeedingApoio = (selectedClass?.students.filter(student => {
-    return getApoioAlertStatus(student, selectedTrimester) !== 'none';
+    return getApoioAlertStatus(student, selectedTrimester) === 'red';
   }) || []).sort((a, b) => {
     const numA = parseInt(a.studentNumber || '9999', 10);
     const numB = parseInt(b.studentNumber || '9999', 10);
