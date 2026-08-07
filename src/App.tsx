@@ -413,16 +413,21 @@ export default function App() {
   const [localNotes, setLocalNotes] = useState<StudentNote[]>([]);
   const [newNoteText, setNewNoteText] = useState('');
   const [isAddingNote, setIsAddingNote] = useState(false);
+  const [modalDragY, setModalDragY] = useState(0);
+  const [isModalDragging, setIsModalDragging] = useState(false);
+  const touchStartY = useRef(0);
 
   useEffect(() => {
     if (notesStudent) {
       setLocalNotes(notesStudent.notes || []);
       setNewNoteText('');
       setIsAddingNote(false);
+      setModalDragY(0);
     } else {
       setLocalNotes([]);
       setNewNoteText('');
       setIsAddingNote(false);
+      setModalDragY(0);
     }
   }, [notesStudent]);
 
@@ -2684,14 +2689,63 @@ export default function App() {
                 </Dialog>
 
                 <Dialog open={!!notesStudent} onOpenChange={(open) => !open && setNotesStudent(null)}>
-                  <DialogContent className="max-sm:fixed max-sm:bottom-0 max-sm:top-auto max-sm:left-0 max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-b-none max-sm:rounded-t-[24px] max-sm:max-w-full max-sm:w-full sm:max-w-[480px] max-h-[85vh] sm:max-h-[90vh] flex flex-col p-0 overflow-hidden bg-white dark:bg-zinc-900 border-0 shadow-md">
-                    <DialogHeader className="px-6 pt-5 pb-4 border-b border-border/20 flex flex-row items-center justify-between">
+                  <DialogContent 
+                    closeButtonClassName="max-sm:hidden top-4 right-4"
+                    className="max-sm:fixed max-sm:bottom-0 max-sm:top-auto max-sm:left-0 max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-b-none max-sm:rounded-t-[24px] max-sm:max-w-full max-sm:w-full sm:max-w-[480px] max-h-[85vh] sm:max-h-[90vh] flex flex-col p-0 overflow-hidden bg-white dark:bg-zinc-900 border-0 shadow-md touch-pan-y"
+                    style={{
+                      transform: modalDragY > 0 ? `translateY(${modalDragY}px)` : undefined,
+                      transition: isModalDragging ? 'none' : 'transform 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
+                    }}
+                  >
+                    {/* Mobile Drag Handle Bar */}
+                    <div 
+                      className="w-12 h-1.5 bg-zinc-300 dark:bg-zinc-700 rounded-full mx-auto my-2 sm:hidden shrink-0 cursor-grab active:cursor-grabbing"
+                      title="Arrastar para baixo para fechar"
+                      onTouchStart={(e) => {
+                        touchStartY.current = e.touches[0].clientY;
+                        setIsModalDragging(true);
+                      }}
+                      onTouchMove={(e) => {
+                        const deltaY = e.touches[0].clientY - touchStartY.current;
+                        if (deltaY > 0) {
+                          setModalDragY(deltaY);
+                        }
+                      }}
+                      onTouchEnd={() => {
+                        setIsModalDragging(false);
+                        if (modalDragY > 60) {
+                          setNotesStudent(null);
+                        }
+                        setModalDragY(0);
+                      }}
+                    />
+
+                    <DialogHeader 
+                      className="px-6 pt-2 sm:pt-5 pb-4 border-b border-border/20 flex flex-row items-center justify-between"
+                      onTouchStart={(e) => {
+                        touchStartY.current = e.touches[0].clientY;
+                        setIsModalDragging(true);
+                      }}
+                      onTouchMove={(e) => {
+                        const deltaY = e.touches[0].clientY - touchStartY.current;
+                        if (deltaY > 0) {
+                          setModalDragY(deltaY);
+                        }
+                      }}
+                      onTouchEnd={() => {
+                        setIsModalDragging(false);
+                        if (modalDragY > 60) {
+                          setNotesStudent(null);
+                        }
+                        setModalDragY(0);
+                      }}
+                    >
                       <DialogTitle className="flex items-center gap-2.5 text-[16px] font-bold text-foreground leading-none tracking-tight pr-2">
                         <FileText className="h-5 w-5 text-[#7C3AED] shrink-0" />
                         <span className="truncate">{notesStudent?.name}</span>
                       </DialogTitle>
                       
-                      <div className="flex items-center gap-2 pr-6">
+                      <div className="flex items-center gap-2 ml-auto sm:pr-8">
                         <Button
                           variant="ghost"
                           size="icon"
