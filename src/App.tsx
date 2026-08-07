@@ -2685,160 +2685,124 @@ export default function App() {
 
                 <Dialog open={!!notesStudent} onOpenChange={(open) => !open && setNotesStudent(null)}>
                   <DialogContent className="max-sm:fixed max-sm:bottom-0 max-sm:top-auto max-sm:left-0 max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-b-none max-sm:rounded-t-[24px] max-sm:max-w-full max-sm:w-full sm:max-w-[480px] max-h-[85vh] sm:max-h-[90vh] flex flex-col p-0 overflow-hidden bg-white dark:bg-zinc-900 border-0 shadow-md">
-                    <DialogHeader className="px-6 pt-5 pb-3 border-0 flex flex-row items-center justify-between">
-                      <DialogTitle className="flex items-center gap-2.5 text-[16px] font-bold text-foreground leading-none tracking-tight pr-4">
+                    <DialogHeader className="px-6 pt-5 pb-4 border-b border-border/20 flex flex-row items-center justify-between">
+                      <DialogTitle className="flex items-center gap-2.5 text-[16px] font-bold text-foreground leading-none tracking-tight pr-2">
                         <FileText className="h-5 w-5 text-[#7C3AED] shrink-0" />
-                        <span>Notas — {notesStudent?.name}</span>
+                        <span className="truncate">{notesStudent?.name}</span>
                       </DialogTitle>
+                      
+                      <div className="flex items-center gap-2 pr-6">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setIsAddingNote(!isAddingNote)}
+                          className={`h-8 w-8 rounded-full cursor-pointer transition-all ${
+                            isAddingNote
+                              ? 'bg-purple-100 dark:bg-purple-950/50 text-[#7C3AED]'
+                              : 'bg-purple-50 dark:bg-purple-950/30 text-[#7C3AED] hover:bg-purple-100 dark:hover:bg-purple-900/40'
+                          }`}
+                          title={isAddingNote ? "Ver Notas" : "Adicionar Nota"}
+                        >
+                          <Plus className={`h-4 w-4 transition-transform ${isAddingNote ? 'rotate-45' : ''}`} />
+                        </Button>
+                      </div>
                     </DialogHeader>
 
-                    {!isAddingNote ? (
-                      <>
-                        <div className="px-6 pb-2 flex items-center justify-between">
-                          <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                            Notas Registadas ({localNotes.length})
-                          </span>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setIsAddingNote(true)}
-                            className="h-8 px-3 rounded-xl border-[#7C3AED]/30 text-[#7C3AED] hover:bg-[#7C3AED]/10 dark:hover:bg-[#7C3AED]/20 font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-2xs transition-colors"
-                          >
-                            <Plus className="h-3.5 w-3.5" />
-                            <span>Adicionar Nota</span>
-                          </Button>
-                        </div>
-
-                        <div className="flex-1 overflow-y-auto px-6 py-1">
-                          {localNotes.length === 0 ? (
-                            <div className="py-8 flex flex-col justify-center items-center gap-3 text-center">
-                              <FileText className="h-10 w-10 text-muted-foreground/30 stroke-[1.5]" />
-                              <p className="text-xs text-muted-foreground font-semibold">Nenhuma nota registada ainda.</p>
-                              <Button
-                                onClick={() => setIsAddingNote(true)}
-                                className="bg-[#7C3AED] hover:bg-[#6D28D9] text-white font-bold text-xs rounded-xl px-4 py-2 flex items-center gap-2 cursor-pointer shadow-xs mt-1"
-                              >
-                                <Plus className="h-4 w-4" />
-                                <span>Escrever Nota</span>
-                              </Button>
-                            </div>
-                          ) : (
-                            <ScrollArea className="max-h-[260px] overflow-y-auto pr-1">
-                              <div className="divide-y divide-border/40">
-                                {localNotes.map((note) => (
-                                  <div key={note.id} className="py-3 flex items-start justify-between gap-3 relative group">
-                                    <div className="flex items-start gap-2.5 min-w-0 flex-1">
-                                      <span className="shrink-0 text-[10px] font-bold font-mono text-[#7C3AED] bg-purple-50 dark:bg-purple-950/30 px-2 py-0.5 rounded leading-none mt-0.5 border border-purple-200/50 dark:border-purple-800/30">
+                    <div className="flex-1 overflow-y-auto px-6 py-4">
+                      {!isAddingNote ? (
+                        localNotes.length === 0 ? (
+                          <div className="py-8 flex flex-col justify-center items-center gap-3 text-center">
+                            <FileText className="h-10 w-10 text-muted-foreground/30 stroke-[1.5]" />
+                            <p className="text-xs text-muted-foreground font-semibold">Nenhuma nota registada ainda.</p>
+                            <Button
+                              onClick={() => setIsAddingNote(true)}
+                              className="bg-[#7C3AED] hover:bg-[#6D28D9] text-white font-bold text-xs rounded-xl px-4 py-2 flex items-center gap-1.5 cursor-pointer shadow-xs mt-1"
+                            >
+                              <Plus className="h-4 w-4" />
+                              <span>Adicionar Nota</span>
+                            </Button>
+                          </div>
+                        ) : (
+                          <ScrollArea className="max-h-[320px] overflow-y-auto pr-1">
+                            <div className="flex flex-col gap-2.5">
+                              {localNotes.map((note) => (
+                                <div key={note.id} className="p-3.5 rounded-2xl bg-purple-50/80 dark:bg-purple-950/30 border border-purple-200/80 dark:border-purple-800/50 shadow-2xs flex items-start justify-between gap-3 relative transition-all">
+                                  <div className="flex flex-col gap-1.5 min-w-0 flex-1">
+                                    <div className="flex items-center gap-2">
+                                      <span className="shrink-0 text-[10px] font-bold font-mono text-[#7C3AED] bg-white dark:bg-purple-900/60 px-2.5 py-0.5 rounded-md border border-purple-200/80 dark:border-purple-700/50 shadow-3xs">
                                         {note.date}
                                       </span>
-                                      <p className="text-xs text-foreground/90 font-medium leading-relaxed break-words whitespace-pre-wrap flex-1">
-                                        {note.text}
-                                      </p>
                                     </div>
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-7 w-7 rounded-lg text-muted-foreground/60 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 shrink-0 cursor-pointer p-0 transition-colors"
-                                      onClick={() => setLocalNotes(prev => prev.filter(n => n.id !== note.id))}
-                                      title="Apagar Nota"
-                                    >
-                                      <Trash2 className="h-4 w-4 text-muted-foreground/70 hover:text-red-600 dark:hover:text-red-400 transition-colors" />
-                                    </Button>
+                                    <p className="text-xs text-foreground font-semibold leading-relaxed break-words whitespace-pre-wrap">
+                                      {note.text}
+                                    </p>
                                   </div>
-                                ))}
-                              </div>
-                            </ScrollArea>
-                          )}
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 rounded-xl text-muted-foreground/70 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-100/70 dark:hover:bg-red-950/40 shrink-0 cursor-pointer p-0 transition-colors"
+                                    onClick={async () => {
+                                      const updated = localNotes.filter(n => n.id !== note.id);
+                                      setLocalNotes(updated);
+                                      if (notesStudent) {
+                                        await handleSaveNotes(notesStudent.id, updated);
+                                      }
+                                    }}
+                                    title="Apagar Nota"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              ))}
+                            </div>
+                          </ScrollArea>
+                        )
+                      ) : (
+                        <div className="flex flex-col gap-3">
+                          <textarea
+                            id="new-note-textarea"
+                            className="flex min-h-[120px] max-h-[180px] w-full rounded-[14px] border border-[#C4B5FD] dark:border-[#C4B5FD]/40 bg-background p-3.5 text-xs placeholder:text-muted-foreground/60 focus-visible:outline-none focus:border-[#7C3AED] focus:ring-1 focus:ring-[#7C3AED] resize-none font-medium text-foreground transition-all shadow-2xs"
+                            placeholder="Escreva a sua nota aqui..."
+                            value={newNoteText}
+                            onChange={(e) => setNewNoteText(e.target.value)}
+                            autoFocus
+                          />
+                          <div className="flex items-center justify-end gap-2">
+                            <Button
+                              variant="ghost"
+                              onClick={() => {
+                                setNewNoteText('');
+                                setIsAddingNote(false);
+                              }}
+                              className="h-9 px-3 rounded-xl font-bold text-xs text-muted-foreground hover:text-foreground cursor-pointer"
+                            >
+                              Cancelar
+                            </Button>
+                            <Button
+                              disabled={!newNoteText.trim()}
+                              onClick={async () => {
+                                if (!newNoteText.trim() || !notesStudent) return;
+                                const dateObj = new Date();
+                                const formattedDate = `${String(dateObj.getDate()).padStart(2, '0')}/${String(dateObj.getMonth() + 1).padStart(2, '0')}/${dateObj.getFullYear()}`;
+                                const pendingNote: StudentNote = {
+                                  id: Math.random().toString(36).substring(2, 9),
+                                  date: formattedDate,
+                                  text: newNoteText.trim()
+                                };
+                                const updated = [...localNotes, pendingNote];
+                                setLocalNotes(updated);
+                                setNewNoteText('');
+                                setIsAddingNote(false);
+                                await handleSaveNotes(notesStudent.id, updated);
+                              }}
+                              className="h-9 px-4 rounded-xl font-bold text-xs text-white bg-[#7C3AED] hover:bg-[#6D28D9] disabled:opacity-50 transition-colors shadow-xs cursor-pointer flex items-center gap-1.5"
+                            >
+                              <Plus className="h-3.5 w-3.5" />
+                              <span>Adicionar Nota</span>
+                            </Button>
+                          </div>
                         </div>
-                      </>
-                    ) : (
-                      <div className="flex-1 px-6 py-2 flex flex-col gap-3">
-                        <div className="flex items-center justify-between text-xs font-bold text-[#7C3AED]">
-                          <span className="flex items-center gap-1.5">
-                            <FileText className="h-4 w-4" />
-                            Escrever Nova Nota
-                          </span>
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            onClick={() => setIsAddingNote(false)}
-                            className="h-7 px-2 text-muted-foreground hover:text-foreground font-semibold text-xs cursor-pointer"
-                          >
-                            ← Ver Notas ({localNotes.length})
-                          </Button>
-                        </div>
-                        <textarea
-                          id="new-note-textarea"
-                          className="flex min-h-[110px] max-h-[160px] w-full rounded-[14px] border border-[#C4B5FD] dark:border-[#C4B5FD]/40 bg-background p-3.5 text-xs placeholder:text-muted-foreground/60 focus-visible:outline-none focus:border-[#7C3AED] focus:ring-1 focus:ring-[#7C3AED] disabled:cursor-not-allowed disabled:opacity-50 resize-none font-medium text-foreground transition-all shadow-2xs"
-                          placeholder="Escreva aqui a sua nota..."
-                          value={newNoteText}
-                          onChange={(e) => setNewNoteText(e.target.value)}
-                          autoFocus
-                        />
-                        <div className="flex items-center justify-end gap-2">
-                          <Button
-                            variant="ghost"
-                            onClick={() => {
-                              setNewNoteText('');
-                              setIsAddingNote(false);
-                            }}
-                            className="h-9 px-3 rounded-xl font-bold text-xs text-muted-foreground hover:text-foreground cursor-pointer"
-                          >
-                            Cancelar
-                          </Button>
-                          <Button
-                            disabled={!newNoteText.trim()}
-                            onClick={() => {
-                              if (!newNoteText.trim()) return;
-                              const dateObj = new Date();
-                              const formattedDate = `${String(dateObj.getDate()).padStart(2, '0')}/${String(dateObj.getMonth() + 1).padStart(2, '0')}/${dateObj.getFullYear()}`;
-                              const pendingNote: StudentNote = {
-                                id: Math.random().toString(36).substring(2, 9),
-                                date: formattedDate,
-                                text: newNoteText.trim()
-                              };
-                              setLocalNotes(prev => [...prev, pendingNote]);
-                              setNewNoteText('');
-                              setIsAddingNote(false);
-                            }}
-                            className="h-9 px-4 rounded-xl font-bold text-xs text-white bg-[#7C3AED] hover:bg-[#6D28D9] disabled:opacity-50 transition-colors shadow-xs cursor-pointer flex items-center gap-1.5"
-                          >
-                            <Plus className="h-3.5 w-3.5" />
-                            <span>Adicionar Nota</span>
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="px-6 pb-5 pt-3 flex items-center justify-end gap-3 w-full border-t border-border/30 mt-auto">
-                      <Button 
-                        variant="outline" 
-                        onClick={() => setNotesStudent(null)}
-                        className="flex-1 h-10 rounded-xl font-bold text-xs uppercase tracking-wider border border-border text-foreground hover:bg-muted cursor-pointer"
-                      >
-                        Cancelar
-                      </Button>
-                      <Button 
-                        onClick={async () => {
-                          if (!notesStudent) return;
-                          let finalNotes = [...localNotes];
-                          if (newNoteText.trim()) {
-                            const dateObj = new Date();
-                            const formattedDate = `${String(dateObj.getDate()).padStart(2, '0')}/${String(dateObj.getMonth() + 1).padStart(2, '0')}/${dateObj.getFullYear()}`;
-                            const pendingNote: StudentNote = {
-                              id: Math.random().toString(36).substring(2, 9),
-                              date: formattedDate,
-                              text: newNoteText.trim()
-                            };
-                            finalNotes.push(pendingNote);
-                          }
-                          await handleSaveNotes(notesStudent.id, finalNotes);
-                          setNotesStudent(null);
-                        }}
-                        className="flex-1 h-10 rounded-xl font-bold text-xs uppercase tracking-wider text-white bg-[#7C3AED] hover:bg-[#6D28D9] transition-colors shadow-xs cursor-pointer"
-                      >
-                        Salvar
-                      </Button>
+                      )}
                     </div>
                   </DialogContent>
                 </Dialog>
