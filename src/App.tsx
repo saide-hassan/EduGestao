@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Users, BookOpen, School, GraduationCap, ChevronLeft, Trash2, UserPlus, Save, Search, Download, Pencil, Home, LogOut, Star, Layers, Sun, Moon, Upload, FileSpreadsheet, FileText, UploadCloud, Check, AlertTriangle, X, ChevronDown, Cloud, Wifi, WifiOff, CloudLightning, CloudOff, CheckCircle2 } from 'lucide-react';
+import { Plus, Users, BookOpen, School, GraduationCap, ChevronLeft, Trash2, UserPlus, Save, Search, Download, Pencil, Home, LogOut, Star, Layers, Sun, Moon, Upload, FileSpreadsheet, FileText, UploadCloud, Check, AlertTriangle, X, ChevronDown, Cloud, Wifi, WifiOff, CloudLightning, CloudOff, CheckCircle2, Calculator } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import mammoth from 'mammoth';
 import { motion } from 'motion/react';
@@ -53,7 +53,31 @@ type Student = {
     3?: Grades;
   };
   notes?: StudentNote[];
+  subjectGrades?: Record<string, string>;
+  trimesterSubjectGrades?: {
+    1?: Record<string, string>;
+    2?: Record<string, string>;
+    3?: Record<string, string>;
+  };
 };
+
+export const MEDIA_GERAL_SUBJECTS = [
+  { key: 'P', label: 'P', name: 'Português' },
+  { key: 'I', label: 'I', name: 'Inglês' },
+  { key: 'H', label: 'H', name: 'História' },
+  { key: 'G', label: 'G', name: 'Geografia' },
+  { key: 'M', label: 'M', name: 'Matemática' },
+  { key: 'F', label: 'F', name: 'Física' },
+  { key: 'Q', label: 'Q', name: 'Química' },
+  { key: 'B', label: 'B', name: 'Biologia' },
+  { key: 'EdV', label: 'Ed. V', name: 'Educação Visual' },
+  { key: 'AP', label: 'AP', name: 'Agropecuária' },
+  { key: 'EdMC', label: 'Ed. MC', name: 'Educação Moral e Cívica' },
+  { key: 'TICs', label: 'TICs', name: 'Tecnologias de Informação e Comunicação' },
+  { key: 'EdF', label: 'Ed. F', name: 'Educação Física' },
+] as const;
+
+export type SubjectKey = typeof MEDIA_GERAL_SUBJECTS[number]['key'];
 
 const emptyGrades = (): Grades => ({ acs1: '', acs2: '', acs3: '', ap: '', exame: '' });
 
@@ -65,6 +89,58 @@ const getStudentGrades = (student: Student, trimester: '1' | '2' | '3'): Grades 
     return student.grades || emptyGrades();
   }
   return emptyGrades();
+};
+
+const getStudentSubjectGrades = (student: Student, trimester: '1' | '2' | '3'): Record<string, string> => {
+  if (student.trimesterSubjectGrades && student.trimesterSubjectGrades[trimester]) {
+    return student.trimesterSubjectGrades[trimester]!;
+  }
+  if (trimester === '1' && student.subjectGrades) {
+    return student.subjectGrades;
+  }
+  return {};
+};
+
+const calculateMediaGeralForStudent = (
+  student: Student,
+  trimester: '1' | '2' | '3'
+): {
+  rounded: string;
+  raw: number | null;
+  sum: number;
+  filledCount: number;
+  hasAnyGrade: boolean;
+} => {
+  const subjectGrades = getStudentSubjectGrades(student, trimester);
+  let sum = 0;
+  let filledCount = 0;
+
+  MEDIA_GERAL_SUBJECTS.forEach((sub) => {
+    const val = subjectGrades[sub.key];
+    if (val !== undefined && val !== null && val.trim() !== '' && val.trim() !== '-') {
+      const num = parseFloat(val.replace(',', '.'));
+      if (!isNaN(num)) {
+        sum += num;
+        filledCount++;
+      }
+    }
+  });
+
+  if (filledCount === 0) {
+    return { rounded: '-', raw: null, sum: 0, filledCount: 0, hasAnyGrade: false };
+  }
+
+  // Divisão sempre por 13 (o total de disciplinas curriculares)
+  const rawAverage = sum / 13;
+  const rounded = customRound(rawAverage);
+
+  return {
+    rounded,
+    raw: rawAverage,
+    sum,
+    filledCount,
+    hasAnyGrade: true,
+  };
 };
 
 type ClassData = {
@@ -313,10 +389,14 @@ export default function App() {
   const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
   const [hasUnsyncedChanges, setHasUnsyncedChanges] = useState(false);
   const [isUnsyncedModalOpen, setIsUnsyncedModalOpen] = useState(false);
+  const [isMediaGeralViewOpen, setIsMediaGeralViewOpen] = useState(false);
+  const [mediaGeralSearch, setMediaGeralSearch] = useState('');
 
   useEffect(() => {
     setHasUnsyncedChanges(false);
     setIsUnsyncedModalOpen(false);
+    setIsMediaGeralViewOpen(false);
+    setMediaGeralSearch('');
   }, [selectedClassId]);
   const [selectedLevel, setSelectedLevel] = useState<string | null>(null);
   const [selectedLevelYear, setSelectedLevelYear] = useState<string | null>(null);
@@ -589,6 +669,11 @@ export default function App() {
 
       isSystemPopState.current = true;
 
+      if (isMediaGeralViewOpen) {
+        setIsMediaGeralViewOpen(false);
+        return;
+      }
+
       // Fechar quaisquer popups abertos quando o utilizador retrocede no telemóvel
       setIsAddClassOpen(false);
       setIsAddStudentOpen(false);
@@ -599,6 +684,7 @@ export default function App() {
       setClassToDelete(null);
       setIsLogoutDialogOpen(false);
       setIsDeleteDialogOpen(false);
+      setIsMediaGeralViewOpen(false);
 
       if (state.view === 'class') {
         setSelectedLevel(state.level ?? null);
@@ -1056,6 +1142,189 @@ export default function App() {
     }
   };
 
+  const updateSubjectGrade = async (studentId: string, subjectKey: string, rawValue: string) => {
+    if (!selectedClass || !user) return;
+    
+    // Aceitar apenas números, pontos e vírgulas para notas escolares
+    const cleanVal = rawValue.replace(/[^0-9.,]/g, '');
+
+    const updatedClass: ClassData = {
+      ...selectedClass,
+      students: selectedClass.students.map(s => {
+        if (s.id === studentId) {
+          const currentTrimesterSubjectGrades = s.trimesterSubjectGrades || {};
+          const currentTSubGrades = { ...getStudentSubjectGrades(s, selectedTrimester), [subjectKey]: cleanVal };
+          
+          const newTrimesterSubjectGrades = {
+            ...currentTrimesterSubjectGrades,
+            [selectedTrimester]: currentTSubGrades
+          };
+          
+          const updatedRootSubGrades = selectedTrimester === '1' ? currentTSubGrades : (s.subjectGrades || {});
+          
+          return {
+            ...s,
+            subjectGrades: updatedRootSubGrades,
+            trimesterSubjectGrades: newTrimesterSubjectGrades
+          };
+        }
+        return s;
+      })
+    };
+
+    try {
+      await setDoc(doc(db, 'classes', selectedClass.id), updatedClass);
+      setHasUnsyncedChanges(true);
+    } catch (error) {
+      console.error("Error updating subject grade:", error);
+    }
+  };
+
+  const mapSubjectToKey = (subjectName: string): string | null => {
+    if (!subjectName) return null;
+    const norm = subjectName.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    if (norm.includes('portugues')) return 'P';
+    if (norm.includes('ingles') || norm.includes('english')) return 'I';
+    if (norm.includes('historia')) return 'H';
+    if (norm.includes('geografia')) return 'G';
+    if (norm.includes('matematica') || norm.includes('mate')) return 'M';
+    if (norm.includes('fisica') && !norm.includes('educacao') && !norm.includes('ed')) return 'F';
+    if (norm.includes('quimica')) return 'Q';
+    if (norm.includes('biologia')) return 'B';
+    if (norm.includes('visual') || norm.includes('desenho')) return 'EdV';
+    if (norm.includes('agro') || norm.includes('pecuaria') || norm === 'ap') return 'AP';
+    if (norm.includes('moral') || norm.includes('civica') || norm.includes('emc')) return 'EdMC';
+    if (norm.includes('tic') || norm.includes('informatica')) return 'TICs';
+    if (norm.includes('educacao fisica') || norm.includes('ed. fisica') || norm.includes('ed fisica') || norm === 'ef') return 'EdF';
+    return null;
+  };
+
+  const pullCurrentSubjectGrades = async () => {
+    if (!selectedClass || !user) return;
+    const targetKey = mapSubjectToKey(selectedClass.subject);
+    if (!targetKey) {
+      toast.error(`Não foi encontrada correspondência direta para a disciplina "${selectedClass.subject}".`);
+      return;
+    }
+
+    let count = 0;
+    const updatedClass: ClassData = {
+      ...selectedClass,
+      students: selectedClass.students.map(s => {
+        const sGrades = getStudentGrades(s, selectedTrimester);
+        const avg = calculateGeneralAverage(sGrades);
+        if (avg !== '-') {
+          count++;
+          const currentTrimesterSubjectGrades = s.trimesterSubjectGrades || {};
+          const currentTSubGrades = { ...getStudentSubjectGrades(s, selectedTrimester), [targetKey]: avg };
+          return {
+            ...s,
+            subjectGrades: selectedTrimester === '1' ? currentTSubGrades : (s.subjectGrades || {}),
+            trimesterSubjectGrades: {
+              ...currentTrimesterSubjectGrades,
+              [selectedTrimester]: currentTSubGrades
+            }
+          };
+        }
+        return s;
+      })
+    };
+
+    if (count === 0) {
+      toast.info("Nenhuma média calculada nas avaliações desta turma para sincronizar.");
+      return;
+    }
+
+    try {
+      await setDoc(doc(db, 'classes', selectedClass.id), updatedClass);
+      setHasUnsyncedChanges(true);
+      toast.success(`${count} notas de ${selectedClass.subject} sincronizadas com sucesso!`);
+    } catch (err) {
+      console.error("Error pulling subject grades:", err);
+      toast.error("Erro ao sincronizar notas da disciplina.");
+    }
+  };
+
+  const exportMediaGeralToExcel = () => {
+    if (!selectedClass) return;
+
+    const wb = XLSX.utils.book_new();
+    const rawLevel = selectedClass.level.replace(/\s*[Cc]lasse\s*/i, '').trim();
+    const sectionName = selectedClass.section ? ` ${selectedClass.section}` : '';
+    const title = `PAUTA GERAL DE AVALIAÇÃO - CÁLCULO DA MÉDIA GERAL (MG)`;
+
+    const aoa: any[][] = [
+      [title],
+      [`Escola: ${selectedClass.school || 'EduGestão'} | Turma: ${rawLevel}${sectionName} | Período: ${selectedTrimester}º Trimestre`],
+      [`Ano Lectivo: ${selectedClass.academicYear || '-'} | Director de Turma: Sim | Data: ${new Date().toLocaleDateString('pt-PT')}`],
+      [],
+      [
+        'Nº',
+        'Nome do Aluno',
+        'P',
+        'I',
+        'H',
+        'G',
+        'M',
+        'F',
+        'Q',
+        'B',
+        'Ed. V',
+        'AP',
+        'Ed. MC',
+        'TICs',
+        'Ed. F',
+        'Soma (13 Disc.)',
+        'Média Bruta',
+        'Média Geral (MG)'
+      ]
+    ];
+
+    const sortedStudents = [...selectedClass.students].sort((a, b) => {
+      const numA = parseInt(a.studentNumber || '999999', 10);
+      const numB = parseInt(b.studentNumber || '999999', 10);
+      if (!isNaN(numA) && !isNaN(numB) && numA !== numB) return numA - numB;
+      return a.name.localeCompare(b.name);
+    });
+
+    sortedStudents.forEach((student, idx) => {
+      const subGrades = getStudentSubjectGrades(student, selectedTrimester);
+      const mg = calculateMediaGeralForStudent(student, selectedTrimester);
+
+      aoa.push([
+        student.studentNumber || (idx + 1),
+        student.name,
+        subGrades['P'] || '',
+        subGrades['I'] || '',
+        subGrades['H'] || '',
+        subGrades['G'] || '',
+        subGrades['M'] || '',
+        subGrades['F'] || '',
+        subGrades['Q'] || '',
+        subGrades['B'] || '',
+        subGrades['EdV'] || '',
+        subGrades['AP'] || '',
+        subGrades['EdMC'] || '',
+        subGrades['TICs'] || '',
+        subGrades['EdF'] || '',
+        mg.hasAnyGrade ? mg.sum : '',
+        mg.raw !== null ? mg.raw.toFixed(2).replace('.', ',') : '',
+        mg.rounded
+      ]);
+    });
+
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws['!merges'] = [
+      { s: { r: 0, c: 0 }, e: { r: 0, c: 17 } },
+      { s: { r: 1, c: 0 }, e: { r: 1, c: 17 } },
+      { s: { r: 2, c: 0 }, e: { r: 2, c: 17 } }
+    ];
+    XLSX.utils.book_append_sheet(wb, ws, `MG ${selectedTrimester}º Trim`);
+    const fileName = `Pauta Media Geral - ${rawLevel}${sectionName} - ${selectedTrimester}T.xlsx`;
+    XLSX.writeFile(wb, fileName);
+    toast.success('Pauta da Média Geral exportada em Excel com sucesso!');
+  };
+
   const confirmDeleteStudent = (studentId: string) => {
     setStudentToDelete(studentId);
   };
@@ -1116,6 +1385,33 @@ export default function App() {
     if (!isNaN(numA) && !isNaN(numB) && numA !== numB) return numA - numB;
     return (a.name || '').localeCompare(b.name || '');
   }) || [];
+
+  const filteredMediaGeralStudents = (selectedClass?.students || []).filter(s => {
+    if (!mediaGeralSearch.trim()) return true;
+    const term = mediaGeralSearch.toLowerCase();
+    return (s.name || '').toLowerCase().includes(term) || (s.studentNumber && s.studentNumber.includes(term));
+  }).sort((a, b) => {
+    const numA = parseInt(a.studentNumber || '9999', 10);
+    const numB = parseInt(b.studentNumber || '9999', 10);
+    if (!isNaN(numA) && !isNaN(numB) && numA !== numB) return numA - numB;
+    return (a.name || '').localeCompare(b.name || '');
+  });
+
+  const classAverageMG = (() => {
+    if (!selectedClass || selectedClass.students.length === 0) return '-';
+    const validMGs: number[] = [];
+    selectedClass.students.forEach(s => {
+      const mg = calculateMediaGeralForStudent(s, selectedTrimester);
+      if (mg.hasAnyGrade && mg.rounded !== '-') {
+        const val = parseFloat(mg.rounded);
+        if (!isNaN(val)) validMGs.push(val);
+      }
+    });
+    if (validMGs.length === 0) return '-';
+    const sum = validMGs.reduce((a, b) => a + b, 0);
+    const avg = sum / validMGs.length;
+    return `${customRound(avg)} (${avg.toFixed(1).replace('.', ',')})`;
+  })();
 
   const studentsNeedingApoio = (selectedClass?.students.filter(student => {
     return getApoioAlertStatus(student, selectedTrimester) === 'red';
@@ -1274,6 +1570,67 @@ export default function App() {
       ];
       wsPersonal['!cols'] = calculateColWidths(aoaPersonal, 3);
       XLSX.utils.book_append_sheet(wb, wsPersonal, 'Dados Pessoais');
+
+      // 2.5. Build Média Geral (13 Disciplinas) sheet if user is Director
+      const mgHeaders = [
+        'Nº',
+        'Nome do Aluno',
+        'P',
+        'I',
+        'H',
+        'G',
+        'M',
+        'F',
+        'Q',
+        'B',
+        'Ed. V',
+        'AP',
+        'Ed. MC',
+        'TICs',
+        'Ed. F',
+        'Soma',
+        'Média Bruta',
+        'Média Geral (MG)'
+      ];
+      const aoaMG: any[][] = [
+        [`PAUTA DE MÉDIA GERAL (13 DISCIPLINAS) - ${levelName}${sectionName} - ${selectedTrimester}º TRIMESTRE`.toUpperCase()],
+        [`Escola: ${selectedClass.school || 'EduGestão'} | Ano Lectivo: ${selectedClass.academicYear || '-'} | Período: ${selectedTrimester}º Trimestre`],
+        [],
+        mgHeaders
+      ];
+
+      sortedStudentsForExport.forEach((student, idx) => {
+        const subGrades = getStudentSubjectGrades(student, selectedTrimester);
+        const mg = calculateMediaGeralForStudent(student, selectedTrimester);
+        aoaMG.push([
+          student.studentNumber || (idx + 1),
+          student.name,
+          subGrades['P'] || '',
+          subGrades['I'] || '',
+          subGrades['H'] || '',
+          subGrades['G'] || '',
+          subGrades['M'] || '',
+          subGrades['F'] || '',
+          subGrades['Q'] || '',
+          subGrades['B'] || '',
+          subGrades['EdV'] || '',
+          subGrades['AP'] || '',
+          subGrades['EdMC'] || '',
+          subGrades['TICs'] || '',
+          subGrades['EdF'] || '',
+          mg.hasAnyGrade ? mg.sum : '',
+          mg.raw !== null ? mg.raw.toFixed(2).replace('.', ',') : '',
+          mg.rounded
+        ]);
+      });
+
+      const wsMG = XLSX.utils.aoa_to_sheet(aoaMG);
+      wsMG['!merges'] = [
+        { s: { r: 0, c: 0 }, e: { r: 0, c: mgHeaders.length - 1 } },
+        { s: { r: 1, c: 0 }, e: { r: 1, c: mgHeaders.length - 1 } }
+      ];
+      wsMG['!cols'] = calculateColWidths(aoaMG, 3);
+      XLSX.utils.book_append_sheet(wb, wsMG, 'Média Geral (13 Disc.)');
     }
 
     // 3. Build Student Notes / Comments sheet (diferente da de avaliações)
@@ -2253,6 +2610,272 @@ export default function App() {
               </div>
             )}
           </div>
+        ) : selectedClass && selectedClass.isDirector && isMediaGeralViewOpen ? (
+          // Dedicated Media Geral Calculation View for Director de Turma
+          <div className="space-y-4 pt-4 sm:pt-6 animate-in fade-in duration-300">
+            {/* Header & Controls Card */}
+            <div className="bg-card rounded-2xl border border-border shadow-xs p-4 sm:p-6">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/50 pb-4">
+                <div className="flex items-center gap-3">
+                  <Button
+                    variant="outline"
+                    onClick={() => setIsMediaGeralViewOpen(false)}
+                    className="h-9 w-9 p-0 border border-purple-200 dark:border-purple-900/40 bg-purple-50/20 dark:bg-purple-950/20 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/30 rounded-xl shadow-2xs flex items-center justify-center cursor-pointer transition-all shrink-0"
+                    title="Voltar para a pauta da turma"
+                  >
+                    <ChevronLeft className="h-5 w-5" />
+                  </Button>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h2 className="text-lg sm:text-xl font-extrabold text-foreground tracking-tight">
+                        Cálculo da Média Geral (MG)
+                      </h2>
+                      <span className="bg-amber-400 text-amber-950 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wide flex items-center gap-1 shadow-2xs">
+                        <Star className="h-2.5 w-2.5 fill-amber-950 text-amber-950" />
+                        <span>Director de Turma</span>
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {selectedClass.level} {selectedClass.section} &bull; {selectedClass.school || 'EduGestão'} &bull; 13 Disciplinas Curriculares
+                    </p>
+                  </div>
+                </div>
+
+                {/* Right controls */}
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* Trimester Tabs */}
+                  <div className="flex p-0.5 bg-muted/70 rounded-xl border border-border/40 select-none">
+                    {(['1', '2', '3'] as const).map((t) => (
+                      <button
+                        key={t}
+                        onClick={() => setSelectedTrimester(t)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                          selectedTrimester === t
+                            ? 'bg-purple-600 text-white shadow-xs'
+                            : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                      >
+                        {t}º Trimestre
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Pull Current Subject Grades */}
+                  <Button
+                    variant="outline"
+                    onClick={pullCurrentSubjectGrades}
+                    className="h-8.5 px-3 border border-purple-200 dark:border-purple-900/50 bg-purple-50/10 dark:bg-purple-950/10 text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/30 text-xs font-semibold rounded-lg shadow-2xs flex items-center gap-1.5 cursor-pointer"
+                    title={`Preencher notas de ${selectedClass.subject} calculadas nas avaliações desta turma`}
+                  >
+                    <BookOpen className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400" />
+                    <span>Sincronizar {selectedClass.subject}</span>
+                  </Button>
+
+                  {/* Export Excel */}
+                  <Button
+                    variant="outline"
+                    onClick={exportMediaGeralToExcel}
+                    className="h-8.5 px-3 border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/10 dark:bg-emerald-950/10 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 text-xs font-semibold rounded-lg shadow-2xs flex items-center gap-1.5 cursor-pointer"
+                    title="Exportar pauta completa da Média Geral para Excel"
+                  >
+                    <Download className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                    <span>Exportar Excel</span>
+                  </Button>
+                </div>
+              </div>
+
+              {/* Statistics & Formula Bar */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-4">
+                <div className="p-3 rounded-xl bg-purple-500/5 border border-purple-500/15 flex items-center gap-3">
+                  <div className="h-9 w-9 rounded-lg bg-purple-500/15 text-purple-600 dark:text-purple-400 flex items-center justify-center font-extrabold text-sm">
+                    13
+                  </div>
+                  <div>
+                    <div className="text-[11px] font-semibold text-muted-foreground uppercase">Disciplinas</div>
+                    <div className="text-xs font-extrabold text-foreground">P, I, H, G, M, F, Q, B, Ed. V, AP, Ed. MC, TICs, Ed. F</div>
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-xl bg-muted/30 border border-border/60 flex items-center gap-3">
+                  <div className="h-9 w-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-extrabold text-sm">
+                    {selectedClass.students.length}
+                  </div>
+                  <div>
+                    <div className="text-[11px] font-semibold text-muted-foreground uppercase">Total de Alunos</div>
+                    <div className="text-xs font-extrabold text-foreground">{selectedClass.students.length} matriculados</div>
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-xl bg-amber-500/5 border border-amber-500/15 flex items-center gap-3">
+                  <div className="h-9 w-9 rounded-lg bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center font-extrabold text-sm">
+                    <Calculator className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <div className="text-[11px] font-semibold text-muted-foreground uppercase">Média Geral da Turma</div>
+                    <div className="text-xs font-extrabold text-amber-600 dark:text-amber-400">{classAverageMG}</div>
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-xl bg-blue-500/5 border border-blue-500/15 flex items-center gap-3">
+                  <div className="h-9 w-9 rounded-lg bg-blue-500/15 text-blue-600 dark:text-blue-400 flex items-center justify-center font-extrabold text-xs">
+                    ½
+                  </div>
+                  <div>
+                    <div className="text-[11px] font-semibold text-muted-foreground uppercase">Regra de Arredondamento</div>
+                    <div className="text-[11px] font-semibold text-foreground leading-tight">
+                      ≥ 0,5 excesso (10,6→11) &bull; &lt; 0,5 defeito (10,4→10)
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Search bar */}
+              <div className="mt-4 relative max-w-sm">
+                <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-muted-foreground/60" />
+                <Input
+                  placeholder="Procurar aluno por nome ou número..."
+                  className="pl-9 h-8.5 bg-muted/40 border-border/70 text-xs rounded-lg"
+                  value={mediaGeralSearch}
+                  onChange={(e) => setMediaGeralSearch(e.target.value)}
+                />
+              </div>
+            </div>
+
+            {/* Table Container */}
+            <div className="bg-card rounded-2xl border border-border shadow-xs overflow-hidden">
+              <div className="h-[calc(100vh-270px)] min-h-[420px] overflow-auto relative scrollbar-thin">
+                <Table>
+                  <TableHeader className="sticky top-0 z-10 bg-muted/95 backdrop-blur-xs border-b border-border/80 shadow-2xs">
+                    <TableRow className="h-11 border-b border-border/60 bg-muted">
+                      <TableHead className="w-[50px] font-bold text-foreground text-center bg-muted">Nº</TableHead>
+                      <TableHead className="w-[200px] min-w-[180px] font-bold text-foreground sticky left-0 z-20 bg-muted border-r border-border/40">
+                        Nome do Aluno
+                      </TableHead>
+                      {MEDIA_GERAL_SUBJECTS.map((sub) => (
+                        <TableHead
+                          key={sub.key}
+                          className="w-[72px] text-center font-extrabold text-foreground px-1 bg-muted"
+                          title={sub.name}
+                        >
+                          <div className="flex flex-col items-center">
+                            <span className="text-xs">{sub.label}</span>
+                            <span className="text-[9px] font-normal text-muted-foreground truncate max-w-[65px]">
+                              {sub.name}
+                            </span>
+                          </div>
+                        </TableHead>
+                      ))}
+                      <TableHead className="w-[75px] text-center font-bold text-purple-700 dark:text-purple-300 bg-purple-500/10 border-l border-border/50">
+                        Soma
+                      </TableHead>
+                      <TableHead className="w-[95px] text-center font-extrabold text-white bg-purple-600 dark:bg-purple-700 sticky right-0 z-20 shadow-xs">
+                        MG (Geral)
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredMediaGeralStudents.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={17} className="text-center py-16 text-muted-foreground text-sm">
+                          Nenhum aluno encontrado.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      filteredMediaGeralStudents.map((student, idx) => {
+                        const subGrades = getStudentSubjectGrades(student, selectedTrimester);
+                        const mg = calculateMediaGeralForStudent(student, selectedTrimester);
+                        const mgNum = mg.rounded !== '-' ? parseFloat(mg.rounded) : null;
+                        const isPositive = mgNum !== null && mgNum >= 10;
+                        const isNegative = mgNum !== null && mgNum < 10;
+
+                        return (
+                          <TableRow
+                            key={student.id}
+                            className="h-12 hover:bg-muted/30 odd:bg-muted/10 even:bg-transparent border-b border-border/40 transition-colors"
+                          >
+                            <TableCell className="text-center font-semibold text-muted-foreground text-xs">
+                              {student.studentNumber || (idx + 1)}
+                            </TableCell>
+                            <TableCell className="font-semibold text-xs text-foreground sticky left-0 z-10 bg-card/95 backdrop-blur-xs border-r border-border/40 truncate max-w-[200px]">
+                              {student.name}
+                            </TableCell>
+
+                            {/* 13 Subject Grade Inputs */}
+                            {MEDIA_GERAL_SUBJECTS.map((sub) => {
+                              const val = subGrades[sub.key] || '';
+                              const numVal = parseFloat(val.replace(',', '.'));
+                              const isSubPos = !isNaN(numVal) && numVal >= 10;
+                              const isSubNeg = !isNaN(numVal) && numVal < 10;
+
+                              return (
+                                <TableCell key={sub.key} className="p-1 text-center align-middle">
+                                  <Input
+                                    value={val}
+                                    onChange={(e) => updateSubjectGrade(student.id, sub.key, e.target.value)}
+                                    placeholder="-"
+                                    className={`h-8 w-14 mx-auto text-center px-1 text-xs font-bold rounded-md border border-border/50 bg-background/50 hover:bg-background focus:border-purple-500 transition-all ${
+                                      val === '' 
+                                        ? 'text-muted-foreground' 
+                                        : isSubPos 
+                                          ? 'text-blue-600 dark:text-blue-400 font-extrabold' 
+                                          : isSubNeg 
+                                            ? 'text-red-600 dark:text-red-400 font-extrabold' 
+                                            : 'text-foreground'
+                                    }`}
+                                  />
+                                </TableCell>
+                              );
+                            })}
+
+                            {/* Sum of grades */}
+                            <TableCell className="text-center font-bold text-xs text-purple-700 dark:text-purple-300 bg-purple-500/5 border-l border-border/40">
+                              {mg.hasAnyGrade ? mg.sum : '-'}
+                            </TableCell>
+
+                            {/* Média Geral (MG) with rounding */}
+                            <TableCell className="text-center font-extrabold text-sm sticky right-0 z-10 bg-card/95 backdrop-blur-xs border-l border-border/40 shadow-xs">
+                              <div className="flex flex-col items-center justify-center">
+                                <span
+                                  className={`px-2.5 py-0.5 rounded-lg text-xs font-black shadow-2xs ${
+                                    mg.rounded === '-'
+                                      ? 'text-muted-foreground bg-muted'
+                                      : isPositive
+                                        ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800'
+                                        : 'bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300 border border-red-300 dark:border-red-800'
+                                  }`}
+                                  title={mg.raw !== null ? `Média exacta: ${mg.raw.toFixed(2)} (arredondada: ${mg.rounded})` : 'Sem notas'}
+                                >
+                                  {mg.rounded}
+                                </span>
+                                {mg.raw !== null && (
+                                  <span className="text-[9px] font-mono text-muted-foreground mt-0.5">
+                                    {mg.raw.toFixed(2).replace('.', ',')}
+                                  </span>
+                                )}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* Bottom helper card inside table container */}
+              <div className="p-3 border-t border-border/50 bg-muted/20 flex flex-col sm:flex-row items-center justify-between text-xs text-muted-foreground gap-2">
+                <div className="flex items-center gap-2">
+                  <Calculator className="h-4 w-4 text-purple-600 dark:text-purple-400 shrink-0" />
+                  <span>
+                    Fórmula oficial: <strong>MG = (P + I + H + G + M + F + Q + B + Ed. V + AP + Ed. MC + TICs + Ed. F) ÷ 13</strong>
+                  </span>
+                </div>
+                <div className="text-[11px] font-medium">
+                  Arredondamento automático por excesso (≥0,5) ou por defeito (&lt;0,5) aplicado.
+                </div>
+              </div>
+            </div>
+          </div>
         ) : (
           // Class Details - Students and Grades
           <div className="space-y-4 pt-[196px] xs:pt-[164px] md:pt-[110px] animate-in fade-in duration-300">
@@ -3137,7 +3760,8 @@ export default function App() {
                     </div>
 
                     {activeTab === 'avaliacoes' ? (
-                      <div className="h-[calc(100vh-250px)] sm:h-[calc(100vh-270px)] md:h-[calc(100vh-220px)] lg:h-[calc(100vh-200px)] min-h-[350px] overflow-auto relative scrollbar-thin border border-border/10 rounded-xl shadow-3xs bg-muted/5 dark:bg-[#12163b]/10">
+                      <>
+                        <div className="h-[calc(100vh-250px)] sm:h-[calc(100vh-270px)] md:h-[calc(100vh-220px)] lg:h-[calc(100vh-200px)] min-h-[350px] overflow-auto relative scrollbar-thin border border-border/10 rounded-xl shadow-3xs bg-muted/5 dark:bg-[#12163b]/10">
                         <Table>
                           <TableHeader className="sticky top-0 z-10 bg-muted border-b border-border/80">
                             <TableRow className="h-12 border-b border-border/50 bg-muted">
@@ -3368,7 +3992,39 @@ export default function App() {
                           </TableBody>
                         </Table>
                       </div>
-                    ) : (
+
+                      {/* Botão de Cálculo da Média Geral (para Director de Turma) */}
+                      <div className="mt-4 p-4 rounded-xl border border-purple-200/80 dark:border-purple-900/40 bg-gradient-to-r from-purple-500/10 via-purple-500/5 to-transparent flex flex-col sm:flex-row items-center justify-between gap-3 shadow-2xs">
+                        <div className="flex items-center gap-3">
+                          <div className="h-10 w-10 rounded-xl bg-purple-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                            <Calculator className="h-5 w-5" />
+                          </div>
+                          <div>
+                            <h4 className="text-sm font-extrabold text-foreground flex items-center gap-2">
+                              <span>Cálculo da Média Geral</span>
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-800">
+                                Director de Turma
+                              </span>
+                            </h4>
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              Pauta consolidada das 13 disciplinas curriculares (P, I, H, G, M, F, Q, B, Ed. V, AP, Ed. MC, TICs, Ed. F) com cálculo e arredondamento da Média Geral (MG).
+                            </p>
+                          </div>
+                        </div>
+                        <Button
+                          onClick={() => {
+                            setIsMediaGeralViewOpen(true);
+                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                          }}
+                          className="w-full sm:w-auto h-10 px-5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-xs cursor-pointer transition-all hover:scale-[1.01] active:scale-[0.99] shrink-0 border-0"
+                          title="Abrir página de Cálculo da Média Geral"
+                        >
+                          <Calculator className="h-4.5 w-4.5 shrink-0" />
+                          <span>Cálculo da Média Geral</span>
+                        </Button>
+                      </div>
+                    </>
+                  ) : (
                       <div className="h-[calc(100vh-250px)] sm:h-[calc(100vh-270px)] md:h-[calc(100vh-220px)] lg:h-[calc(100vh-200px)] min-h-[350px] overflow-auto relative scrollbar-thin border border-border/10 rounded-xl shadow-3xs bg-muted/5 dark:bg-[#12163b]/10">
                         <Table>
                           <TableHeader className="sticky top-0 z-10 bg-muted border-b border-border/80">
@@ -3696,6 +4352,38 @@ export default function App() {
                         })}
                       </TableBody>
                     </Table>
+                  </div>
+                )}
+
+                {selectedClass.isDirector && (
+                  <div className="p-4 rounded-xl border border-purple-200/80 dark:border-purple-900/40 bg-gradient-to-r from-purple-500/10 via-purple-500/5 to-transparent flex flex-col sm:flex-row items-center justify-between gap-3 shadow-2xs mt-4">
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-xl bg-purple-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                        <Calculator className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-extrabold text-foreground flex items-center gap-2">
+                          <span>Cálculo da Média Geral</span>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-800">
+                            Director de Turma
+                          </span>
+                        </h4>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Pauta consolidada das 13 disciplinas curriculares (P, I, H, G, M, F, Q, B, Ed. V, AP, Ed. MC, TICs, Ed. F) com cálculo e arredondamento da Média Geral (MG).
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      onClick={() => {
+                        setIsMediaGeralViewOpen(true);
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                      className="w-full sm:w-auto h-10 px-5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-xs cursor-pointer transition-all hover:scale-[1.01] active:scale-[0.99] shrink-0 border-0"
+                      title="Abrir página de Cálculo da Média Geral"
+                    >
+                      <Calculator className="h-4.5 w-4.5 shrink-0" />
+                      <span>Cálculo da Média Geral</span>
+                    </Button>
                   </div>
                 )}
                 </div>
