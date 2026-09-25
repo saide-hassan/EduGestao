@@ -650,16 +650,16 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
           <Button
             variant="outline"
             onClick={onBack}
-            className="h-9 px-3.5 border border-purple-200 dark:border-purple-900/40 bg-purple-50/20 dark:bg-purple-950/20 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/30 rounded-xl shadow-2xs flex items-center gap-1.5 cursor-pointer transition-all shrink-0 text-xs sm:text-sm font-semibold"
+            className="h-8.5 sm:h-9 px-3 sm:px-3.5 border border-purple-200 dark:border-purple-900/40 bg-purple-50/20 dark:bg-purple-950/20 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/30 rounded-xl shadow-2xs flex items-center gap-1.5 cursor-pointer transition-all shrink-0 text-xs sm:text-sm font-semibold"
             title="Voltar para a Pauta da Turma"
           >
-            <ChevronLeft className="h-4.5 w-4.5 shrink-0" />
+            <ChevronLeft className="h-4 w-4 sm:h-4.5 sm:w-4.5 shrink-0" />
             <span>Voltar</span>
           </Button>
 
-          <h2 className="text-base sm:text-xl font-extrabold text-foreground tracking-tight text-right flex items-center gap-2">
+          <h2 className="text-sm sm:text-lg md:text-xl font-black text-foreground tracking-tight text-right flex items-center justify-end gap-1.5 sm:gap-2">
             <span>Aproveitamento Pedagógico</span>
-            <BarChart3 className="h-5 w-5 text-purple-600 dark:text-purple-400 shrink-0" />
+            <BarChart3 className="h-4.5 w-4.5 sm:h-5 sm:w-5 text-purple-600 dark:text-purple-400 shrink-0" />
           </h2>
         </div>
 
@@ -671,7 +671,7 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
               <button
                 key={t}
                 onClick={() => setTrimester(t)}
-                className={`px-4 sm:px-6 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                className={`px-3.5 sm:px-6 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                   trimester === t
                     ? 'bg-purple-600 text-white shadow-xs'
                     : 'text-muted-foreground hover:text-foreground'
@@ -688,14 +688,14 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
               <Button
                 onClick={handleSave}
                 disabled={isSaving}
-                className="h-8.5 px-3.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-xl shadow-2xs flex items-center gap-1.5 cursor-pointer border-0"
+                className="h-8 px-3 sm:px-3.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-xl shadow-2xs flex items-center gap-1.5 cursor-pointer border-0"
               >
                 {isSaving ? (
                   <RefreshCw className="h-3.5 w-3.5 animate-spin" />
                 ) : (
                   <Save className="h-3.5 w-3.5" />
                 )}
-                <span>Guardar</span>
+                <span className="hidden sm:inline">Guardar</span>
               </Button>
             </div>
           )}
@@ -703,16 +703,16 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
       </div>
 
       {/* Official Sheet Container (Prints Crisp and Follows the Exact Clean Format) */}
-      <div className="bg-card rounded-2xl border border-border shadow-xs p-3.5 sm:p-6 space-y-6 overflow-hidden print:border-0 print:p-0 print:bg-white print:text-black">
+      <div className="bg-card rounded-2xl border border-border shadow-xs p-3 sm:p-6 space-y-6 overflow-hidden print:border-0 print:p-0 print:bg-white print:text-black">
         {/* Document Header - Clean Mozambican Official Structure */}
         <div className="text-center space-y-1 pb-1">
-          <p className="text-xs sm:text-sm font-bold tracking-widest uppercase text-muted-foreground print:text-black">
+          <p className="text-[11px] sm:text-xs md:text-sm font-bold tracking-widest uppercase text-muted-foreground print:text-black">
             República de Moçambique
           </p>
-          <p className="text-xs sm:text-sm font-semibold tracking-wide text-muted-foreground print:text-black">
+          <p className="text-[11px] sm:text-xs md:text-sm font-semibold tracking-wide text-muted-foreground print:text-black">
             Ministério da Educação e Desenvolvimento Humano
           </p>
-          <h3 className="text-base sm:text-xl font-black uppercase tracking-wider text-foreground print:text-black font-sans pt-1">
+          <h3 className="text-sm sm:text-base md:text-xl font-black uppercase tracking-wider text-foreground print:text-black font-sans pt-1">
             APROVEITAMENTO PEDAGÓGICO DO {trimester}º TRIMESTRE
           </h3>
         </div>
@@ -722,13 +722,13 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
         {/* ============================================================ */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <h4 className="text-xs sm:text-sm font-extrabold tracking-wide uppercase text-foreground print:text-black">
+            <h4 className="text-xs sm:text-sm md:text-base font-black tracking-wide uppercase text-foreground print:text-black">
               1. Aproveitamento Pedagógico por Disciplina
             </h4>
           </div>
 
           <div className="overflow-x-auto custom-desktop-scrollbar border border-zinc-400 dark:border-zinc-700 rounded-lg print:border-black">
-            <table className="w-full border-collapse text-center text-xs print:text-[9px]">
+            <table className="w-full min-w-[1050px] border-collapse text-center text-xs print:text-[9px]">
               {/* Header Rows */}
               <thead>
                 <tr className="bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 font-bold border-b border-zinc-400 dark:border-zinc-700 print:bg-gray-200 print:text-black print:border-black">
@@ -1068,72 +1068,87 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
         {/* ============================================================ */}
         <div className="space-y-3 pt-4">
           <div className="flex items-center justify-between">
-            <h4 className="text-xs sm:text-sm font-extrabold tracking-wide uppercase text-foreground print:text-black">
+            <h4 className="text-xs sm:text-sm md:text-base font-black tracking-wide uppercase text-foreground print:text-black">
               2. Situação Geral da Turma (Mapa 3/3)
             </h4>
           </div>
 
           <div className="overflow-x-auto custom-desktop-scrollbar border border-zinc-400 dark:border-zinc-700 rounded-lg print:border-black">
-            <table className="w-full border-collapse text-center text-xs print:text-[8px]">
+            <table className="w-full min-w-[1640px] border-collapse text-center text-xs print:min-w-0 print:w-full print:text-[8px]">
               {/* Header Row 1: 10 main columns matching the photo */}
               <thead>
                 <tr className="bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 font-extrabold border-b border-zinc-400 dark:border-zinc-700 print:bg-gray-200 print:text-black print:border-black">
-                  <th colSpan={3} className="border-r border-zinc-400 dark:border-zinc-700 p-2 min-w-[75px]">
+                  <th colSpan={3} className="border-r border-zinc-400 dark:border-zinc-700 p-2 min-w-[158px]">
                     Mapa 3/3
                   </th>
-                  <th colSpan={3} className="border-r border-zinc-400 dark:border-zinc-700 p-2 min-w-[125px]">
+                  <th colSpan={3} className="border-r border-zinc-400 dark:border-zinc-700 p-2 min-w-[158px]">
                     {trimester === '1'
                       ? 'Existentes no Início do 1º Trimestre'
                       : trimester === '2'
                       ? 'Existentes no fim do 1º Trimestre'
                       : 'Existentes no fim do 2º Trimestre'}
                   </th>
-                  <th colSpan={3} className="border-r border-zinc-400 dark:border-zinc-700 p-2 min-w-[110px]">
+                  <th colSpan={3} className="border-r border-zinc-400 dark:border-zinc-700 p-2 min-w-[158px]">
                     Que entraram no {trimester}º Trimestre
                   </th>
-                  <th colSpan={3} className="border-r border-zinc-400 dark:border-zinc-700 p-2 min-w-[75px]">
+                  <th colSpan={3} className="border-r border-zinc-400 dark:border-zinc-700 p-2 min-w-[158px]">
                     Total
                   </th>
-                  <th colSpan={3} className="border-r border-zinc-400 dark:border-zinc-700 p-2 min-w-[85px]">
+                  <th colSpan={3} className="border-r border-zinc-400 dark:border-zinc-700 p-2 min-w-[158px]">
                     Transferidos
                   </th>
-                  <th colSpan={3} className="border-r border-zinc-400 dark:border-zinc-700 p-2 min-w-[120px]">
+                  <th colSpan={3} className="border-r border-zinc-400 dark:border-zinc-700 p-2 min-w-[158px]">
                     Existentes no Fim do {trimester}ºTrimestre
                   </th>
-                  <th colSpan={3} className="border-r border-zinc-400 dark:border-zinc-700 p-2 min-w-[125px]">
+                  <th colSpan={3} className="border-r border-zinc-400 dark:border-zinc-700 p-2 min-w-[158px]">
                     Situação Positiva (Número)
                   </th>
-                  <th colSpan={3} className="border-r border-zinc-400 dark:border-zinc-700 p-2 min-w-[110px]">
+                  <th colSpan={3} className="border-r border-zinc-400 dark:border-zinc-700 p-2 min-w-[194px]">
                     Situação Positiva (%)
                   </th>
-                  <th colSpan={3} className="border-r border-zinc-400 dark:border-zinc-700 p-2 min-w-[125px]">
+                  <th colSpan={3} className="border-r border-zinc-400 dark:border-zinc-700 p-2 min-w-[158px]">
                     Situação Negativa (Número)
                   </th>
-                  <th colSpan={3} className="p-2 min-w-[110px]">
+                  <th colSpan={3} className="p-2 min-w-[194px]">
                     Situação Negativa (%)
                   </th>
                 </tr>
 
                 {/* Header Row 2: H, M, HM under each column */}
-                <tr className="bg-zinc-200/90 dark:bg-zinc-800/90 text-zinc-900 dark:text-zinc-100 font-bold border-b border-zinc-400 dark:border-zinc-700 print:bg-gray-150 print:text-black print:border-black text-[11px]">
-                  {Array.from({ length: 10 }).map((_, i) => (
-                    <React.Fragment key={i}>
-                      <th className="border-r border-zinc-300 dark:border-zinc-700 p-1 w-9 print:border-black" title="Homens (Rapazes)">
-                        H
-                      </th>
-                      <th className="border-r border-zinc-300 dark:border-zinc-700 p-1 w-9 print:border-black" title="Mulheres (Raparigas)">
-                        M
-                      </th>
-                      <th
-                        className={`p-1 w-10 font-black bg-muted/20 ${
-                          i < 9 ? 'border-r border-zinc-400 dark:border-zinc-700 print:border-black' : ''
-                        }`}
-                        title="Total Homens + Mulheres"
-                      >
-                        HM
-                      </th>
-                    </React.Fragment>
-                  ))}
+                <tr className="bg-zinc-200/90 dark:bg-zinc-800/90 text-zinc-900 dark:text-zinc-100 font-bold border-b border-zinc-400 dark:border-zinc-700 print:bg-gray-150 print:text-black print:border-black text-xs">
+                  {Array.from({ length: 10 }).map((_, i) => {
+                    const isPct = i === 7 || i === 9;
+                    return (
+                      <React.Fragment key={i}>
+                        <th
+                          className={`border-r border-zinc-300 dark:border-zinc-700 py-1.5 px-1 text-center font-bold ${
+                            isPct ? 'w-[62px] min-w-[62px]' : 'w-[50px] min-w-[50px]'
+                          } print:border-black print:w-auto print:min-w-0`}
+                          title="Homens (Rapazes)"
+                        >
+                          H
+                        </th>
+                        <th
+                          className={`border-r border-zinc-300 dark:border-zinc-700 py-1.5 px-1 text-center font-bold ${
+                            isPct ? 'w-[62px] min-w-[62px]' : 'w-[50px] min-w-[50px]'
+                          } print:border-black print:w-auto print:min-w-0`}
+                          title="Mulheres (Raparigas)"
+                        >
+                          M
+                        </th>
+                        <th
+                          className={`py-1.5 px-1 text-center font-black bg-muted/20 ${
+                            isPct ? 'w-[70px] min-w-[70px]' : 'w-[58px] min-w-[58px]'
+                          } ${
+                            i < 9 ? 'border-r border-zinc-400 dark:border-zinc-700 print:border-black' : ''
+                          } print:border-black print:w-auto print:min-w-0`}
+                          title="Total Homens + Mulheres"
+                        >
+                          HM
+                        </th>
+                      </React.Fragment>
+                    );
+                  })}
                 </tr>
               </thead>
 
@@ -1141,273 +1156,273 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
               <tbody>
                 <tr className="border-b border-zinc-400 dark:border-zinc-700 font-semibold print:border-black">
                   {/* 1. Mapa 3/3 */}
-                  <td className="border-r border-zinc-300 dark:border-zinc-700 p-1">
+                  <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 w-[50px] min-w-[50px]">
                     <input
                       type="text"
                       value={table2Data.mapa33.h}
                       onChange={(e) => handleTable2Change('mapa33', 'h', e.target.value)}
-                      className="w-full text-center bg-transparent border-0 focus:outline-none text-xs print:text-[8px]"
+                      className="w-full text-center bg-transparent border-0 focus:outline-none text-xs font-semibold px-0.5 print:text-[8px]"
                     />
                   </td>
-                  <td className="border-r border-zinc-300 dark:border-zinc-700 p-1">
+                  <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 w-[50px] min-w-[50px]">
                     <input
                       type="text"
                       value={table2Data.mapa33.m}
                       onChange={(e) => handleTable2Change('mapa33', 'm', e.target.value)}
-                      className="w-full text-center bg-transparent border-0 focus:outline-none text-xs print:text-[8px]"
+                      className="w-full text-center bg-transparent border-0 focus:outline-none text-xs font-semibold px-0.5 print:text-[8px]"
                     />
                   </td>
-                  <td className="border-r border-zinc-400 dark:border-zinc-700 p-1 font-bold bg-muted/20">
+                  <td className="border-r border-zinc-400 dark:border-zinc-700 p-1 font-bold bg-muted/20 w-[58px] min-w-[58px]">
                     <input
                       type="text"
                       value={table2Data.mapa33.hm}
                       onChange={(e) => handleTable2Change('mapa33', 'hm', e.target.value)}
-                      className="w-full text-center bg-transparent border-0 focus:outline-none font-bold text-xs print:text-[8px]"
+                      className="w-full text-center bg-transparent border-0 focus:outline-none font-bold text-xs px-0.5 print:text-[8px]"
                     />
                   </td>
 
                   {/* 2. Existentes fim anterior */}
-                  <td className="border-r border-zinc-300 dark:border-zinc-700 p-1">
+                  <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 w-[50px] min-w-[50px]">
                     <input
                       type="text"
                       value={table2Data.existentesFim1.h}
                       onChange={(e) => handleTable2Change('existentesFim1', 'h', e.target.value)}
-                      className="w-full text-center bg-transparent border-0 focus:outline-none text-xs print:text-[8px]"
+                      className="w-full text-center bg-transparent border-0 focus:outline-none text-xs font-semibold px-0.5 print:text-[8px]"
                     />
                   </td>
-                  <td className="border-r border-zinc-300 dark:border-zinc-700 p-1">
+                  <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 w-[50px] min-w-[50px]">
                     <input
                       type="text"
                       value={table2Data.existentesFim1.m}
                       onChange={(e) => handleTable2Change('existentesFim1', 'm', e.target.value)}
-                      className="w-full text-center bg-transparent border-0 focus:outline-none text-xs print:text-[8px]"
+                      className="w-full text-center bg-transparent border-0 focus:outline-none text-xs font-semibold px-0.5 print:text-[8px]"
                     />
                   </td>
-                  <td className="border-r border-zinc-400 dark:border-zinc-700 p-1 font-bold bg-muted/20">
+                  <td className="border-r border-zinc-400 dark:border-zinc-700 p-1 font-bold bg-muted/20 w-[58px] min-w-[58px]">
                     <input
                       type="text"
                       value={table2Data.existentesFim1.hm}
                       onChange={(e) => handleTable2Change('existentesFim1', 'hm', e.target.value)}
-                      className="w-full text-center bg-transparent border-0 focus:outline-none font-bold text-xs print:text-[8px]"
+                      className="w-full text-center bg-transparent border-0 focus:outline-none font-bold text-xs px-0.5 print:text-[8px]"
                     />
                   </td>
 
                   {/* 3. Que entraram */}
-                  <td className="border-r border-zinc-300 dark:border-zinc-700 p-1">
+                  <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 w-[50px] min-w-[50px]">
                     <input
                       type="text"
                       value={table2Data.entraram2.h}
                       onChange={(e) => handleTable2Change('entraram2', 'h', e.target.value)}
-                      className="w-full text-center bg-transparent border-0 focus:outline-none text-xs print:text-[8px]"
+                      className="w-full text-center bg-transparent border-0 focus:outline-none text-xs font-semibold px-0.5 print:text-[8px]"
                     />
                   </td>
-                  <td className="border-r border-zinc-300 dark:border-zinc-700 p-1">
+                  <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 w-[50px] min-w-[50px]">
                     <input
                       type="text"
                       value={table2Data.entraram2.m}
                       onChange={(e) => handleTable2Change('entraram2', 'm', e.target.value)}
-                      className="w-full text-center bg-transparent border-0 focus:outline-none text-xs print:text-[8px]"
+                      className="w-full text-center bg-transparent border-0 focus:outline-none text-xs font-semibold px-0.5 print:text-[8px]"
                     />
                   </td>
-                  <td className="border-r border-zinc-400 dark:border-zinc-700 p-1 font-bold bg-muted/20">
+                  <td className="border-r border-zinc-400 dark:border-zinc-700 p-1 font-bold bg-muted/20 w-[58px] min-w-[58px]">
                     <input
                       type="text"
                       value={table2Data.entraram2.hm}
                       onChange={(e) => handleTable2Change('entraram2', 'hm', e.target.value)}
-                      className="w-full text-center bg-transparent border-0 focus:outline-none font-bold text-xs print:text-[8px]"
+                      className="w-full text-center bg-transparent border-0 focus:outline-none font-bold text-xs px-0.5 print:text-[8px]"
                     />
                   </td>
 
                   {/* 4. Total (Existentes + Entraram) */}
-                  <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 bg-muted/10">
+                  <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 bg-muted/10 w-[50px] min-w-[50px]">
                     <input
                       type="text"
                       value={table2Data.total.h}
                       onChange={(e) => handleTable2Change('total', 'h', e.target.value)}
-                      className="w-full text-center bg-transparent border-0 focus:outline-none text-xs print:text-[8px]"
+                      className="w-full text-center bg-transparent border-0 focus:outline-none text-xs font-semibold px-0.5 print:text-[8px]"
                       title="Total H = Existentes H + Entraram H"
                     />
                   </td>
-                  <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 bg-muted/10">
+                  <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 bg-muted/10 w-[50px] min-w-[50px]">
                     <input
                       type="text"
                       value={table2Data.total.m}
                       onChange={(e) => handleTable2Change('total', 'm', e.target.value)}
-                      className="w-full text-center bg-transparent border-0 focus:outline-none text-xs print:text-[8px]"
+                      className="w-full text-center bg-transparent border-0 focus:outline-none text-xs font-semibold px-0.5 print:text-[8px]"
                       title="Total M = Existentes M + Entraram M"
                     />
                   </td>
-                  <td className="border-r border-zinc-400 dark:border-zinc-700 p-1 font-bold bg-muted/25">
+                  <td className="border-r border-zinc-400 dark:border-zinc-700 p-1 font-bold bg-muted/25 w-[58px] min-w-[58px]">
                     <input
                       type="text"
                       value={table2Data.total.hm}
                       onChange={(e) => handleTable2Change('total', 'hm', e.target.value)}
-                      className="w-full text-center bg-transparent border-0 focus:outline-none font-bold text-xs print:text-[8px]"
+                      className="w-full text-center bg-transparent border-0 focus:outline-none font-bold text-xs px-0.5 print:text-[8px]"
                     />
                   </td>
 
                   {/* 5. Transferidos */}
-                  <td className="border-r border-zinc-300 dark:border-zinc-700 p-1">
+                  <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 w-[50px] min-w-[50px]">
                     <input
                       type="text"
                       value={table2Data.transferidos.h}
                       onChange={(e) => handleTable2Change('transferidos', 'h', e.target.value)}
-                      className="w-full text-center bg-transparent border-0 focus:outline-none text-xs print:text-[8px]"
+                      className="w-full text-center bg-transparent border-0 focus:outline-none text-xs font-semibold px-0.5 print:text-[8px]"
                     />
                   </td>
-                  <td className="border-r border-zinc-300 dark:border-zinc-700 p-1">
+                  <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 w-[50px] min-w-[50px]">
                     <input
                       type="text"
                       value={table2Data.transferidos.m}
                       onChange={(e) => handleTable2Change('transferidos', 'm', e.target.value)}
-                      className="w-full text-center bg-transparent border-0 focus:outline-none text-xs print:text-[8px]"
+                      className="w-full text-center bg-transparent border-0 focus:outline-none text-xs font-semibold px-0.5 print:text-[8px]"
                     />
                   </td>
-                  <td className="border-r border-zinc-400 dark:border-zinc-700 p-1 font-bold bg-muted/20">
+                  <td className="border-r border-zinc-400 dark:border-zinc-700 p-1 font-bold bg-muted/20 w-[58px] min-w-[58px]">
                     <input
                       type="text"
                       value={table2Data.transferidos.hm}
                       onChange={(e) => handleTable2Change('transferidos', 'hm', e.target.value)}
-                      className="w-full text-center bg-transparent border-0 focus:outline-none font-bold text-xs print:text-[8px]"
+                      className="w-full text-center bg-transparent border-0 focus:outline-none font-bold text-xs px-0.5 print:text-[8px]"
                     />
                   </td>
 
                   {/* 6. Existentes no Fim (Total - Transferidos) */}
-                  <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 bg-muted/10">
+                  <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 bg-muted/10 w-[50px] min-w-[50px]">
                     <input
                       type="text"
                       value={table2Data.existentesFim2.h}
                       onChange={(e) => handleTable2Change('existentesFim2', 'h', e.target.value)}
-                      className="w-full text-center bg-transparent border-0 focus:outline-none text-xs print:text-[8px]"
+                      className="w-full text-center bg-transparent border-0 focus:outline-none text-xs font-semibold px-0.5 print:text-[8px]"
                       title="Existentes Fim H = Total H - Transferidos H"
                     />
                   </td>
-                  <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 bg-muted/10">
+                  <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 bg-muted/10 w-[50px] min-w-[50px]">
                     <input
                       type="text"
                       value={table2Data.existentesFim2.m}
                       onChange={(e) => handleTable2Change('existentesFim2', 'm', e.target.value)}
-                      className="w-full text-center bg-transparent border-0 focus:outline-none text-xs print:text-[8px]"
+                      className="w-full text-center bg-transparent border-0 focus:outline-none text-xs font-semibold px-0.5 print:text-[8px]"
                       title="Existentes Fim M = Total M - Transferidos M"
                     />
                   </td>
-                  <td className="border-r border-zinc-400 dark:border-zinc-700 p-1 font-bold bg-muted/25">
+                  <td className="border-r border-zinc-400 dark:border-zinc-700 p-1 font-bold bg-muted/25 w-[58px] min-w-[58px]">
                     <input
                       type="text"
                       value={table2Data.existentesFim2.hm}
                       onChange={(e) => handleTable2Change('existentesFim2', 'hm', e.target.value)}
-                      className="w-full text-center bg-transparent border-0 focus:outline-none font-bold text-xs print:text-[8px]"
+                      className="w-full text-center bg-transparent border-0 focus:outline-none font-bold text-xs px-0.5 print:text-[8px]"
                     />
                   </td>
 
                   {/* 7. Situação Positiva (Número) */}
-                  <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 text-blue-600 dark:text-blue-400 font-bold bg-blue-50/20 dark:bg-blue-950/20 print:text-black">
+                  <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 text-blue-600 dark:text-blue-400 font-bold bg-blue-50/20 dark:bg-blue-950/20 print:text-black w-[50px] min-w-[50px]">
                     <input
                       type="text"
                       value={table2Data.positivasNum.h}
                       onChange={(e) => handleTable2Change('positivasNum', 'h', e.target.value)}
-                      className="w-full text-center bg-transparent border-0 focus:outline-none font-bold text-xs print:text-[8px]"
+                      className="w-full text-center bg-transparent border-0 focus:outline-none font-bold text-xs px-0.5 print:text-[8px]"
                     />
                   </td>
-                  <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 text-blue-600 dark:text-blue-400 font-bold bg-blue-50/20 dark:bg-blue-950/20 print:text-black">
+                  <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 text-blue-600 dark:text-blue-400 font-bold bg-blue-50/20 dark:bg-blue-950/20 print:text-black w-[50px] min-w-[50px]">
                     <input
                       type="text"
                       value={table2Data.positivasNum.m}
                       onChange={(e) => handleTable2Change('positivasNum', 'm', e.target.value)}
-                      className="w-full text-center bg-transparent border-0 focus:outline-none font-bold text-xs print:text-[8px]"
+                      className="w-full text-center bg-transparent border-0 focus:outline-none font-bold text-xs px-0.5 print:text-[8px]"
                     />
                   </td>
-                  <td className="border-r border-zinc-400 dark:border-zinc-700 p-1 font-black text-blue-700 dark:text-blue-300 bg-blue-100/30 dark:bg-blue-950/40 print:text-black">
+                  <td className="border-r border-zinc-400 dark:border-zinc-700 p-1 font-black text-blue-700 dark:text-blue-300 bg-blue-100/30 dark:bg-blue-950/40 print:text-black w-[58px] min-w-[58px]">
                     <input
                       type="text"
                       value={table2Data.positivasNum.hm}
                       onChange={(e) => handleTable2Change('positivasNum', 'hm', e.target.value)}
-                      className="w-full text-center bg-transparent border-0 focus:outline-none font-black text-xs print:text-[8px]"
+                      className="w-full text-center bg-transparent border-0 focus:outline-none font-black text-xs px-0.5 print:text-[8px]"
                     />
                   </td>
 
                   {/* 8. Situação Positiva (%) */}
-                  <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 text-muted-foreground print:text-black">
+                  <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 text-muted-foreground print:text-black w-[62px] min-w-[62px]">
                     <input
                       type="text"
                       value={table2Data.positivasPct.h}
                       onChange={(e) => handleTable2Change('positivasPct', 'h', e.target.value)}
-                      className="w-full text-center bg-transparent border-0 focus:outline-none text-xs print:text-[8px]"
+                      className="w-full text-center bg-transparent border-0 focus:outline-none text-xs font-semibold px-0.5 print:text-[8px]"
                       title="Positivas % (H) = (Positivas H / Existentes Fim H) * 100"
                     />
                   </td>
-                  <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 text-muted-foreground print:text-black">
+                  <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 text-muted-foreground print:text-black w-[62px] min-w-[62px]">
                     <input
                       type="text"
                       value={table2Data.positivasPct.m}
                       onChange={(e) => handleTable2Change('positivasPct', 'm', e.target.value)}
-                      className="w-full text-center bg-transparent border-0 focus:outline-none text-xs print:text-[8px]"
+                      className="w-full text-center bg-transparent border-0 focus:outline-none text-xs font-semibold px-0.5 print:text-[8px]"
                       title="Positivas % (M) = (Positivas M / Existentes Fim M) * 100"
                     />
                   </td>
-                  <td className="border-r border-zinc-400 dark:border-zinc-700 p-1 font-bold text-foreground bg-muted/20 print:text-black">
+                  <td className="border-r border-zinc-400 dark:border-zinc-700 p-1 font-bold text-foreground bg-muted/20 print:text-black w-[70px] min-w-[70px]">
                     <input
                       type="text"
                       value={table2Data.positivasPct.hm}
                       onChange={(e) => handleTable2Change('positivasPct', 'hm', e.target.value)}
-                      className="w-full text-center bg-transparent border-0 focus:outline-none font-bold text-xs print:text-[8px]"
+                      className="w-full text-center bg-transparent border-0 focus:outline-none font-bold text-xs px-0.5 print:text-[8px]"
                       title="Positivas % (HM) = (Positivas HM / Existentes Fim HM) * 100"
                     />
                   </td>
 
                   {/* 9. Situação Negativa (Número) */}
-                  <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 text-red-600 dark:text-red-400 font-bold bg-red-50/20 dark:bg-red-950/20 print:text-black">
+                  <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 text-red-600 dark:text-red-400 font-bold bg-red-50/20 dark:bg-red-950/20 print:text-black w-[50px] min-w-[50px]">
                     <input
                       type="text"
                       value={table2Data.negativasNum.h}
                       onChange={(e) => handleTable2Change('negativasNum', 'h', e.target.value)}
-                      className="w-full text-center bg-transparent border-0 focus:outline-none font-bold text-xs print:text-[8px]"
+                      className="w-full text-center bg-transparent border-0 focus:outline-none font-bold text-xs px-0.5 print:text-[8px]"
                       title="Negativas H = Existentes Fim H - Positivas H"
                     />
                   </td>
-                  <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 text-red-600 dark:text-red-400 font-bold bg-red-50/20 dark:bg-red-950/20 print:text-black">
+                  <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 text-red-600 dark:text-red-400 font-bold bg-red-50/20 dark:bg-red-950/20 print:text-black w-[50px] min-w-[50px]">
                     <input
                       type="text"
                       value={table2Data.negativasNum.m}
                       onChange={(e) => handleTable2Change('negativasNum', 'm', e.target.value)}
-                      className="w-full text-center bg-transparent border-0 focus:outline-none font-bold text-xs print:text-[8px]"
+                      className="w-full text-center bg-transparent border-0 focus:outline-none font-bold text-xs px-0.5 print:text-[8px]"
                       title="Negativas M = Existentes Fim M - Positivas M"
                     />
                   </td>
-                  <td className="border-r border-zinc-400 dark:border-zinc-700 p-1 font-black text-red-700 dark:text-red-300 bg-red-100/30 dark:bg-red-950/40 print:text-black">
+                  <td className="border-r border-zinc-400 dark:border-zinc-700 p-1 font-black text-red-700 dark:text-red-300 bg-red-100/30 dark:bg-red-950/40 print:text-black w-[58px] min-w-[58px]">
                     <input
                       type="text"
                       value={table2Data.negativasNum.hm}
                       onChange={(e) => handleTable2Change('negativasNum', 'hm', e.target.value)}
-                      className="w-full text-center bg-transparent border-0 focus:outline-none font-black text-xs print:text-[8px]"
+                      className="w-full text-center bg-transparent border-0 focus:outline-none font-black text-xs px-0.5 print:text-[8px]"
                     />
                   </td>
 
                   {/* 10. Situação Negativa (%) */}
-                  <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 text-muted-foreground print:text-black">
+                  <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 text-muted-foreground print:text-black w-[62px] min-w-[62px]">
                     <input
                       type="text"
                       value={table2Data.negativasPct.h}
                       onChange={(e) => handleTable2Change('negativasPct', 'h', e.target.value)}
-                      className="w-full text-center bg-transparent border-0 focus:outline-none text-xs print:text-[8px]"
+                      className="w-full text-center bg-transparent border-0 focus:outline-none text-xs font-semibold px-0.5 print:text-[8px]"
                       title="Negativas % (H) = (Negativas H / Existentes Fim H) * 100"
                     />
                   </td>
-                  <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 text-muted-foreground print:text-black">
+                  <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 text-muted-foreground print:text-black w-[62px] min-w-[62px]">
                     <input
                       type="text"
                       value={table2Data.negativasPct.m}
                       onChange={(e) => handleTable2Change('negativasPct', 'm', e.target.value)}
-                      className="w-full text-center bg-transparent border-0 focus:outline-none text-xs print:text-[8px]"
+                      className="w-full text-center bg-transparent border-0 focus:outline-none text-xs font-semibold px-0.5 print:text-[8px]"
                       title="Negativas % (M) = (Negativas M / Existentes Fim M) * 100"
                     />
                   </td>
-                  <td className="p-1 font-bold text-foreground bg-muted/20 print:text-black">
+                  <td className="p-1 font-bold text-foreground bg-muted/20 print:text-black w-[70px] min-w-[70px]">
                     <input
                       type="text"
                       value={table2Data.negativasPct.hm}
                       onChange={(e) => handleTable2Change('negativasPct', 'hm', e.target.value)}
-                      className="w-full text-center bg-transparent border-0 focus:outline-none font-bold text-xs print:text-[8px]"
+                      className="w-full text-center bg-transparent border-0 focus:outline-none font-bold text-xs px-0.5 print:text-[8px]"
                       title="Negativas % (HM) = (Negativas HM / Existentes Fim HM) * 100"
                     />
                   </td>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Users, BookOpen, School, GraduationCap, ChevronLeft, Trash2, UserPlus, Save, Search, Download, Pencil, Home, LogOut, Star, Layers, Sun, Moon, Upload, FileSpreadsheet, FileText, UploadCloud, Check, AlertTriangle, X, ChevronDown, Cloud, Wifi, WifiOff, CloudLightning, CloudOff, CheckCircle2, Calculator, BarChart3 } from 'lucide-react';
+import { Plus, Users, BookOpen, School, GraduationCap, ChevronLeft, Trash2, UserPlus, Save, Search, Download, Pencil, Home, LogOut, Star, Layers, Sun, Moon, Upload, FileSpreadsheet, FileText, UploadCloud, Check, AlertTriangle, X, ChevronDown, Cloud, Wifi, WifiOff, CloudLightning, CloudOff, CheckCircle2, Calculator, BarChart3, Sparkles } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import mammoth from 'mammoth';
 import { motion } from 'motion/react';
@@ -2771,8 +2771,15 @@ export default function App() {
                       <TableHead className="w-[75px] text-center font-bold text-purple-700 dark:text-purple-300 bg-purple-500/10 border-l border-border/50">
                         Soma
                       </TableHead>
-                      <TableHead className="w-[75px] sm:w-[80px] min-w-[70px] text-center font-extrabold text-white bg-purple-600 dark:bg-purple-700 md:sticky md:right-0 z-10 md:z-20 shadow-xs">
-                        MG
+                      {/* Prominently Highlighted MG Column Header */}
+                      <TableHead className="w-[95px] sm:w-[110px] min-w-[95px] text-center font-black text-white bg-gradient-to-b from-purple-700 via-purple-800 to-indigo-900 dark:from-purple-800 dark:via-purple-900 dark:to-indigo-950 md:sticky md:right-0 z-10 md:z-20 shadow-lg border-l-2 border-r-2 border-purple-400 dark:border-purple-400">
+                        <div className="flex flex-col items-center justify-center py-1">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/20 text-white font-black text-xs sm:text-sm tracking-wider shadow-xs border border-white/30">
+                            <Sparkles className="h-3 w-3 text-amber-300 fill-amber-300" />
+                            <span>MG</span>
+                          </span>
+                          <span className="text-[9px] font-semibold text-purple-200 mt-0.5 tracking-tight">Média Geral</span>
+                        </div>
                       </TableHead>
                     </TableRow>
                   </TableHeader>
@@ -2874,27 +2881,27 @@ export default function App() {
                               {mg.hasAnyGrade ? mg.sum : '-'}
                             </TableCell>
 
-                            {/* Média Geral (MG) with rounding */}
-                            <TableCell className={`text-center font-extrabold text-sm md:sticky md:right-0 z-0 md:z-10 border-l border-border/40 shadow-xs transition-colors ${
+                            {/* Média Geral (MG) with rounding - Prominently Highlighted Column */}
+                            <TableCell className={`text-center font-extrabold text-sm md:sticky md:right-0 z-0 md:z-10 border-l-2 border-r-2 border-purple-400 dark:border-purple-500 shadow-md transition-colors ${
                               isRowHighlighted 
-                                ? 'bg-purple-100/95 dark:bg-purple-950/95 md:backdrop-blur-xs' 
-                                : 'bg-card/95 md:backdrop-blur-xs'
+                                ? 'bg-purple-200/95 dark:bg-purple-900/90 md:backdrop-blur-xs' 
+                                : 'bg-purple-100/60 dark:bg-purple-950/70 md:backdrop-blur-xs'
                             }`}>
-                              <div className="flex flex-col items-center justify-center">
+                              <div className="flex flex-col items-center justify-center py-1">
                                 <span
-                                  className={`px-2.5 py-0.5 rounded-lg text-xs font-black shadow-2xs ${
+                                  className={`px-3 sm:px-3.5 py-1 rounded-xl text-xs sm:text-sm font-black tracking-tight transition-transform hover:scale-105 shadow-sm border-2 ${
                                     mg.rounded === '-'
-                                      ? 'text-muted-foreground bg-muted'
+                                      ? 'text-muted-foreground bg-muted/90 border-border/80'
                                       : isPositive
-                                        ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800'
-                                        : 'bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300 border border-red-300 dark:border-red-800'
+                                        ? 'bg-emerald-600 text-white border-emerald-500 ring-2 ring-emerald-500/25 shadow-emerald-500/20'
+                                        : 'bg-red-600 text-white border-red-500 ring-2 ring-red-500/25 shadow-red-500/20'
                                   }`}
                                   title={mg.raw !== null ? `Média exacta: ${mg.raw.toFixed(2)} (arredondada: ${mg.rounded})` : 'Sem notas'}
                                 >
                                   {mg.rounded}
                                 </span>
                                 {mg.raw !== null && (
-                                  <span className="text-[9px] font-mono text-muted-foreground mt-0.5">
+                                  <span className="text-[10px] font-mono font-bold text-purple-950 dark:text-purple-100 mt-1 bg-purple-200/60 dark:bg-purple-900/60 px-1.5 py-0.5 rounded">
                                     {mg.raw.toFixed(2).replace('.', ',')}
                                   </span>
                                 )}
