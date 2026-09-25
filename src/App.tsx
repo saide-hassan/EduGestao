@@ -110,7 +110,7 @@ const getStudentGrades = (student: Student, trimester: '1' | '2' | '3'): Grades 
   return emptyGrades();
 };
 
-const getStudentSubjectGrades = (student: Student, trimester: '1' | '2' | '3'): Record<string, string> => {
+export const getStudentSubjectGrades = (student: Student, trimester: '1' | '2' | '3'): Record<string, string> => {
   if (student.trimesterSubjectGrades && student.trimesterSubjectGrades[trimester]) {
     return student.trimesterSubjectGrades[trimester]!;
   }

@@ -1,29 +1,45 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { ChevronLeft, BarChart3, Download, Printer, RefreshCw, Save, Check } from 'lucide-react';
+import {
+  ChevronLeft,
+  BarChart3,
+  Download,
+  Printer,
+  RefreshCw,
+  Save,
+  CheckCircle2,
+  AlertCircle,
+  HelpCircle,
+  Calculator,
+  ChevronDown,
+  ChevronUp,
+  Sparkles,
+} from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import type { ClassData, Student } from '@/src/App';
-import { calculateMediaGeralForStudent, isStudentFemale } from '@/src/App';
+import {
+  calculateMediaGeralForStudent,
+  isStudentFemale,
+  getStudentSubjectGrades,
+} from '@/src/App';
 
 export const APROVEITAMENTO_DISCIPLINAS = [
-  { id: 'portugues', name: 'Português', key: 'P' },
-  { id: 'ingles', name: 'Inglês', key: 'I' },
-  { id: 'historia', name: 'História', key: 'H' },
-  { id: 'geografia', name: 'Geografia', key: 'G' },
-  { id: 'filosofia', name: 'Filosofia', key: 'FIL' },
-  { id: 'matematica', name: 'Matemática', key: 'M' },
-  { id: 'fisica', name: 'Física', key: 'F' },
-  { id: 'quimica', name: 'Química', key: 'Q' },
-  { id: 'biologia', name: 'Biologia', key: 'B' },
-  { id: 'ed_visual', name: 'Ed. Visual', key: 'EdV' },
-  { id: 'frances', name: 'Francês', key: 'FR' },
-  { id: 'ne', name: 'NE', key: 'NE' },
-  { id: 'ap', name: 'AP', key: 'AP' },
-  { id: 'dgd', name: 'DGD', key: 'DGD' },
-  { id: 'ed_fisica', name: 'Ed. Física', key: 'EdF' },
+  { id: 'portugues', name: 'Português', key: 'P', aliases: ['portugues', 'lp', 'lingua_portuguesa'] },
+  { id: 'ingles', name: 'Inglês', key: 'I', aliases: ['ingles', 'ing', 'lingua_inglesa'] },
+  { id: 'historia', name: 'História', key: 'H', aliases: ['historia', 'hist'] },
+  { id: 'geografia', name: 'Geografia', key: 'G', aliases: ['geografia', 'geo'] },
+  { id: 'filosofia', name: 'Filosofia', key: 'FIL', aliases: ['filosofia', 'fil'] },
+  { id: 'matematica', name: 'Matemática', key: 'M', aliases: ['matematica', 'mat'] },
+  { id: 'fisica', name: 'Física', key: 'F', aliases: ['fisica', 'fis'] },
+  { id: 'quimica', name: 'Química', key: 'Q', aliases: ['quimica', 'qui'] },
+  { id: 'biologia', name: 'Biologia', key: 'B', aliases: ['biologia', 'bio'] },
+  { id: 'ed_visual', name: 'Ed. Visual', key: 'EdV', aliases: ['ed_visual', 'ev', 'desenho'] },
+  { id: 'frances', name: 'Francês', key: 'FR', aliases: ['frances', 'fr'] },
+  { id: 'ne', name: 'NE', key: 'NE', aliases: ['ne', 'edmc', 'ed_moral', 'empreendedorismo'] },
+  { id: 'ap', name: 'AP', key: 'AP', aliases: ['ap', 'agropecuaria', 'agro_pecuaria'] },
+  { id: 'dgd', name: 'DGD', key: 'DGD', aliases: ['dgd', 'tics', 'tic', 'desenho_geometria'] },
+  { id: 'ed_fisica', name: 'Ed. Física', key: 'EdF', aliases: ['ed_fisica', 'ef', 'educacao_fisica'] },
 ] as const;
 
 export type Table1RowData = {
@@ -59,6 +75,124 @@ export type Table2Data = {
   negativasPct: { h: string; m: string; hm: string };
 };
 
+// Helper: parse string to float (default 0)
+const parseVal = (val: string | number | undefined | null): number => {
+  if (val === undefined || val === null) return 0;
+  if (typeof val === 'number') return isNaN(val) ? 0 : val;
+  const cleaned = String(val).trim().replace(',', '.');
+  const num = parseFloat(cleaned);
+  return isNaN(num) ? 0 : num;
+};
+
+// Helper: format percent with 1 decimal and comma
+const formatPct = (num: number, total: number): string => {
+  if (total <= 0) return '0,0';
+  const pct = (num / total) * 100;
+  return pct.toFixed(1).replace('.', ',');
+};
+
+// Strict Table 1 Rules Engine
+export const applyStrictRulesTable1Row = (row: Table1RowData): Table1RowData => {
+  const ns = parseVal(row.ns);
+  const s = parseVal(row.s);
+  const bom = parseVal(row.bom);
+  const mb = parseVal(row.mb);
+  const e = parseVal(row.e);
+
+  // Rule 1.1: A.A. = NS + S + Bom + MB + E
+  const hasQuant = ns > 0 || s > 0 || bom > 0 || mb > 0 || e > 0;
+  const aa = hasQuant ? ns + s + bom + mb + e : parseVal(row.aa);
+
+  // Rule 1.2: Positivas = S + Bom + MB + E
+  const posNum = s + bom + mb + e;
+  // Rule 1.3: Negativas = NS
+  const negNum = ns;
+
+  // Rule 1.4: Percentagens sobre A.A.
+  const posPct = aa > 0 ? formatPct(posNum, aa) : (row.positivasPct || '0,0');
+  const negPct = aa > 0 ? formatPct(negNum, aa) : (row.negativasPct || '0,0');
+
+  // Rule 1.5: Meninas
+  const mPos = parseVal(row.meninasPosNum);
+  const mNeg = parseVal(row.meninasNegNum);
+  const mAA = mPos + mNeg;
+  const mPosPct = mAA > 0 ? formatPct(mPos, mAA) : (aa > 0 && mPos > 0 ? formatPct(mPos, aa) : '0,0');
+  const mNegPct = mAA > 0 ? formatPct(mNeg, mAA) : (aa > 0 && mNeg > 0 ? formatPct(mNeg, aa) : '0,0');
+
+  return {
+    ...row,
+    aa: aa > 0 ? String(aa) : (hasQuant ? '0' : row.aa),
+    positivasNum: posNum > 0 ? String(posNum) : (hasQuant ? '0' : row.positivasNum),
+    positivasPct: aa > 0 ? posPct : '',
+    negativasNum: negNum > 0 ? String(negNum) : (hasQuant ? '0' : row.negativasNum),
+    negativasPct: aa > 0 ? negPct : '',
+    meninasPosNum: mPos > 0 ? String(mPos) : (row.meninasPosNum ? '0' : ''),
+    meninasPosPct: mAA > 0 ? mPosPct : (row.meninasPosPct || ''),
+    meninasNegNum: mNeg > 0 ? String(mNeg) : (row.meninasNegNum ? '0' : ''),
+    meninasNegPct: mAA > 0 ? mNegPct : (row.meninasNegPct || ''),
+  };
+};
+
+// Strict Table 2 Rules Engine
+export const applyStrictRulesTable2 = (t2: Table2Data): Table2Data => {
+  const result: Table2Data = JSON.parse(JSON.stringify(t2));
+
+  // Rule 2.1: HM = H + M for all groups
+  const hMapa = parseVal(result.mapa33.h);
+  const mMapa = parseVal(result.mapa33.m);
+  result.mapa33.hm = String(hMapa + mMapa);
+
+  const hExist1 = parseVal(result.existentesFim1.h);
+  const mExist1 = parseVal(result.existentesFim1.m);
+  result.existentesFim1.hm = String(hExist1 + mExist1);
+
+  const hEntr = parseVal(result.entraram2.h);
+  const mEntr = parseVal(result.entraram2.m);
+  result.entraram2.hm = String(hEntr + mEntr);
+
+  // Rule 2.2: Total = Existentes no Início + Que entraram
+  const hTotal = hExist1 + hEntr;
+  const mTotal = mExist1 + mEntr;
+  result.total.h = String(hTotal);
+  result.total.m = String(mTotal);
+  result.total.hm = String(hTotal + mTotal);
+
+  // Rule 2.3: Transferidos
+  const hTransf = parseVal(result.transferidos.h);
+  const mTransf = parseVal(result.transferidos.m);
+  result.transferidos.hm = String(hTransf + mTransf);
+
+  // Rule 2.4: Existentes no Fim = Total - Transferidos
+  const hExist2 = Math.max(0, hTotal - hTransf);
+  const mExist2 = Math.max(0, mTotal - mTransf);
+  result.existentesFim2.h = String(hExist2);
+  result.existentesFim2.m = String(mExist2);
+  result.existentesFim2.hm = String(hExist2 + mExist2);
+
+  // Rule 2.5: Positivas e Negativas (Número)
+  const hPos = parseVal(result.positivasNum.h);
+  const mPos = parseVal(result.positivasNum.m);
+  result.positivasNum.hm = String(hPos + mPos);
+
+  // Rule 2.6: Negativas = Existentes no Fim - Positivas
+  const hNeg = Math.max(0, hExist2 - hPos);
+  const mNeg = Math.max(0, mExist2 - mPos);
+  result.negativasNum.h = String(hNeg);
+  result.negativasNum.m = String(mNeg);
+  result.negativasNum.hm = String(hNeg + mNeg);
+
+  // Rule 2.7: Percentagens sobre Existentes no Fim (devem fechar em 100%)
+  result.positivasPct.h = hExist2 > 0 ? formatPct(hPos, hExist2) : '0,0';
+  result.positivasPct.m = mExist2 > 0 ? formatPct(mPos, mExist2) : '0,0';
+  result.positivasPct.hm = (hExist2 + mExist2) > 0 ? formatPct(hPos + mPos, hExist2 + mExist2) : '0,0';
+
+  result.negativasPct.h = hExist2 > 0 ? formatPct(hNeg, hExist2) : '0,0';
+  result.negativasPct.m = mExist2 > 0 ? formatPct(mNeg, mExist2) : '0,0';
+  result.negativasPct.hm = (hExist2 + mExist2) > 0 ? formatPct(hNeg + mNeg, hExist2 + mExist2) : '0,0';
+
+  return result;
+};
+
 interface AproveitamentoPedagogicoViewProps {
   selectedClass: ClassData;
   onBack: () => void;
@@ -90,6 +224,8 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
   });
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
+  const [showRulesGuide, setShowRulesGuide] = useState(false);
+  const [strictMode, setStrictMode] = useState(true);
 
   // Auto compute data from students in the class
   const computeFromClass = useMemo(() => {
@@ -107,11 +243,20 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
         let meninasAA = 0;
 
         selectedClass.students.forEach((student) => {
-          // Look for grade in trimesterSubjectGrades
-          const subGrades = student.trimesterSubjectGrades?.[t] || {};
+          // Look for grade using getStudentSubjectGrades
+          const subGrades = getStudentSubjectGrades(student, t);
           let valStr = subGrades[disc.key] || subGrades[disc.id] || '';
 
-          // If not found in Média Geral subGrades, check if the class itself teaches this subject
+          if (!valStr && disc.aliases) {
+            for (const alias of disc.aliases) {
+              if (subGrades[alias]) {
+                valStr = subGrades[alias];
+                break;
+              }
+            }
+          }
+
+          // Fallback: check if class teaches this subject
           if (!valStr && selectedClass.subject.trim().toLowerCase() === disc.name.trim().toLowerCase()) {
             const gradesObj = student.trimesterGrades?.[t] || (t === '1' ? student.grades : undefined);
             if (gradesObj) {
@@ -142,10 +287,10 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
 
         const posNum = s + bom + mb + e;
         const negNum = ns;
-        const posPct = aa > 0 ? ((posNum / aa) * 100).toFixed(1).replace('.', ',') : '';
-        const negPct = aa > 0 ? ((negNum / aa) * 100).toFixed(1).replace('.', ',') : '';
-        const mPosPct = meninasAA > 0 ? ((meninasPos / meninasAA) * 100).toFixed(1).replace('.', ',') : '';
-        const mNegPct = meninasAA > 0 ? ((meninasNeg / meninasAA) * 100).toFixed(1).replace('.', ',') : '';
+        const posPct = aa > 0 ? formatPct(posNum, aa) : '';
+        const negPct = aa > 0 ? formatPct(negNum, aa) : '';
+        const mPosPct = meninasAA > 0 ? formatPct(meninasPos, meninasAA) : '';
+        const mNegPct = meninasAA > 0 ? formatPct(meninasNeg, meninasAA) : '';
 
         // Default teacher name if class subject matches
         const isCurrentSubject = selectedClass.subject.trim().toLowerCase() === disc.name.trim().toLowerCase();
@@ -172,7 +317,7 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
         };
       });
 
-      // 2. Compute Table 2 (Situação Geral)
+      // 2. Compute Table 2 (Situação Geral da Turma - Modelo Rigoroso)
       let totalH = 0;
       let totalM = 0;
       selectedClass.students.forEach((student) => {
@@ -183,41 +328,31 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
 
       let posH = 0;
       let posM = 0;
-      let negH = 0;
-      let negM = 0;
-      let evalH = 0;
-      let evalM = 0;
 
       selectedClass.students.forEach((student) => {
         const mg = calculateMediaGeralForStudent(student, t);
         if (mg.hasAnyGrade && mg.rounded !== '-') {
           const val = parseFloat(mg.rounded);
-          if (!isNaN(val)) {
-            const isFemale = isStudentFemale(student);
-            if (isFemale) {
-              evalM++;
-              if (val >= 10) posM++;
-              else negM++;
-            } else {
-              evalH++;
-              if (val >= 10) posH++;
-              else negH++;
-            }
+          if (!isNaN(val) && val >= 10) {
+            if (isStudentFemale(student)) posM++;
+            else posH++;
           }
         }
       });
 
+      // Rule: Negativas = Existentes - Positivas
+      const negH = Math.max(0, totalH - posH);
+      const negM = Math.max(0, totalM - posM);
       const posHM = posH + posM;
       const negHM = negH + negM;
-      const evalHM = evalH + evalM;
 
-      const posPctH = evalH > 0 ? ((posH / evalH) * 100).toFixed(1).replace('.', ',') : '';
-      const posPctM = evalM > 0 ? ((posM / evalM) * 100).toFixed(1).replace('.', ',') : '';
-      const posPctHM = evalHM > 0 ? ((posHM / evalHM) * 100).toFixed(1).replace('.', ',') : '';
+      const posPctH = totalH > 0 ? formatPct(posH, totalH) : '0,0';
+      const posPctM = totalM > 0 ? formatPct(posM, totalM) : '0,0';
+      const posPctHM = totalHM > 0 ? formatPct(posHM, totalHM) : '0,0';
 
-      const negPctH = evalH > 0 ? ((negH / evalH) * 100).toFixed(1).replace('.', ',') : '';
-      const negPctM = evalM > 0 ? ((negM / evalM) * 100).toFixed(1).replace('.', ',') : '';
-      const negPctHM = evalHM > 0 ? ((negHM / evalHM) * 100).toFixed(1).replace('.', ',') : '';
+      const negPctH = totalH > 0 ? formatPct(negH, totalH) : '0,0';
+      const negPctM = totalM > 0 ? formatPct(negM, totalM) : '0,0';
+      const negPctHM = totalHM > 0 ? formatPct(negHM, totalHM) : '0,0';
 
       const computedT2: Table2Data = {
         mapa33: { h: String(totalH), m: String(totalM), hm: String(totalHM) },
@@ -227,15 +362,15 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
         transferidos: { h: '0', m: '0', hm: '0' },
         existentesFim2: { h: String(totalH), m: String(totalM), hm: String(totalHM) },
         positivasNum: {
-          h: posH > 0 ? String(posH) : '0',
-          m: posM > 0 ? String(posM) : '0',
-          hm: posHM > 0 ? String(posHM) : '0',
+          h: String(posH),
+          m: String(posM),
+          hm: String(posHM),
         },
         positivasPct: { h: posPctH, m: posPctM, hm: posPctHM },
         negativasNum: {
-          h: negH > 0 ? String(negH) : '0',
-          m: negM > 0 ? String(negM) : '0',
-          hm: negHM > 0 ? String(negHM) : '0',
+          h: String(negH),
+          m: String(negM),
+          hm: String(negHM),
         },
         negativasPct: { h: negPctH, m: negPctM, hm: negPctHM },
       };
@@ -250,10 +385,10 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
     const computed = computeFromClass(trimester);
 
     if (saved && saved.table1 && Array.isArray(saved.table1) && saved.table1.length > 0) {
-      // Merge saved with computed structure
       const mergedT1 = computed.t1.map((cRow) => {
         const sRow = saved.table1.find((r: Table1RowData) => r.id === cRow.id);
-        return sRow ? { ...cRow, ...sRow } : cRow;
+        const base = sRow ? { ...cRow, ...sRow } : cRow;
+        return strictMode ? applyStrictRulesTable1Row(base) : base;
       });
       setTable1Data(mergedT1);
     } else {
@@ -261,53 +396,50 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
     }
 
     if (saved && saved.table2) {
-      setTable2Data({ ...computed.t2, ...saved.table2 });
+      const mergedT2 = { ...computed.t2, ...saved.table2 };
+      setTable2Data(strictMode ? applyStrictRulesTable2(mergedT2) : mergedT2);
     } else {
       setTable2Data(computed.t2);
     }
 
     setHasChanges(false);
-  }, [trimester, selectedClass, computeFromClass]);
+  }, [trimester, selectedClass, computeFromClass, strictMode]);
+
+  // Apply strict rules across both tables
+  const handleApplyStrictRules = () => {
+    setTable1Data((prev) => prev.map((row) => applyStrictRulesTable1Row(row)));
+    setTable2Data((prev) => applyStrictRulesTable2(prev));
+    setHasChanges(true);
+    toast.success('Regras oficiais do modelo aplicadas e cálculos harmonizados com rigor!');
+  };
 
   // Handle cell edit in Table 1
   const handleTable1Change = (index: number, field: keyof Table1RowData, value: string) => {
     setTable1Data((prev) => {
       const updated = [...prev];
-      const row = { ...updated[index], [field]: value };
+      let row = { ...updated[index], [field]: value };
 
-      // Auto update calculations when numeric fields change
-      const nsNum = parseFloat(row.ns || '0') || 0;
-      const sNum = parseFloat(row.s || '0') || 0;
-      const bomNum = parseFloat(row.bom || '0') || 0;
-      const mbNum = parseFloat(row.mb || '0') || 0;
-      const eNum = parseFloat(row.e || '0') || 0;
+      if (strictMode) {
+        row = applyStrictRulesTable1Row(row);
+      } else {
+        // Semi-auto calculation in flexible mode
+        const nsNum = parseVal(row.ns);
+        const sNum = parseVal(row.s);
+        const bomNum = parseVal(row.bom);
+        const mbNum = parseVal(row.mb);
+        const eNum = parseVal(row.e);
 
-      if (['ns', 's', 'bom', 'mb', 'e'].includes(field as string)) {
-        const calcPos = sNum + bomNum + mbNum + eNum;
-        const calcNeg = nsNum;
-        const calcAA = calcPos + calcNeg;
-        if (calcAA > 0) {
-          row.aa = String(calcAA);
-          row.positivasNum = String(calcPos);
-          row.positivasPct = ((calcPos / calcAA) * 100).toFixed(1).replace('.', ',');
-          row.negativasNum = String(calcNeg);
-          row.negativasPct = ((calcNeg / calcAA) * 100).toFixed(1).replace('.', ',');
-        }
-      }
-
-      if (['meninasPosNum', 'aa'].includes(field as string)) {
-        const mPos = parseFloat(row.meninasPosNum || '0') || 0;
-        const aaTotal = parseFloat(row.aa || '0') || 0;
-        if (aaTotal > 0 && mPos > 0) {
-          row.meninasPosPct = ((mPos / aaTotal) * 100).toFixed(1).replace('.', ',');
-        }
-      }
-
-      if (['meninasNegNum', 'aa'].includes(field as string)) {
-        const mNeg = parseFloat(row.meninasNegNum || '0') || 0;
-        const aaTotal = parseFloat(row.aa || '0') || 0;
-        if (aaTotal > 0 && mNeg > 0) {
-          row.meninasNegPct = ((mNeg / aaTotal) * 100).toFixed(1).replace('.', ',');
+        if (['ns', 's', 'bom', 'mb', 'e'].includes(field as string)) {
+          const calcPos = sNum + bomNum + mbNum + eNum;
+          const calcNeg = nsNum;
+          const calcAA = calcPos + calcNeg;
+          if (calcAA > 0) {
+            row.aa = String(calcAA);
+            row.positivasNum = String(calcPos);
+            row.positivasPct = formatPct(calcPos, calcAA);
+            row.negativasNum = String(calcNeg);
+            row.negativasPct = formatPct(calcNeg, calcAA);
+          }
         }
       }
 
@@ -322,15 +454,18 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
     setTable2Data((prev) => {
       const updated = { ...prev };
       const currentGroup = { ...updated[group], [sub]: value };
-
-      if (sub === 'h' || sub === 'm') {
-        const hVal = parseFloat(sub === 'h' ? value : currentGroup.h) || 0;
-        const mVal = parseFloat(sub === 'm' ? value : currentGroup.m) || 0;
-        currentGroup.hm = String(hVal + mVal);
-      }
-
       updated[group] = currentGroup;
-      return updated;
+
+      if (strictMode) {
+        return applyStrictRulesTable2(updated);
+      } else {
+        if (sub === 'h' || sub === 'm') {
+          const hVal = parseVal(sub === 'h' ? value : currentGroup.h);
+          const mVal = parseVal(sub === 'm' ? value : currentGroup.m);
+          currentGroup.hm = String(hVal + mVal);
+        }
+        return updated;
+      }
     });
     setHasChanges(true);
   };
@@ -353,7 +488,7 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
       };
       await onUpdateClass(updatedClass);
       setHasChanges(false);
-      toast.success('Dados de Aproveitamento Pedagógico guardados!');
+      toast.success('Dados de Aproveitamento Pedagógico guardados com sucesso!');
     } catch (err) {
       console.error(err);
       toast.error('Erro ao guardar os dados.');
@@ -362,16 +497,16 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
     }
   };
 
-  // Reset to auto-computed values
+  // Reset to auto-computed values from class
   const handleResetToAuto = () => {
     const computed = computeFromClass(trimester);
     setTable1Data(computed.t1);
     setTable2Data(computed.t2);
     setHasChanges(true);
-    toast.info('Dados sincronizados a partir das notas da turma.');
+    toast.info('Dados sincronizados e recalculados a partir das notas da turma.');
   };
 
-  // Table 1 Totals
+  // Table 1 Totals (Strict Column by Column Sum)
   const table1Totals = useMemo(() => {
     let aaSum = 0;
     let nsSum = 0;
@@ -385,22 +520,23 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
     let mNegNumSum = 0;
 
     table1Data.forEach((row) => {
-      aaSum += parseFloat(row.aa || '0') || 0;
-      nsSum += parseFloat(row.ns || '0') || 0;
-      sSum += parseFloat(row.s || '0') || 0;
-      bomSum += parseFloat(row.bom || '0') || 0;
-      mbSum += parseFloat(row.mb || '0') || 0;
-      eSum += parseFloat(row.e || '0') || 0;
-      posNumSum += parseFloat(row.positivasNum || '0') || 0;
-      negNumSum += parseFloat(row.negativasNum || '0') || 0;
-      mPosNumSum += parseFloat(row.meninasPosNum || '0') || 0;
-      mNegNumSum += parseFloat(row.meninasNegNum || '0') || 0;
+      aaSum += parseVal(row.aa);
+      nsSum += parseVal(row.ns);
+      sSum += parseVal(row.s);
+      bomSum += parseVal(row.bom);
+      mbSum += parseVal(row.mb);
+      eSum += parseVal(row.e);
+      posNumSum += parseVal(row.positivasNum);
+      negNumSum += parseVal(row.negativasNum);
+      mPosNumSum += parseVal(row.meninasPosNum);
+      mNegNumSum += parseVal(row.meninasNegNum);
     });
 
-    const posPctAvg = aaSum > 0 ? ((posNumSum / aaSum) * 100).toFixed(1).replace('.', ',') : '-';
-    const negPctAvg = aaSum > 0 ? ((negNumSum / aaSum) * 100).toFixed(1).replace('.', ',') : '-';
-    const mPosPctAvg = aaSum > 0 ? ((mPosNumSum / aaSum) * 100).toFixed(1).replace('.', ',') : '-';
-    const mNegPctAvg = aaSum > 0 ? ((mNegNumSum / aaSum) * 100).toFixed(1).replace('.', ',') : '-';
+    const posPctAvg = aaSum > 0 ? formatPct(posNumSum, aaSum) : '0,0';
+    const negPctAvg = aaSum > 0 ? formatPct(negNumSum, aaSum) : '0,0';
+    const mTotalAA = mPosNumSum + mNegNumSum;
+    const mPosPctAvg = mTotalAA > 0 ? formatPct(mPosNumSum, mTotalAA) : '0,0';
+    const mNegPctAvg = mTotalAA > 0 ? formatPct(mNegNumSum, mTotalAA) : '0,0';
 
     return {
       aa: aaSum,
@@ -420,21 +556,61 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
     };
   }, [table1Data]);
 
-  // Export to Excel
+  // Validation rules check (Are calculations 100% compliant with the photo?)
+  const validationStatus = useMemo(() => {
+    let t1Discrepancies = 0;
+    table1Data.forEach((row) => {
+      const aa = parseVal(row.aa);
+      const pos = parseVal(row.positivasNum);
+      const neg = parseVal(row.negativasNum);
+      if (aa > 0 && pos + neg !== aa) {
+        t1Discrepancies++;
+      }
+    });
+
+    // Check Table 2
+    const hExistFim = parseVal(table2Data.existentesFim2.h);
+    const mExistFim = parseVal(table2Data.existentesFim2.m);
+    const hmExistFim = parseVal(table2Data.existentesFim2.hm);
+
+    const hPos = parseVal(table2Data.positivasNum.h);
+    const mPos = parseVal(table2Data.positivasNum.m);
+    const hmPos = parseVal(table2Data.positivasNum.hm);
+
+    const hNeg = parseVal(table2Data.negativasNum.h);
+    const mNeg = parseVal(table2Data.negativasNum.m);
+    const hmNeg = parseVal(table2Data.negativasNum.hm);
+
+    const t2Discrepancy =
+      (hExistFim > 0 && hPos + hNeg !== hExistFim) ||
+      (mExistFim > 0 && mPos + mNeg !== mExistFim) ||
+      (hmExistFim > 0 && hmPos + hmNeg !== hmExistFim);
+
+    return {
+      is100Compliant: t1Discrepancies === 0 && !t2Discrepancy,
+      t1Errors: t1Discrepancies,
+      t2Error: t2Discrepancy,
+    };
+  }, [table1Data, table2Data]);
+
+  // Export to Excel with Strict Structure matching Photo
   const handleExportExcel = () => {
     try {
       const wb = XLSX.utils.book_new();
 
-      // Title & Subtitle
       const aoa: any[][] = [
+        ['REPÚBLICA DE MOÇAMBIQUE'],
+        ['MINISTÉRIO DA EDUCAÇÃO E DESENVOLVIMENTO HUMANO'],
         [`APROVEITAMENTO PEDAGÓGICO DO ${trimester}º TRIMESTRE`],
-        [`Escola: ${selectedClass.school || 'EduGestão'} | Turma: ${selectedClass.level} ${selectedClass.section} | Ano Lectivo: ${selectedClass.academicYear || '-'}`],
+        [
+          `Escola: ${selectedClass.school || 'EduGestão'} | Turma: ${selectedClass.level} ${selectedClass.section} | Sala: ${selectedClass.room || '-'} | Turno: ${selectedClass.shift || 'Diurno'} | Ano Lectivo: ${selectedClass.academicYear || '-'}`,
+        ],
         [],
         // Table 1 Header Row 1
         ['Disciplina', 'Professor', 'A.A.', 'Quantificação', '', '', '', '', 'Resultados', '', '', '', 'Meninas', '', '', ''],
         // Table 1 Header Row 2
         ['', '', '', 'NS', 'S', 'Bom', 'MB', 'E', 'Positivas', '', 'Negativas', '', 'Positivas', '', 'Negativas', ''],
-        // Table 1 Header Row 3 (sub headers)
+        // Table 1 Header Row 3
         ['', '', '', '0/9', '10/13', '14/16', '17/18', '19/20', 'Nº', '%', 'Nº', '%', 'Nº', '%', 'Nº', '%'],
       ];
 
@@ -450,13 +626,13 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
           row.mb,
           row.e,
           row.positivasNum,
-          row.positivasPct,
+          row.positivasPct ? `${row.positivasPct}%` : '',
           row.negativasNum,
-          row.negativasPct,
+          row.negativasPct ? `${row.negativasPct}%` : '',
           row.meninasPosNum,
-          row.meninasPosPct,
+          row.meninasPosPct ? `${row.meninasPosPct}%` : '',
           row.meninasNegNum,
-          row.meninasNegPct,
+          row.meninasNegPct ? `${row.meninasNegPct}%` : '',
         ]);
       });
 
@@ -471,13 +647,13 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
         table1Totals.mb,
         table1Totals.e,
         table1Totals.posNum,
-        table1Totals.posPct,
+        `${table1Totals.posPct}%`,
         table1Totals.negNum,
-        table1Totals.negPct,
+        `${table1Totals.negPct}%`,
         table1Totals.mPosNum,
-        table1Totals.mPosPct,
+        `${table1Totals.mPosPct}%`,
         table1Totals.mNegNum,
-        table1Totals.mNegPct,
+        `${table1Totals.mNegPct}%`,
       ]);
 
       // Spacers
@@ -485,12 +661,10 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
       aoa.push([]);
 
       // Table 2 Header Row 1
-      aoa.push([
-        'Situação Geral da Turma',
-      ]);
+      aoa.push(['SITUAÇÃO GERAL DA TURMA (MAPA 3/3)']);
       aoa.push([
         'Mapa 3/3', '', '',
-        `Existentes no fim do ${trimester === '1' ? 'Início' : trimester === '2' ? '1º' : '2º'} Trimestre`, '', '',
+        `Existentes no ${trimester === '1' ? 'Início do 1º' : trimester === '2' ? 'fim do 1º' : 'fim do 2º'} Trimestre`, '', '',
         `Que entraram no ${trimester}º Trimestre`, '', '',
         'Total', '', '',
         'Transferidos', '', '',
@@ -524,14 +698,34 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
         table2Data.transferidos.h, table2Data.transferidos.m, table2Data.transferidos.hm,
         table2Data.existentesFim2.h, table2Data.existentesFim2.m, table2Data.existentesFim2.hm,
         table2Data.positivasNum.h, table2Data.positivasNum.m, table2Data.positivasNum.hm,
-        table2Data.positivasPct.h, table2Data.positivasPct.m, table2Data.positivasPct.hm,
+        table2Data.positivasPct.h ? `${table2Data.positivasPct.h}%` : '0,0%',
+        table2Data.positivasPct.m ? `${table2Data.positivasPct.m}%` : '0,0%',
+        table2Data.positivasPct.hm ? `${table2Data.positivasPct.hm}%` : '0,0%',
         table2Data.negativasNum.h, table2Data.negativasNum.m, table2Data.negativasNum.hm,
-        table2Data.negativasPct.h, table2Data.negativasPct.m, table2Data.negativasPct.hm,
+        table2Data.negativasPct.h ? `${table2Data.negativasPct.h}%` : '0,0%',
+        table2Data.negativasPct.m ? `${table2Data.negativasPct.m}%` : '0,0%',
+        table2Data.negativasPct.hm ? `${table2Data.negativasPct.hm}%` : '0,0%',
+      ]);
+
+      // Signatures spacer
+      aoa.push([]);
+      aoa.push([]);
+      aoa.push(['Localidade e Data: ________________________, aos _____ de _______________ de 202___']);
+      aoa.push([]);
+      aoa.push([
+        'O Director de Turma: ________________________________',
+        '',
+        '',
+        '',
+        'O Director Adjunto Pedagógico: ________________________________',
+        '',
+        '',
+        '',
+        'O Director da Escola: ________________________________',
       ]);
 
       const ws = XLSX.utils.aoa_to_sheet(aoa);
 
-      // Auto col widths
       const colWidths = Array.from({ length: 30 }, (_, i) => ({
         wch: i === 0 ? 18 : i === 1 ? 22 : 8,
       }));
@@ -542,7 +736,7 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
         wb,
         `Aproveitamento_Pedagogico_${selectedClass.level.replace(/\s+/g, '_')}_${selectedClass.section}_${trimester}Trimestre.xlsx`
       );
-      toast.success('Ficheiro Excel exportado com sucesso!');
+      toast.success('Pauta oficial exportada com sucesso para Excel!');
     } catch (e) {
       console.error(e);
       toast.error('Erro ao exportar para Excel.');
@@ -553,7 +747,7 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
     <div className="space-y-6 pt-4 sm:pt-6 animate-in fade-in duration-300">
       {/* Top Header Card (Hidden on Print) */}
       <div className="bg-card rounded-2xl border border-border shadow-xs p-4 sm:p-5 no-print">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <Button
               variant="outline"
@@ -571,8 +765,19 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
                   <span>Aproveitamento Pedagógico</span>
                 </h2>
                 <span className="bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-800 text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider">
-                  Mapa 3/3
+                  Mapa 3/3 Oficial
                 </span>
+                {validationStatus.is100Compliant ? (
+                  <span className="bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 text-[10px] font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                    <CheckCircle2 className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+                    100% Conforme com o Modelo da Foto
+                  </span>
+                ) : (
+                  <span className="bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-800 text-[10px] font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                    <AlertCircle className="h-3 w-3 text-amber-600 dark:text-amber-400" />
+                    Divergência detectada
+                  </span>
+                )}
               </div>
               <p className="text-xs text-muted-foreground mt-0.5">
                 {selectedClass.level} {selectedClass.section} &bull; {selectedClass.school || 'EduGestão'} &bull; Director de Turma
@@ -599,17 +804,43 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
               ))}
             </div>
 
+            {/* Toggle Rules Guide */}
+            <Button
+              variant="outline"
+              onClick={() => setShowRulesGuide(!showRulesGuide)}
+              className="h-8.5 px-3 border border-border text-foreground hover:bg-muted text-xs font-semibold rounded-xl shadow-2xs flex items-center gap-1.5 cursor-pointer"
+              title="Ver regras de preenchimento rigoroso"
+            >
+              <HelpCircle className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
+              <span className="hidden sm:inline">Regras Oficiais</span>
+              {showRulesGuide ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+            </Button>
+
+            {/* Button: Apply Strict Rules */}
+            <Button
+              variant="outline"
+              onClick={handleApplyStrictRules}
+              className="h-8.5 px-3 border border-purple-300 dark:border-purple-800 bg-purple-50/50 dark:bg-purple-950/30 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/40 text-xs font-bold rounded-xl shadow-2xs flex items-center gap-1.5 cursor-pointer"
+              title="Harmonizar e aplicar todas as regras matemáticas de A.A., totais e percentagens"
+            >
+              <Calculator className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
+              <span className="hidden sm:inline">Harmonizar Fórmulas</span>
+              <span className="sm:hidden">Harmonizar</span>
+            </Button>
+
+            {/* Button: Recalculate from Class */}
             <Button
               variant="outline"
               onClick={handleResetToAuto}
-              className="h-8.5 px-3 border border-purple-200 dark:border-purple-900/50 bg-purple-50/10 dark:bg-purple-950/10 text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/30 text-xs font-semibold rounded-xl shadow-2xs flex items-center gap-1.5 cursor-pointer"
-              title="Recalcular dados com base nas notas atuais dos alunos"
+              className="h-8.5 px-3 border border-zinc-300 dark:border-zinc-700 text-foreground hover:bg-muted text-xs font-semibold rounded-xl shadow-2xs flex items-center gap-1.5 cursor-pointer"
+              title="Recalcular dados com base nas notas atuais dos alunos na Média Geral"
             >
               <RefreshCw className="h-3.5 w-3.5 shrink-0" />
               <span className="hidden sm:inline">Recalcular da Turma</span>
               <span className="sm:hidden">Sincronizar</span>
             </Button>
 
+            {/* Button: Export Excel */}
             <Button
               variant="outline"
               onClick={handleExportExcel}
@@ -620,6 +851,7 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
               <span>Exportar</span>
             </Button>
 
+            {/* Button: Print */}
             <Button
               variant="outline"
               onClick={() => window.print()}
@@ -630,6 +862,7 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
               <span>Imprimir</span>
             </Button>
 
+            {/* Save Button */}
             {hasChanges && onUpdateClass && (
               <Button
                 onClick={handleSave}
@@ -646,21 +879,129 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
             )}
           </div>
         </div>
+
+        {/* Collapsible Rules Explanation Card */}
+        {showRulesGuide && (
+          <div className="mt-4 p-4 rounded-xl bg-purple-50/60 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-900/50 text-xs text-foreground space-y-3 animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="flex items-center justify-between">
+              <h4 className="font-extrabold text-purple-900 dark:text-purple-200 flex items-center gap-1.5 text-sm">
+                <Sparkles className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                Regras de Preenchimento Rigoroso (Modelo Oficial do Mapa 3/3)
+              </h4>
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] text-muted-foreground">Modo de Cálculos:</span>
+                <button
+                  onClick={() => {
+                    const newMode = !strictMode;
+                    setStrictMode(newMode);
+                    if (newMode) handleApplyStrictRules();
+                  }}
+                  className={`px-2.5 py-0.5 text-[11px] font-bold rounded-full transition-all cursor-pointer ${
+                    strictMode
+                      ? 'bg-purple-600 text-white shadow-2xs'
+                      : 'bg-muted text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {strictMode ? 'Modo Rígido Automático (Ativado)' : 'Modo Manual'}
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-[11px] leading-relaxed">
+              <div className="bg-white/80 dark:bg-zinc-900/80 p-3 rounded-lg border border-purple-100 dark:border-purple-900/40 space-y-1.5">
+                <p className="font-bold text-purple-800 dark:text-purple-300">
+                  Tabela 1: Aproveitamento por Disciplina
+                </p>
+                <ul className="list-disc pl-4 space-y-1 text-muted-foreground">
+                  <li>
+                    <strong className="text-foreground">Alunos Avaliados (A.A.):</strong> Igual à soma das quantificações: <code className="text-purple-700 dark:text-purple-300 font-mono">A.A. = NS + S + Bom + MB + E</code>.
+                  </li>
+                  <li>
+                    <strong className="text-foreground">Positivas:</strong> Nº = <code className="font-mono">S + Bom + MB + E</code> (notas 10 a 20). Percentagem = <code className="font-mono">(Positivas / A.A.) × 100</code>.
+                  </li>
+                  <li>
+                    <strong className="text-foreground">Negativas:</strong> Nº = <code className="font-mono">NS</code> (notas 0 a 9). Percentagem = <code className="font-mono">(Negativas / A.A.) × 100</code>.
+                  </li>
+                  <li>
+                    <strong className="text-foreground">Regra de Fechamento:</strong> <code className="font-mono">Positivas (%) + Negativas (%) = 100,0%</code>.
+                  </li>
+                  <li>
+                    <strong className="text-foreground">Meninas:</strong> Percentagens calculadas sobre o total de alunas avaliadas na disciplina (<code className="font-mono">Meninas Avaliadas = Positivas + Negativas</code>).
+                  </li>
+                  <li>
+                    <strong className="text-foreground">Linha TOTAL:</strong> Soma de cada coluna de contagem e percentagens globais sobre o total de avaliações.
+                  </li>
+                </ul>
+              </div>
+
+              <div className="bg-white/80 dark:bg-zinc-900/80 p-3 rounded-lg border border-purple-100 dark:border-purple-900/40 space-y-1.5">
+                <p className="font-bold text-purple-800 dark:text-purple-300">
+                  Tabela 2: Situação Geral da Turma (Mapa 3/3)
+                </p>
+                <ul className="list-disc pl-4 space-y-1 text-muted-foreground">
+                  <li>
+                    <strong className="text-foreground">Soma por Sexo:</strong> Em todas as 10 colunas, <code className="font-mono">HM = H (Homens) + M (Mulheres)</code>.
+                  </li>
+                  <li>
+                    <strong className="text-foreground">Total da Turma:</strong> <code className="font-mono">Total = Existentes no Início + Que entraram</code>.
+                  </li>
+                  <li>
+                    <strong className="text-foreground">Existentes no Fim do Trimestre:</strong> <code className="font-mono">Existentes Fim = Total - Transferidos</code>.
+                  </li>
+                  <li>
+                    <strong className="text-foreground">Situação Positiva:</strong> Alunos com Média Geral &ge; 10 valores.
+                  </li>
+                  <li>
+                    <strong className="text-foreground">Situação Negativa:</strong> Alunos com Média Geral &lt; 10 valores (<code className="font-mono">Existentes no Fim - Positivas</code>).
+                  </li>
+                  <li>
+                    <strong className="text-foreground">Percentagens:</strong> Calculadas sobre os Existentes no Fim do Trimestre. <code className="font-mono">Positiva (%) + Negativa (%) = 100,0%</code> em H, M e HM.
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Official Sheet Container (Prints Crisp and Follows the Exact Provided Photo) */}
       <div className="bg-card rounded-2xl border border-border shadow-xs p-4 sm:p-6 space-y-8 overflow-hidden print:border-0 print:p-0 print:bg-white print:text-black">
         {/* ============================================================ */}
+        {/* CABEÇALHO OFICIAL DO MINEDH / REPÚBLICA DE MOÇAMBIQUE        */}
+        {/* ============================================================ */}
+        <div className="text-center space-y-1 border-b pb-4 print:border-black">
+          <p className="text-[11px] sm:text-xs font-bold tracking-widest uppercase text-muted-foreground print:text-black">
+            República de Moçambique &bull; Ministério da Educação e Desenvolvimento Humano
+          </p>
+          <h3 className="text-base sm:text-xl font-black uppercase tracking-wider text-foreground print:text-black font-sans">
+            APROVEITAMENTO PEDAGÓGICO DO {trimester}º TRIMESTRE
+          </h3>
+          <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs text-muted-foreground print:text-black pt-0.5">
+            <span><strong>Escola:</strong> {selectedClass.school || 'EduGestão'}</span>
+            <span>&bull;</span>
+            <span><strong>Turma:</strong> {selectedClass.level} {selectedClass.section}</span>
+            <span>&bull;</span>
+            <span><strong>Sala:</strong> {selectedClass.room || 'Principal'}</span>
+            <span>&bull;</span>
+            <span><strong>Turno:</strong> {selectedClass.shift || 'Diurno'}</span>
+            <span>&bull;</span>
+            <span><strong>Ano Lectivo:</strong> {selectedClass.academicYear || new Date().getFullYear()}</span>
+            <span>&bull;</span>
+            <span><strong>Director de Turma:</strong> {user?.displayName || selectedClass.teacherName || 'Docente'}</span>
+          </div>
+        </div>
+
+        {/* ============================================================ */}
         {/* TABELA 1: APROVEITAMENTO PEDAGÓGICO DO _____ TRIMESTRE       */}
         {/* ============================================================ */}
         <div className="space-y-3">
-          <div className="text-center">
-            <h3 className="text-base sm:text-xl font-black uppercase tracking-wider text-foreground print:text-black font-sans">
-              APROVEITAMENTO PEDAGÓGICO DO {trimester}º TRIMESTRE
-            </h3>
-            <p className="text-xs text-muted-foreground print:text-gray-600 mt-0.5">
-              Turma: {selectedClass.level} {selectedClass.section} &bull; Escola: {selectedClass.school || 'EduGestão'} &bull; Ano Lectivo: {selectedClass.academicYear || '-'}
-            </p>
+          <div className="flex items-center justify-between">
+            <h4 className="text-xs sm:text-sm font-extrabold tracking-wide uppercase text-foreground print:text-black">
+              1. Aproveitamento Pedagógico por Disciplina
+            </h4>
+            <span className="text-[10px] text-muted-foreground print:hidden">
+              Valores em A.A. calculados por: <code className="text-purple-600 dark:text-purple-400 font-mono">NS + S + Bom + MB + E</code>
+            </span>
           </div>
 
           <div className="overflow-x-auto custom-desktop-scrollbar border border-zinc-400 dark:border-zinc-700 rounded-lg print:border-black">
@@ -683,7 +1024,7 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
                   <th
                     rowSpan={2}
                     className="border-r border-zinc-400 dark:border-zinc-700 p-2 w-12 print:border-black"
-                    title="Alunos Avaliados"
+                    title="Alunos Avaliados (NS + S + Bom + MB + E)"
                   >
                     A.A.
                   </th>
@@ -793,13 +1134,14 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
                     </td>
 
                     {/* A.A. (Alunos Avaliados) */}
-                    <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 font-bold">
+                    <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 font-bold bg-muted/10">
                       <input
                         type="text"
                         value={row.aa}
                         onChange={(e) => handleTable1Change(idx, 'aa', e.target.value)}
                         placeholder="-"
                         className="w-full text-center bg-transparent border-0 focus:outline-none font-bold text-foreground text-xs print:text-[9px]"
+                        title="Alunos Avaliados = NS + S + Bom + MB + E"
                       />
                     </td>
 
@@ -861,13 +1203,14 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
                     </td>
 
                     {/* Positivas Nº */}
-                    <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 font-bold text-blue-600 dark:text-blue-400 print:text-black">
+                    <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 font-bold text-blue-600 dark:text-blue-400 bg-blue-50/20 dark:bg-blue-950/20 print:text-black">
                       <input
                         type="text"
                         value={row.positivasNum}
                         onChange={(e) => handleTable1Change(idx, 'positivasNum', e.target.value)}
                         placeholder="-"
                         className="w-full text-center bg-transparent border-0 focus:outline-none font-bold text-xs print:text-[9px]"
+                        title="Positivas Nº = S + Bom + MB + E"
                       />
                     </td>
 
@@ -879,17 +1222,19 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
                         onChange={(e) => handleTable1Change(idx, 'positivasPct', e.target.value)}
                         placeholder="-"
                         className="w-full text-center bg-transparent border-0 focus:outline-none text-xs print:text-[9px]"
+                        title="Positivas % = (Positivas / A.A.) * 100"
                       />
                     </td>
 
                     {/* Negativas Nº */}
-                    <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 font-bold text-red-600 dark:text-red-400 print:text-black">
+                    <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 font-bold text-red-600 dark:text-red-400 bg-red-50/20 dark:bg-red-950/20 print:text-black">
                       <input
                         type="text"
                         value={row.negativasNum}
                         onChange={(e) => handleTable1Change(idx, 'negativasNum', e.target.value)}
                         placeholder="-"
                         className="w-full text-center bg-transparent border-0 focus:outline-none font-bold text-xs print:text-[9px]"
+                        title="Negativas Nº = NS"
                       />
                     </td>
 
@@ -901,6 +1246,7 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
                         onChange={(e) => handleTable1Change(idx, 'negativasPct', e.target.value)}
                         placeholder="-"
                         className="w-full text-center bg-transparent border-0 focus:outline-none text-xs print:text-[9px]"
+                        title="Negativas % = (Negativas / A.A.) * 100"
                       />
                     </td>
 
@@ -923,6 +1269,7 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
                         onChange={(e) => handleTable1Change(idx, 'meninasPosPct', e.target.value)}
                         placeholder="-"
                         className="w-full text-center bg-transparent border-0 focus:outline-none text-xs print:text-[9px]"
+                        title="Meninas Positivas % = (Meninas Pos / Meninas Avaliadas) * 100"
                       />
                     </td>
 
@@ -945,29 +1292,48 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
                         onChange={(e) => handleTable1Change(idx, 'meninasNegPct', e.target.value)}
                         placeholder="-"
                         className="w-full text-center bg-transparent border-0 focus:outline-none text-xs print:text-[9px]"
+                        title="Meninas Negativas % = (Meninas Neg / Meninas Avaliadas) * 100"
                       />
                     </td>
                   </tr>
                 ))}
 
                 {/* Total Row */}
-                <tr className="bg-zinc-200/80 dark:bg-zinc-800/80 font-black border-t-2 border-zinc-400 dark:border-zinc-700 print:bg-gray-200 print:text-black print:border-black text-xs print:text-[9px]">
-                  <td className="border-r border-zinc-400 dark:border-zinc-700 p-2 text-left font-black">TOTAL</td>
-                  <td className="border-r border-zinc-400 dark:border-zinc-700 p-2">-</td>
-                  <td className="border-r border-zinc-400 dark:border-zinc-700 p-2 text-center font-black">{table1Totals.aa}</td>
+                <tr className="bg-zinc-200/90 dark:bg-zinc-800/90 font-black border-t-2 border-zinc-500 dark:border-zinc-600 print:bg-gray-200 print:text-black print:border-black text-xs print:text-[9px]">
+                  <td className="border-r border-zinc-400 dark:border-zinc-700 p-2 text-left font-black tracking-wider">
+                    TOTAL
+                  </td>
+                  <td className="border-r border-zinc-400 dark:border-zinc-700 p-2 text-muted-foreground">-</td>
+                  <td className="border-r border-zinc-400 dark:border-zinc-700 p-2 text-center font-black bg-muted/20">
+                    {table1Totals.aa}
+                  </td>
                   <td className="border-r border-zinc-400 dark:border-zinc-700 p-2 text-center">{table1Totals.ns}</td>
                   <td className="border-r border-zinc-400 dark:border-zinc-700 p-2 text-center">{table1Totals.s}</td>
                   <td className="border-r border-zinc-400 dark:border-zinc-700 p-2 text-center">{table1Totals.bom}</td>
                   <td className="border-r border-zinc-400 dark:border-zinc-700 p-2 text-center">{table1Totals.mb}</td>
                   <td className="border-r border-zinc-400 dark:border-zinc-700 p-2 text-center">{table1Totals.e}</td>
-                  <td className="border-r border-zinc-400 dark:border-zinc-700 p-2 text-center text-blue-700 dark:text-blue-300 font-black print:text-black">{table1Totals.posNum}</td>
-                  <td className="border-r border-zinc-400 dark:border-zinc-700 p-2 text-center">{table1Totals.posPct}</td>
-                  <td className="border-r border-zinc-400 dark:border-zinc-700 p-2 text-center text-red-700 dark:text-red-300 font-black print:text-black">{table1Totals.negNum}</td>
-                  <td className="border-r border-zinc-400 dark:border-zinc-700 p-2 text-center">{table1Totals.negPct}</td>
-                  <td className="border-r border-zinc-400 dark:border-zinc-700 p-2 text-center font-black">{table1Totals.mPosNum}</td>
-                  <td className="border-r border-zinc-400 dark:border-zinc-700 p-2 text-center">{table1Totals.mPosPct}</td>
-                  <td className="border-r border-zinc-400 dark:border-zinc-700 p-2 text-center font-black">{table1Totals.mNegNum}</td>
-                  <td className="p-2 text-center">{table1Totals.mNegPct}</td>
+                  <td className="border-r border-zinc-400 dark:border-zinc-700 p-2 text-center text-blue-700 dark:text-blue-300 font-black bg-blue-50/30 dark:bg-blue-950/30 print:text-black">
+                    {table1Totals.posNum}
+                  </td>
+                  <td className="border-r border-zinc-400 dark:border-zinc-700 p-2 text-center font-bold">
+                    {table1Totals.posPct}%
+                  </td>
+                  <td className="border-r border-zinc-400 dark:border-zinc-700 p-2 text-center text-red-700 dark:text-red-300 font-black bg-red-50/30 dark:bg-red-950/30 print:text-black">
+                    {table1Totals.negNum}
+                  </td>
+                  <td className="border-r border-zinc-400 dark:border-zinc-700 p-2 text-center font-bold">
+                    {table1Totals.negPct}%
+                  </td>
+                  <td className="border-r border-zinc-400 dark:border-zinc-700 p-2 text-center font-black text-emerald-700 dark:text-emerald-300 print:text-black">
+                    {table1Totals.mPosNum}
+                  </td>
+                  <td className="border-r border-zinc-400 dark:border-zinc-700 p-2 text-center font-bold">
+                    {table1Totals.mPosPct}%
+                  </td>
+                  <td className="border-r border-zinc-400 dark:border-zinc-700 p-2 text-center font-black text-red-700 dark:text-red-300 print:text-black">
+                    {table1Totals.mNegNum}
+                  </td>
+                  <td className="p-2 text-center font-bold">{table1Totals.mNegPct}%</td>
                 </tr>
               </tbody>
             </table>
@@ -978,10 +1344,13 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
         {/* TABELA 2: Situação Geral da Turma (Exatamente como na foto)  */}
         {/* ============================================================ */}
         <div className="space-y-3 pt-4">
-          <div className="text-center">
-            <h3 className="text-base sm:text-xl font-black tracking-wider text-foreground print:text-black font-sans">
-              Situação Geral da Turma
-            </h3>
+          <div className="flex items-center justify-between">
+            <h4 className="text-xs sm:text-sm font-extrabold tracking-wide uppercase text-foreground print:text-black">
+              2. Situação Geral da Turma (Mapa 3/3)
+            </h4>
+            <span className="text-[10px] text-muted-foreground print:hidden">
+              Regra rigorosa: <code className="text-purple-600 dark:text-purple-400 font-mono">HM = H + M</code> &bull; <code className="text-purple-600 dark:text-purple-400 font-mono">Existentes Fim = Total - Transferidos</code> &bull; <code className="text-purple-600 dark:text-purple-400 font-mono">Pos (%) + Neg (%) = 100%</code>
+            </span>
           </div>
 
           <div className="overflow-x-auto custom-desktop-scrollbar border border-zinc-400 dark:border-zinc-700 rounded-lg print:border-black">
@@ -992,7 +1361,7 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
                   <th colSpan={3} className="border-r border-zinc-400 dark:border-zinc-700 p-2 min-w-[75px]">
                     Mapa 3/3
                   </th>
-                  <th colSpan={3} className="border-r border-zinc-400 dark:border-zinc-700 p-2 min-w-[120px]">
+                  <th colSpan={3} className="border-r border-zinc-400 dark:border-zinc-700 p-2 min-w-[125px]">
                     {trimester === '1'
                       ? 'Existentes no Início do 1º Trimestre'
                       : trimester === '2'
@@ -1029,9 +1398,20 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
                 <tr className="bg-zinc-200/90 dark:bg-zinc-800/90 text-zinc-900 dark:text-zinc-100 font-bold border-b border-zinc-400 dark:border-zinc-700 print:bg-gray-150 print:text-black print:border-black text-[11px]">
                   {Array.from({ length: 10 }).map((_, i) => (
                     <React.Fragment key={i}>
-                      <th className="border-r border-zinc-300 dark:border-zinc-700 p-1 w-9 print:border-black">H</th>
-                      <th className="border-r border-zinc-300 dark:border-zinc-700 p-1 w-9 print:border-black">M</th>
-                      <th className={`p-1 w-10 ${i < 9 ? 'border-r border-zinc-400 dark:border-zinc-700 print:border-black' : ''}`}>HM</th>
+                      <th className="border-r border-zinc-300 dark:border-zinc-700 p-1 w-9 print:border-black" title="Homens (Rapazes)">
+                        H
+                      </th>
+                      <th className="border-r border-zinc-300 dark:border-zinc-700 p-1 w-9 print:border-black" title="Mulheres (Raparigas)">
+                        M
+                      </th>
+                      <th
+                        className={`p-1 w-10 font-black bg-muted/20 ${
+                          i < 9 ? 'border-r border-zinc-400 dark:border-zinc-700 print:border-black' : ''
+                        }`}
+                        title="Total Homens + Mulheres"
+                      >
+                        HM
+                      </th>
                     </React.Fragment>
                   ))}
                 </tr>
@@ -1118,24 +1498,26 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
                     />
                   </td>
 
-                  {/* 4. Total */}
-                  <td className="border-r border-zinc-300 dark:border-zinc-700 p-1">
+                  {/* 4. Total (Existentes + Entraram) */}
+                  <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 bg-muted/10">
                     <input
                       type="text"
                       value={table2Data.total.h}
                       onChange={(e) => handleTable2Change('total', 'h', e.target.value)}
                       className="w-full text-center bg-transparent border-0 focus:outline-none text-xs print:text-[8px]"
+                      title="Total H = Existentes H + Entraram H"
                     />
                   </td>
-                  <td className="border-r border-zinc-300 dark:border-zinc-700 p-1">
+                  <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 bg-muted/10">
                     <input
                       type="text"
                       value={table2Data.total.m}
                       onChange={(e) => handleTable2Change('total', 'm', e.target.value)}
                       className="w-full text-center bg-transparent border-0 focus:outline-none text-xs print:text-[8px]"
+                      title="Total M = Existentes M + Entraram M"
                     />
                   </td>
-                  <td className="border-r border-zinc-400 dark:border-zinc-700 p-1 font-bold bg-muted/20">
+                  <td className="border-r border-zinc-400 dark:border-zinc-700 p-1 font-bold bg-muted/25">
                     <input
                       type="text"
                       value={table2Data.total.hm}
@@ -1170,24 +1552,26 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
                     />
                   </td>
 
-                  {/* 6. Existentes no Fim */}
-                  <td className="border-r border-zinc-300 dark:border-zinc-700 p-1">
+                  {/* 6. Existentes no Fim (Total - Transferidos) */}
+                  <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 bg-muted/10">
                     <input
                       type="text"
                       value={table2Data.existentesFim2.h}
                       onChange={(e) => handleTable2Change('existentesFim2', 'h', e.target.value)}
                       className="w-full text-center bg-transparent border-0 focus:outline-none text-xs print:text-[8px]"
+                      title="Existentes Fim H = Total H - Transferidos H"
                     />
                   </td>
-                  <td className="border-r border-zinc-300 dark:border-zinc-700 p-1">
+                  <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 bg-muted/10">
                     <input
                       type="text"
                       value={table2Data.existentesFim2.m}
                       onChange={(e) => handleTable2Change('existentesFim2', 'm', e.target.value)}
                       className="w-full text-center bg-transparent border-0 focus:outline-none text-xs print:text-[8px]"
+                      title="Existentes Fim M = Total M - Transferidos M"
                     />
                   </td>
-                  <td className="border-r border-zinc-400 dark:border-zinc-700 p-1 font-bold bg-muted/20">
+                  <td className="border-r border-zinc-400 dark:border-zinc-700 p-1 font-bold bg-muted/25">
                     <input
                       type="text"
                       value={table2Data.existentesFim2.hm}
@@ -1197,7 +1581,7 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
                   </td>
 
                   {/* 7. Situação Positiva (Número) */}
-                  <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 text-blue-600 dark:text-blue-400 font-bold print:text-black">
+                  <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 text-blue-600 dark:text-blue-400 font-bold bg-blue-50/20 dark:bg-blue-950/20 print:text-black">
                     <input
                       type="text"
                       value={table2Data.positivasNum.h}
@@ -1205,7 +1589,7 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
                       className="w-full text-center bg-transparent border-0 focus:outline-none font-bold text-xs print:text-[8px]"
                     />
                   </td>
-                  <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 text-blue-600 dark:text-blue-400 font-bold print:text-black">
+                  <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 text-blue-600 dark:text-blue-400 font-bold bg-blue-50/20 dark:bg-blue-950/20 print:text-black">
                     <input
                       type="text"
                       value={table2Data.positivasNum.m}
@@ -1213,7 +1597,7 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
                       className="w-full text-center bg-transparent border-0 focus:outline-none font-bold text-xs print:text-[8px]"
                     />
                   </td>
-                  <td className="border-r border-zinc-400 dark:border-zinc-700 p-1 font-black text-blue-700 dark:text-blue-300 bg-muted/20 print:text-black">
+                  <td className="border-r border-zinc-400 dark:border-zinc-700 p-1 font-black text-blue-700 dark:text-blue-300 bg-blue-100/30 dark:bg-blue-950/40 print:text-black">
                     <input
                       type="text"
                       value={table2Data.positivasNum.hm}
@@ -1229,6 +1613,7 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
                       value={table2Data.positivasPct.h}
                       onChange={(e) => handleTable2Change('positivasPct', 'h', e.target.value)}
                       className="w-full text-center bg-transparent border-0 focus:outline-none text-xs print:text-[8px]"
+                      title="Positivas % (H) = (Positivas H / Existentes Fim H) * 100"
                     />
                   </td>
                   <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 text-muted-foreground print:text-black">
@@ -1237,6 +1622,7 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
                       value={table2Data.positivasPct.m}
                       onChange={(e) => handleTable2Change('positivasPct', 'm', e.target.value)}
                       className="w-full text-center bg-transparent border-0 focus:outline-none text-xs print:text-[8px]"
+                      title="Positivas % (M) = (Positivas M / Existentes Fim M) * 100"
                     />
                   </td>
                   <td className="border-r border-zinc-400 dark:border-zinc-700 p-1 font-bold text-foreground bg-muted/20 print:text-black">
@@ -1245,27 +1631,30 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
                       value={table2Data.positivasPct.hm}
                       onChange={(e) => handleTable2Change('positivasPct', 'hm', e.target.value)}
                       className="w-full text-center bg-transparent border-0 focus:outline-none font-bold text-xs print:text-[8px]"
+                      title="Positivas % (HM) = (Positivas HM / Existentes Fim HM) * 100"
                     />
                   </td>
 
                   {/* 9. Situação Negativa (Número) */}
-                  <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 text-red-600 dark:text-red-400 font-bold print:text-black">
+                  <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 text-red-600 dark:text-red-400 font-bold bg-red-50/20 dark:bg-red-950/20 print:text-black">
                     <input
                       type="text"
                       value={table2Data.negativasNum.h}
                       onChange={(e) => handleTable2Change('negativasNum', 'h', e.target.value)}
                       className="w-full text-center bg-transparent border-0 focus:outline-none font-bold text-xs print:text-[8px]"
+                      title="Negativas H = Existentes Fim H - Positivas H"
                     />
                   </td>
-                  <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 text-red-600 dark:text-red-400 font-bold print:text-black">
+                  <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 text-red-600 dark:text-red-400 font-bold bg-red-50/20 dark:bg-red-950/20 print:text-black">
                     <input
                       type="text"
                       value={table2Data.negativasNum.m}
                       onChange={(e) => handleTable2Change('negativasNum', 'm', e.target.value)}
                       className="w-full text-center bg-transparent border-0 focus:outline-none font-bold text-xs print:text-[8px]"
+                      title="Negativas M = Existentes Fim M - Positivas M"
                     />
                   </td>
-                  <td className="border-r border-zinc-400 dark:border-zinc-700 p-1 font-black text-red-700 dark:text-red-300 bg-muted/20 print:text-black">
+                  <td className="border-r border-zinc-400 dark:border-zinc-700 p-1 font-black text-red-700 dark:text-red-300 bg-red-100/30 dark:bg-red-950/40 print:text-black">
                     <input
                       type="text"
                       value={table2Data.negativasNum.hm}
@@ -1281,6 +1670,7 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
                       value={table2Data.negativasPct.h}
                       onChange={(e) => handleTable2Change('negativasPct', 'h', e.target.value)}
                       className="w-full text-center bg-transparent border-0 focus:outline-none text-xs print:text-[8px]"
+                      title="Negativas % (H) = (Negativas H / Existentes Fim H) * 100"
                     />
                   </td>
                   <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 text-muted-foreground print:text-black">
@@ -1289,6 +1679,7 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
                       value={table2Data.negativasPct.m}
                       onChange={(e) => handleTable2Change('negativasPct', 'm', e.target.value)}
                       className="w-full text-center bg-transparent border-0 focus:outline-none text-xs print:text-[8px]"
+                      title="Negativas % (M) = (Negativas M / Existentes Fim M) * 100"
                     />
                   </td>
                   <td className="p-1 font-bold text-foreground bg-muted/20 print:text-black">
@@ -1297,11 +1688,46 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
                       value={table2Data.negativasPct.hm}
                       onChange={(e) => handleTable2Change('negativasPct', 'hm', e.target.value)}
                       className="w-full text-center bg-transparent border-0 focus:outline-none font-bold text-xs print:text-[8px]"
+                      title="Negativas % (HM) = (Negativas HM / Existentes Fim HM) * 100"
                     />
                   </td>
                 </tr>
               </tbody>
             </table>
+          </div>
+        </div>
+
+        {/* ============================================================ */}
+        {/* RODAPÉ OFICIAL: DATA, LOCALIDADE E ASSINATURAS DO MINEDH     */}
+        {/* ============================================================ */}
+        <div className="pt-6 border-t border-zinc-300 dark:border-zinc-700 print:border-black space-y-6 text-xs text-foreground print:text-black">
+          <div className="text-right italic text-muted-foreground print:text-black">
+            <span>__________________________, aos _____ de ______________________ de 202___</span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4 text-center">
+            {/* 1. O Director de Turma */}
+            <div className="space-y-2">
+              <p className="font-bold text-xs uppercase tracking-wider">O Director de Turma</p>
+              <div className="pt-6 border-b border-zinc-400 dark:border-zinc-600 print:border-black w-3/4 mx-auto" />
+              <p className="text-[11px] text-muted-foreground print:text-black">
+                {user?.displayName || selectedClass.teacherName || 'Assinatura'}
+              </p>
+            </div>
+
+            {/* 2. O Director Adjunto Pedagógico (DAP) */}
+            <div className="space-y-2">
+              <p className="font-bold text-xs uppercase tracking-wider">O Director Adjunto Pedagógico</p>
+              <div className="pt-6 border-b border-zinc-400 dark:border-zinc-600 print:border-black w-3/4 mx-auto" />
+              <p className="text-[11px] text-muted-foreground print:text-black">D.A.P.</p>
+            </div>
+
+            {/* 3. O Director da Escola */}
+            <div className="space-y-2">
+              <p className="font-bold text-xs uppercase tracking-wider">O Director da Escola</p>
+              <div className="pt-6 border-b border-zinc-400 dark:border-zinc-600 print:border-black w-3/4 mx-auto" />
+              <p className="text-[11px] text-muted-foreground print:text-black">(Carimbo e Assinatura)</p>
+            </div>
           </div>
         </div>
       </div>
