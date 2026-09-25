@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Users, BookOpen, School, GraduationCap, ChevronLeft, Trash2, UserPlus, Save, Search, Download, Pencil, Home, LogOut, Star, Layers, Sun, Moon, Upload, FileSpreadsheet, FileText, UploadCloud, Check, AlertTriangle, X, ChevronDown, Cloud, Wifi, WifiOff, CloudLightning, CloudOff, CheckCircle2, Calculator } from 'lucide-react';
+import { Plus, Users, BookOpen, School, GraduationCap, ChevronLeft, Trash2, UserPlus, Save, Search, Download, Pencil, Home, LogOut, Star, Layers, Sun, Moon, Upload, FileSpreadsheet, FileText, UploadCloud, Check, AlertTriangle, X, ChevronDown, Cloud, Wifi, WifiOff, CloudLightning, CloudOff, CheckCircle2, Calculator, BarChart3 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import mammoth from 'mammoth';
 import { motion } from 'motion/react';
@@ -16,12 +16,13 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { WelcomeScreen } from '@/components/welcome-screen';
 import { LoginScreen } from '@/components/login-screen';
+import { AproveitamentoPedagogicoView } from '@/components/AproveitamentoPedagogicoView';
 import { auth, db, logout, getCachedAccessToken, setCachedAccessToken, signInWithGoogle } from '@/lib/firebase';
 import { onAuthStateChanged, User, GoogleAuthProvider } from 'firebase/auth';
 import { collection, onSnapshot, doc, setDoc, deleteDoc, query, where } from 'firebase/firestore';
 import { toast } from 'sonner';
 
-type Grades = {
+export type Grades = {
   acs1: string;
   acs2: string;
   acs3: string;
@@ -29,16 +30,17 @@ type Grades = {
   exame: string;
 };
 
-type StudentNote = {
+export type StudentNote = {
   id: string;
   date: string;
   text: string;
 };
 
-type Student = {
+export type Student = {
   id: string;
   studentNumber?: string;
   name: string;
+  gender?: 'M' | 'F';
   grades: Grades;
   dob?: string;
   birthplace?: string;
@@ -59,6 +61,23 @@ type Student = {
     2?: Record<string, string>;
     3?: Record<string, string>;
   };
+};
+
+export const isStudentFemale = (student: Student): boolean => {
+  if (student.gender === 'F') return true;
+  if (student.gender === 'M') return false;
+  const firstName = (student.name || '').trim().split(' ')[0].toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const knownFemale = [
+    'maria', 'ana', 'fatima', 'amina', 'luisa', 'carla', 'sofia', 'marta', 'paula', 'cristina',
+    'isabel', 'ines', 'beatriz', 'raquel', 'carmen', 'teresa', 'claudia', 'helena', 'joana',
+    'sara', 'patricia', 'jessica', 'vanessa', 'daniela', 'lucia', 'rosa', 'albertina', 'angela',
+    'elsa', 'esperanca', 'julia', 'nadia', 'zaida', 'leila', 'samira', 'mariamo', 'aida',
+    'neuza', 'yara', 'telma', 'shelsea', 'edna', 'sonia', 'natercia', 'lucinda', 'margarida',
+    'catarina', 'susana', 'ivone', 'alice', 'filomena', 'graziela', 'inacia', 'olga', 'tania'
+  ];
+  if (knownFemale.includes(firstName)) return true;
+  if (firstName.endsWith('a') && !['joshua', 'luca', 'elias', 'isaia', 'mussa', 'issa', 'mustafa', 'babua'].includes(firstName)) return true;
+  return false;
 };
 
 export const MEDIA_GERAL_SUBJECTS = [
@@ -101,7 +120,7 @@ const getStudentSubjectGrades = (student: Student, trimester: '1' | '2' | '3'): 
   return {};
 };
 
-const calculateMediaGeralForStudent = (
+export const calculateMediaGeralForStudent = (
   student: Student,
   trimester: '1' | '2' | '3'
 ): {
@@ -143,7 +162,7 @@ const calculateMediaGeralForStudent = (
   };
 };
 
-type ClassData = {
+export type ClassData = {
   id: string;
   userId: string;
   school: string;
@@ -154,6 +173,7 @@ type ClassData = {
   isDirector: boolean;
   isPlaceholder?: boolean;
   students: Student[];
+  aproveitamentoData?: Record<string, any>;
   createdAt?: string;
 };
 
@@ -390,12 +410,14 @@ export default function App() {
   const [hasUnsyncedChanges, setHasUnsyncedChanges] = useState(false);
   const [isUnsyncedModalOpen, setIsUnsyncedModalOpen] = useState(false);
   const [isMediaGeralViewOpen, setIsMediaGeralViewOpen] = useState(false);
+  const [isAproveitamentoViewOpen, setIsAproveitamentoViewOpen] = useState(false);
   const [mediaGeralSearch, setMediaGeralSearch] = useState('');
 
   useEffect(() => {
     setHasUnsyncedChanges(false);
     setIsUnsyncedModalOpen(false);
     setIsMediaGeralViewOpen(false);
+    setIsAproveitamentoViewOpen(false);
     setMediaGeralSearch('');
   }, [selectedClassId]);
   const [selectedLevel, setSelectedLevel] = useState<string | null>(null);
@@ -668,6 +690,11 @@ export default function App() {
       }
 
       isSystemPopState.current = true;
+
+      if (isAproveitamentoViewOpen) {
+        setIsAproveitamentoViewOpen(false);
+        return;
+      }
 
       if (isMediaGeralViewOpen) {
         setIsMediaGeralViewOpen(false);
@@ -2594,6 +2621,17 @@ export default function App() {
               </div>
             )}
           </div>
+        ) : selectedClass && selectedClass.isDirector && isAproveitamentoViewOpen ? (
+          <AproveitamentoPedagogicoView
+            selectedClass={selectedClass}
+            onBack={() => setIsAproveitamentoViewOpen(false)}
+            onUpdateClass={async (updatedClass) => {
+              await setDoc(doc(db, 'classes', updatedClass.id), updatedClass);
+              setClasses(prev => prev.map(c => c.id === updatedClass.id ? updatedClass : c));
+            }}
+            user={user}
+            initialTrimester={selectedTrimester}
+          />
         ) : selectedClass && selectedClass.isDirector && isMediaGeralViewOpen ? (
           // Dedicated Media Geral Calculation View for Director de Turma
           <div className="space-y-4 pt-4 sm:pt-6 animate-in fade-in duration-300">
@@ -2832,6 +2870,21 @@ export default function App() {
                   </TableBody>
                 </Table>
               </div>
+            </div>
+
+            {/* Botão de Aproveitamento Pedagógico - depois da tabela */}
+            <div className="flex justify-center items-center py-4 sm:py-6">
+              <Button
+                onClick={() => {
+                  setIsAproveitamentoViewOpen(true);
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                className="h-11 px-6 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-sm flex items-center justify-center gap-2.5 shadow-md cursor-pointer transition-all hover:scale-[1.02] active:scale-[0.98] border-0"
+                title="Abrir página de análise do Aproveitamento Pedagógico"
+              >
+                <BarChart3 className="h-5 w-5 shrink-0" />
+                <span>Aproveitamento Pedagógico</span>
+              </Button>
             </div>
           </div>
         ) : (
@@ -3217,6 +3270,32 @@ export default function App() {
                           <div className="col-span-3 grid gap-2">
                             <Label htmlFor="edit-studentName">Nome Completo <span className="text-red-500">*</span></Label>
                             <Input id="edit-studentName" value={editingStudent.name || ''} onChange={e => setEditingStudent({...editingStudent, name: e.target.value})} placeholder="Ex: João Silva" />
+                          </div>
+                        </div>
+
+                        <div className="grid gap-1.5">
+                          <Label className="text-xs">Género (H / M)</Label>
+                          <div className="flex items-center gap-4">
+                            <label className="flex items-center gap-1.5 text-xs font-semibold cursor-pointer">
+                              <input
+                                type="radio"
+                                name="edit-student-gender"
+                                value="M"
+                                checked={editingStudent.gender === 'M' || (!editingStudent.gender && !isStudentFemale(editingStudent))}
+                                onChange={() => setEditingStudent({ ...editingStudent, gender: 'M' })}
+                              />
+                              <span>Masculino (H)</span>
+                            </label>
+                            <label className="flex items-center gap-1.5 text-xs font-semibold cursor-pointer">
+                              <input
+                                type="radio"
+                                name="edit-student-gender"
+                                value="F"
+                                checked={editingStudent.gender === 'F' || (!editingStudent.gender && isStudentFemale(editingStudent))}
+                                onChange={() => setEditingStudent({ ...editingStudent, gender: 'F' })}
+                              />
+                              <span>Feminino (M / Menina)</span>
+                            </label>
                           </div>
                         </div>
                         
