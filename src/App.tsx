@@ -1397,22 +1397,6 @@ export default function App() {
     return (a.name || '').localeCompare(b.name || '');
   });
 
-  const classAverageMG = (() => {
-    if (!selectedClass || selectedClass.students.length === 0) return '-';
-    const validMGs: number[] = [];
-    selectedClass.students.forEach(s => {
-      const mg = calculateMediaGeralForStudent(s, selectedTrimester);
-      if (mg.hasAnyGrade && mg.rounded !== '-') {
-        const val = parseFloat(mg.rounded);
-        if (!isNaN(val)) validMGs.push(val);
-      }
-    });
-    if (validMGs.length === 0) return '-';
-    const sum = validMGs.reduce((a, b) => a + b, 0);
-    const avg = sum / validMGs.length;
-    return `${customRound(avg)} (${avg.toFixed(1).replace('.', ',')})`;
-  })();
-
   const studentsNeedingApoio = (selectedClass?.students.filter(student => {
     return getApoioAlertStatus(student, selectedTrimester) === 'red';
   }) || []).sort((a, b) => {
@@ -2614,136 +2598,84 @@ export default function App() {
           // Dedicated Media Geral Calculation View for Director de Turma
           <div className="space-y-4 pt-4 sm:pt-6 animate-in fade-in duration-300">
             {/* Header & Controls Card */}
-            <div className="bg-card rounded-2xl border border-border shadow-xs p-4 sm:p-6">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/50 pb-4">
-                <div className="flex items-center gap-3">
-                  <Button
-                    variant="outline"
-                    onClick={() => setIsMediaGeralViewOpen(false)}
-                    className="h-9 w-9 p-0 border border-purple-200 dark:border-purple-900/40 bg-purple-50/20 dark:bg-purple-950/20 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/30 rounded-xl shadow-2xs flex items-center justify-center cursor-pointer transition-all shrink-0"
-                    title="Voltar para a pauta da turma"
-                  >
-                    <ChevronLeft className="h-5 w-5" />
-                  </Button>
-                  <div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h2 className="text-lg sm:text-xl font-extrabold text-foreground tracking-tight">
-                        Cálculo da Média Geral (MG)
-                      </h2>
-                      <span className="bg-amber-400 text-amber-950 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wide flex items-center gap-1 shadow-2xs">
-                        <Star className="h-2.5 w-2.5 fill-amber-950 text-amber-950" />
-                        <span>Director de Turma</span>
-                      </span>
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {selectedClass.level} {selectedClass.section} &bull; {selectedClass.school || 'EduGestão'} &bull; 13 Disciplinas Curriculares
-                    </p>
-                  </div>
-                </div>
-
-                {/* Right controls */}
-                <div className="flex flex-wrap items-center gap-2">
-                  {/* Trimester Tabs */}
-                  <div className="flex p-0.5 bg-muted/70 rounded-xl border border-border/40 select-none">
-                    {(['1', '2', '3'] as const).map((t) => (
-                      <button
-                        key={t}
-                        onClick={() => setSelectedTrimester(t)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                          selectedTrimester === t
-                            ? 'bg-purple-600 text-white shadow-xs'
-                            : 'text-muted-foreground hover:text-foreground'
-                        }`}
-                      >
-                        {t}º Trimestre
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* Pull Current Subject Grades */}
-                  <Button
-                    variant="outline"
-                    onClick={pullCurrentSubjectGrades}
-                    className="h-8.5 px-3 border border-purple-200 dark:border-purple-900/50 bg-purple-50/10 dark:bg-purple-950/10 text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/30 text-xs font-semibold rounded-lg shadow-2xs flex items-center gap-1.5 cursor-pointer"
-                    title={`Preencher notas de ${selectedClass.subject} calculadas nas avaliações desta turma`}
-                  >
-                    <BookOpen className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400" />
-                    <span>Sincronizar {selectedClass.subject}</span>
-                  </Button>
-
-                  {/* Export Excel */}
-                  <Button
-                    variant="outline"
-                    onClick={exportMediaGeralToExcel}
-                    className="h-8.5 px-3 border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/10 dark:bg-emerald-950/10 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 text-xs font-semibold rounded-lg shadow-2xs flex items-center gap-1.5 cursor-pointer"
-                    title="Exportar pauta completa da Média Geral para Excel"
-                  >
-                    <Download className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-                    <span>Exportar Excel</span>
-                  </Button>
-                </div>
+            <div className="bg-card rounded-2xl border border-border shadow-xs p-4 sm:p-5">
+              {/* Row 1: Title on the left, Back button on the right */}
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="text-lg sm:text-xl font-extrabold text-foreground tracking-tight">
+                  Cálculo da Média Geral
+                </h2>
+                <Button
+                  variant="outline"
+                  onClick={() => setIsMediaGeralViewOpen(false)}
+                  className="h-9 px-3.5 border border-purple-200 dark:border-purple-900/40 bg-purple-50/20 dark:bg-purple-950/20 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/30 rounded-xl shadow-2xs flex items-center gap-1.5 cursor-pointer transition-all shrink-0 text-xs sm:text-sm font-semibold"
+                  title="Voltar para a pauta da turma"
+                >
+                  <ChevronLeft className="h-4.5 w-4.5 shrink-0" />
+                  <span>Voltar</span>
+                </Button>
               </div>
 
-              {/* Statistics & Formula Bar */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-4">
-                <div className="p-3 rounded-xl bg-purple-500/5 border border-purple-500/15 flex items-center gap-3">
-                  <div className="h-9 w-9 rounded-lg bg-purple-500/15 text-purple-600 dark:text-purple-400 flex items-center justify-center font-extrabold text-sm">
-                    13
-                  </div>
-                  <div>
-                    <div className="text-[11px] font-semibold text-muted-foreground uppercase">Disciplinas</div>
-                    <div className="text-xs font-extrabold text-foreground">P, I, H, G, M, F, Q, B, Ed. V, AP, Ed. MC, TICs, Ed. F</div>
-                  </div>
+              {/* Row 2: Repositioned Controls (Trimester selector, Campo de Pesquisa, Botões Sincronizar e Exportar) */}
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mt-4 pt-3 border-t border-border/50">
+                {/* Trimester Tabs */}
+                <div className="flex p-0.5 bg-muted/70 rounded-xl border border-border/40 select-none w-full sm:w-auto">
+                  {(['1', '2', '3'] as const).map((t) => (
+                    <button
+                      key={t}
+                      onClick={() => setSelectedTrimester(t)}
+                      className={`flex-1 sm:flex-initial px-3 sm:px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        selectedTrimester === t
+                          ? 'bg-purple-600 text-white shadow-xs'
+                          : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      {t}º Trimestre
+                    </button>
+                  ))}
                 </div>
 
-                <div className="p-3 rounded-xl bg-muted/30 border border-border/60 flex items-center gap-3">
-                  <div className="h-9 w-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-extrabold text-sm">
-                    {selectedClass.students.length}
+                {/* Search & Actions */}
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full md:w-auto">
+                  {/* Campo de Pesquisa */}
+                  <div className="relative flex-1 sm:w-60 md:w-64">
+                    <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-muted-foreground/60" />
+                    <Input
+                      placeholder="Procurar aluno por nome ou nº..."
+                      className="pl-9 h-8.5 bg-muted/40 border-border/70 text-xs rounded-xl w-full"
+                      value={mediaGeralSearch}
+                      onChange={(e) => setMediaGeralSearch(e.target.value)}
+                    />
                   </div>
-                  <div>
-                    <div className="text-[11px] font-semibold text-muted-foreground uppercase">Total de Alunos</div>
-                    <div className="text-xs font-extrabold text-foreground">{selectedClass.students.length} matriculados</div>
+
+                  {/* Botões Sincronizar e Exportar */}
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={pullCurrentSubjectGrades}
+                      className="flex-1 sm:flex-initial h-8.5 px-3 border border-purple-200 dark:border-purple-900/50 bg-purple-50/10 dark:bg-purple-950/10 text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/30 text-xs font-semibold rounded-xl shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
+                      title={`Sincronizar notas de ${selectedClass.subject}`}
+                    >
+                      <BookOpen className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
+                      <span>Sincronizar</span>
+                    </Button>
+
+                    <Button
+                      variant="outline"
+                      onClick={exportMediaGeralToExcel}
+                      className="flex-1 sm:flex-initial h-8.5 px-3 border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/10 dark:bg-emerald-950/10 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 text-xs font-semibold rounded-xl shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
+                      title="Exportar pauta completa da Média Geral para Excel"
+                    >
+                      <Download className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                      <span>Exportar</span>
+                    </Button>
                   </div>
                 </div>
-
-                <div className="p-3 rounded-xl bg-amber-500/5 border border-amber-500/15 flex items-center gap-3">
-                  <div className="h-9 w-9 rounded-lg bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center font-extrabold text-sm">
-                    <Calculator className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <div className="text-[11px] font-semibold text-muted-foreground uppercase">Média Geral da Turma</div>
-                    <div className="text-xs font-extrabold text-amber-600 dark:text-amber-400">{classAverageMG}</div>
-                  </div>
-                </div>
-
-                <div className="p-3 rounded-xl bg-blue-500/5 border border-blue-500/15 flex items-center gap-3">
-                  <div className="h-9 w-9 rounded-lg bg-blue-500/15 text-blue-600 dark:text-blue-400 flex items-center justify-center font-extrabold text-xs">
-                    ½
-                  </div>
-                  <div>
-                    <div className="text-[11px] font-semibold text-muted-foreground uppercase">Regra de Arredondamento</div>
-                    <div className="text-[11px] font-semibold text-foreground leading-tight">
-                      ≥ 0,5 excesso (10,6→11) &bull; &lt; 0,5 defeito (10,4→10)
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Search bar */}
-              <div className="mt-4 relative max-w-sm">
-                <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-muted-foreground/60" />
-                <Input
-                  placeholder="Procurar aluno por nome ou número..."
-                  className="pl-9 h-8.5 bg-muted/40 border-border/70 text-xs rounded-lg"
-                  value={mediaGeralSearch}
-                  onChange={(e) => setMediaGeralSearch(e.target.value)}
-                />
               </div>
             </div>
 
             {/* Table Container */}
             <div className="bg-card rounded-2xl border border-border shadow-xs overflow-hidden">
-              <div className="h-[calc(100vh-270px)] min-h-[420px] overflow-auto relative scrollbar-thin">
+              <div className="h-[calc(100vh-220px)] min-h-[420px] overflow-auto overflow-x-scroll always-visible-scrollbar relative scrollbar-thin">
                 <Table>
                   <TableHeader className="sticky top-0 z-10 bg-muted/95 backdrop-blur-xs border-b border-border/80 shadow-2xs">
                     <TableRow className="h-11 border-b border-border/60 bg-muted">
@@ -2754,22 +2686,17 @@ export default function App() {
                       {MEDIA_GERAL_SUBJECTS.map((sub) => (
                         <TableHead
                           key={sub.key}
-                          className="w-[72px] text-center font-extrabold text-foreground px-1 bg-muted"
+                          className="w-[58px] min-w-[52px] text-center font-extrabold text-foreground px-1 bg-muted"
                           title={sub.name}
                         >
-                          <div className="flex flex-col items-center">
-                            <span className="text-xs">{sub.label}</span>
-                            <span className="text-[9px] font-normal text-muted-foreground truncate max-w-[65px]">
-                              {sub.name}
-                            </span>
-                          </div>
+                          <span className="text-xs font-bold text-foreground">{sub.label}</span>
                         </TableHead>
                       ))}
                       <TableHead className="w-[75px] text-center font-bold text-purple-700 dark:text-purple-300 bg-purple-500/10 border-l border-border/50">
                         Soma
                       </TableHead>
-                      <TableHead className="w-[95px] text-center font-extrabold text-white bg-purple-600 dark:bg-purple-700 sticky right-0 z-20 shadow-xs">
-                        MG (Geral)
+                      <TableHead className="w-[80px] text-center font-extrabold text-white bg-purple-600 dark:bg-purple-700 sticky right-0 z-20 shadow-xs">
+                        MG
                       </TableHead>
                     </TableRow>
                   </TableHeader>
@@ -2860,19 +2787,6 @@ export default function App() {
                     )}
                   </TableBody>
                 </Table>
-              </div>
-
-              {/* Bottom helper card inside table container */}
-              <div className="p-3 border-t border-border/50 bg-muted/20 flex flex-col sm:flex-row items-center justify-between text-xs text-muted-foreground gap-2">
-                <div className="flex items-center gap-2">
-                  <Calculator className="h-4 w-4 text-purple-600 dark:text-purple-400 shrink-0" />
-                  <span>
-                    Fórmula oficial: <strong>MG = (P + I + H + G + M + F + Q + B + Ed. V + AP + Ed. MC + TICs + Ed. F) ÷ 13</strong>
-                  </span>
-                </div>
-                <div className="text-[11px] font-medium">
-                  Arredondamento automático por excesso (≥0,5) ou por defeito (&lt;0,5) aplicado.
-                </div>
               </div>
             </div>
           </div>
@@ -3760,8 +3674,7 @@ export default function App() {
                     </div>
 
                     {activeTab === 'avaliacoes' ? (
-                      <>
-                        <div className="h-[calc(100vh-250px)] sm:h-[calc(100vh-270px)] md:h-[calc(100vh-220px)] lg:h-[calc(100vh-200px)] min-h-[350px] overflow-auto relative scrollbar-thin border border-border/10 rounded-xl shadow-3xs bg-muted/5 dark:bg-[#12163b]/10">
+                      <div className="h-[calc(100vh-250px)] sm:h-[calc(100vh-270px)] md:h-[calc(100vh-220px)] lg:h-[calc(100vh-200px)] min-h-[350px] overflow-auto relative scrollbar-thin border border-border/10 rounded-xl shadow-3xs bg-muted/5 dark:bg-[#12163b]/10">
                         <Table>
                           <TableHeader className="sticky top-0 z-10 bg-muted border-b border-border/80">
                             <TableRow className="h-12 border-b border-border/50 bg-muted">
@@ -3992,39 +3905,7 @@ export default function App() {
                           </TableBody>
                         </Table>
                       </div>
-
-                      {/* Botão de Cálculo da Média Geral (para Director de Turma) */}
-                      <div className="mt-4 p-4 rounded-xl border border-purple-200/80 dark:border-purple-900/40 bg-gradient-to-r from-purple-500/10 via-purple-500/5 to-transparent flex flex-col sm:flex-row items-center justify-between gap-3 shadow-2xs">
-                        <div className="flex items-center gap-3">
-                          <div className="h-10 w-10 rounded-xl bg-purple-600 text-white flex items-center justify-center shrink-0 shadow-xs">
-                            <Calculator className="h-5 w-5" />
-                          </div>
-                          <div>
-                            <h4 className="text-sm font-extrabold text-foreground flex items-center gap-2">
-                              <span>Cálculo da Média Geral</span>
-                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-800">
-                                Director de Turma
-                              </span>
-                            </h4>
-                            <p className="text-xs text-muted-foreground mt-0.5">
-                              Pauta consolidada das 13 disciplinas curriculares (P, I, H, G, M, F, Q, B, Ed. V, AP, Ed. MC, TICs, Ed. F) com cálculo e arredondamento da Média Geral (MG).
-                            </p>
-                          </div>
-                        </div>
-                        <Button
-                          onClick={() => {
-                            setIsMediaGeralViewOpen(true);
-                            window.scrollTo({ top: 0, behavior: 'smooth' });
-                          }}
-                          className="w-full sm:w-auto h-10 px-5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-xs cursor-pointer transition-all hover:scale-[1.01] active:scale-[0.99] shrink-0 border-0"
-                          title="Abrir página de Cálculo da Média Geral"
-                        >
-                          <Calculator className="h-4.5 w-4.5 shrink-0" />
-                          <span>Cálculo da Média Geral</span>
-                        </Button>
-                      </div>
-                    </>
-                  ) : (
+                    ) : (
                       <div className="h-[calc(100vh-250px)] sm:h-[calc(100vh-270px)] md:h-[calc(100vh-220px)] lg:h-[calc(100vh-200px)] min-h-[350px] overflow-auto relative scrollbar-thin border border-border/10 rounded-xl shadow-3xs bg-muted/5 dark:bg-[#12163b]/10">
                         <Table>
                           <TableHeader className="sticky top-0 z-10 bg-muted border-b border-border/80">
@@ -4355,40 +4236,26 @@ export default function App() {
                   </div>
                 )}
 
-                {selectedClass.isDirector && (
-                  <div className="p-4 rounded-xl border border-purple-200/80 dark:border-purple-900/40 bg-gradient-to-r from-purple-500/10 via-purple-500/5 to-transparent flex flex-col sm:flex-row items-center justify-between gap-3 shadow-2xs mt-4">
-                    <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-xl bg-purple-600 text-white flex items-center justify-center shrink-0 shadow-xs">
-                        <Calculator className="h-5 w-5" />
-                      </div>
-                      <div>
-                        <h4 className="text-sm font-extrabold text-foreground flex items-center gap-2">
-                          <span>Cálculo da Média Geral</span>
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-800">
-                            Director de Turma
-                          </span>
-                        </h4>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          Pauta consolidada das 13 disciplinas curriculares (P, I, H, G, M, F, Q, B, Ed. V, AP, Ed. MC, TICs, Ed. F) com cálculo e arredondamento da Média Geral (MG).
-                        </p>
-                      </div>
-                    </div>
-                    <Button
-                      onClick={() => {
-                        setIsMediaGeralViewOpen(true);
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
-                      }}
-                      className="w-full sm:w-auto h-10 px-5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-xs cursor-pointer transition-all hover:scale-[1.01] active:scale-[0.99] shrink-0 border-0"
-                      title="Abrir página de Cálculo da Média Geral"
-                    >
-                      <Calculator className="h-4.5 w-4.5 shrink-0" />
-                      <span>Cálculo da Média Geral</span>
-                    </Button>
-                  </div>
-                )}
                 </div>
               )}
             </div>
+
+            {/* Botão de Cálculo da Média Geral (para Director de Turma) - abaixo da tabela e centralizado */}
+            {selectedClass.isDirector && (
+              <div className="flex justify-center items-center py-4 sm:py-6">
+                <Button
+                  onClick={() => {
+                    setIsMediaGeralViewOpen(true);
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                  className="h-11 px-6 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-sm flex items-center justify-center gap-2.5 shadow-md cursor-pointer transition-all hover:scale-[1.02] active:scale-[0.98] border-0"
+                  title="Abrir página de Cálculo da Média Geral"
+                >
+                  <Calculator className="h-5 w-5 shrink-0" />
+                  <span>Cálculo da Média Geral</span>
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </main>
