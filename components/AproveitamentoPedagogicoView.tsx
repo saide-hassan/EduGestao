@@ -6,13 +6,6 @@ import {
   Printer,
   RefreshCw,
   Save,
-  CheckCircle2,
-  AlertCircle,
-  HelpCircle,
-  Calculator,
-  ChevronDown,
-  ChevronUp,
-  Sparkles,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { toast } from 'sonner';
@@ -224,8 +217,7 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
   });
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
-  const [showRulesGuide, setShowRulesGuide] = useState(false);
-  const [strictMode, setStrictMode] = useState(true);
+  const strictMode = true;
 
   // Auto compute data from students in the class
   const computeFromClass = useMemo(() => {
@@ -556,43 +548,6 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
     };
   }, [table1Data]);
 
-  // Validation rules check (Are calculations 100% compliant with the photo?)
-  const validationStatus = useMemo(() => {
-    let t1Discrepancies = 0;
-    table1Data.forEach((row) => {
-      const aa = parseVal(row.aa);
-      const pos = parseVal(row.positivasNum);
-      const neg = parseVal(row.negativasNum);
-      if (aa > 0 && pos + neg !== aa) {
-        t1Discrepancies++;
-      }
-    });
-
-    // Check Table 2
-    const hExistFim = parseVal(table2Data.existentesFim2.h);
-    const mExistFim = parseVal(table2Data.existentesFim2.m);
-    const hmExistFim = parseVal(table2Data.existentesFim2.hm);
-
-    const hPos = parseVal(table2Data.positivasNum.h);
-    const mPos = parseVal(table2Data.positivasNum.m);
-    const hmPos = parseVal(table2Data.positivasNum.hm);
-
-    const hNeg = parseVal(table2Data.negativasNum.h);
-    const mNeg = parseVal(table2Data.negativasNum.m);
-    const hmNeg = parseVal(table2Data.negativasNum.hm);
-
-    const t2Discrepancy =
-      (hExistFim > 0 && hPos + hNeg !== hExistFim) ||
-      (mExistFim > 0 && mPos + mNeg !== mExistFim) ||
-      (hmExistFim > 0 && hmPos + hmNeg !== hmExistFim);
-
-    return {
-      is100Compliant: t1Discrepancies === 0 && !t2Discrepancy,
-      t1Errors: t1Discrepancies,
-      t2Error: t2Discrepancy,
-    };
-  }, [table1Data, table2Data]);
-
   // Export to Excel with Strict Structure matching Photo
   const handleExportExcel = () => {
     try {
@@ -746,123 +701,76 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
   return (
     <div className="space-y-6 pt-4 sm:pt-6 animate-in fade-in duration-300">
       {/* Top Header Card (Hidden on Print) */}
-      <div className="bg-card rounded-2xl border border-border shadow-xs p-4 sm:p-5 no-print">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <Button
-              variant="outline"
-              onClick={onBack}
-              className="h-9 px-3.5 border border-purple-200 dark:border-purple-900/40 bg-purple-50/20 dark:bg-purple-950/20 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/30 rounded-xl shadow-2xs flex items-center gap-1.5 cursor-pointer transition-all shrink-0 text-xs sm:text-sm font-semibold"
-              title="Voltar para a página de Cálculo da Média Geral"
-            >
-              <ChevronLeft className="h-4.5 w-4.5 shrink-0" />
-              <span>Voltar</span>
-            </Button>
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="text-lg sm:text-xl font-extrabold text-foreground tracking-tight flex items-center gap-2">
-                  <BarChart3 className="h-5 w-5 text-purple-600 dark:text-purple-400" />
-                  <span>Aproveitamento Pedagógico</span>
-                </h2>
-                <span className="bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-800 text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider">
-                  Mapa 3/3 Oficial
-                </span>
-                {validationStatus.is100Compliant ? (
-                  <span className="bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 text-[10px] font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1">
-                    <CheckCircle2 className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
-                    100% Conforme com o Modelo da Foto
-                  </span>
-                ) : (
-                  <span className="bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-800 text-[10px] font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1">
-                    <AlertCircle className="h-3 w-3 text-amber-600 dark:text-amber-400" />
-                    Divergência detectada
-                  </span>
-                )}
-              </div>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {selectedClass.level} {selectedClass.section} &bull; {selectedClass.school || 'EduGestão'} &bull; Director de Turma
-              </p>
-            </div>
+      <div className="bg-card rounded-2xl border border-border shadow-xs p-3.5 sm:p-5 no-print space-y-3.5">
+        {/* Row 1: Botão Voltar à Esquerda & Título Aproveitamento Pedagógico à Direita */}
+        <div className="flex items-center justify-between gap-3">
+          <Button
+            variant="outline"
+            onClick={onBack}
+            className="h-9 px-3.5 border border-purple-200 dark:border-purple-900/40 bg-purple-50/20 dark:bg-purple-950/20 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/30 rounded-xl shadow-2xs flex items-center gap-1.5 cursor-pointer transition-all shrink-0 text-xs sm:text-sm font-semibold"
+            title="Voltar para a página de Cálculo da Média Geral"
+          >
+            <ChevronLeft className="h-4.5 w-4.5 shrink-0" />
+            <span>Voltar</span>
+          </Button>
+
+          <h2 className="text-base sm:text-xl font-extrabold text-foreground tracking-tight text-right flex items-center gap-2">
+            <span>Aproveitamento Pedagógico</span>
+            <BarChart3 className="h-5 w-5 text-purple-600 dark:text-purple-400 shrink-0" />
+          </h2>
+        </div>
+
+        {/* Row 2: Reorganização da Aba de Selecção dos Trimestres & Botões de Acção */}
+        <div className="flex flex-wrap items-center justify-between gap-2.5 pt-2 border-t border-border/50">
+          {/* Trimester Tabs */}
+          <div className="flex p-0.5 bg-muted/70 rounded-xl border border-border/40 select-none">
+            {(['1', '2', '3'] as const).map((t) => (
+              <button
+                key={t}
+                onClick={() => setTrimester(t)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  trimester === t
+                    ? 'bg-purple-600 text-white shadow-xs'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {t}º Trimestre
+              </button>
+            ))}
           </div>
 
-          {/* Action buttons */}
-          <div className="flex flex-wrap items-center gap-2">
-            {/* Trimester Tabs */}
-            <div className="flex p-0.5 bg-muted/70 rounded-xl border border-border/40 select-none">
-              {(['1', '2', '3'] as const).map((t) => (
-                <button
-                  key={t}
-                  onClick={() => setTrimester(t)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                    trimester === t
-                      ? 'bg-purple-600 text-white shadow-xs'
-                      : 'text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  {t}º Trimestre
-                </button>
-              ))}
-            </div>
-
-            {/* Toggle Rules Guide */}
-            <Button
-              variant="outline"
-              onClick={() => setShowRulesGuide(!showRulesGuide)}
-              className="h-8.5 px-3 border border-border text-foreground hover:bg-muted text-xs font-semibold rounded-xl shadow-2xs flex items-center gap-1.5 cursor-pointer"
-              title="Ver regras de preenchimento rigoroso"
-            >
-              <HelpCircle className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
-              <span className="hidden sm:inline">Regras Oficiais</span>
-              {showRulesGuide ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-            </Button>
-
-            {/* Button: Apply Strict Rules */}
-            <Button
-              variant="outline"
-              onClick={handleApplyStrictRules}
-              className="h-8.5 px-3 border border-purple-300 dark:border-purple-800 bg-purple-50/50 dark:bg-purple-950/30 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/40 text-xs font-bold rounded-xl shadow-2xs flex items-center gap-1.5 cursor-pointer"
-              title="Harmonizar e aplicar todas as regras matemáticas de A.A., totais e percentagens"
-            >
-              <Calculator className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
-              <span className="hidden sm:inline">Harmonizar Fórmulas</span>
-              <span className="sm:hidden">Harmonizar</span>
-            </Button>
-
-            {/* Button: Recalculate from Class */}
-            <Button
-              variant="outline"
-              onClick={handleResetToAuto}
-              className="h-8.5 px-3 border border-zinc-300 dark:border-zinc-700 text-foreground hover:bg-muted text-xs font-semibold rounded-xl shadow-2xs flex items-center gap-1.5 cursor-pointer"
-              title="Recalcular dados com base nas notas atuais dos alunos na Média Geral"
-            >
-              <RefreshCw className="h-3.5 w-3.5 shrink-0" />
-              <span className="hidden sm:inline">Recalcular da Turma</span>
-              <span className="sm:hidden">Sincronizar</span>
-            </Button>
-
-            {/* Button: Export Excel */}
+          {/* Action Buttons */}
+          <div className="flex items-center gap-2 flex-wrap">
             <Button
               variant="outline"
               onClick={handleExportExcel}
-              className="h-8.5 px-3 border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/10 dark:bg-emerald-950/10 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 text-xs font-semibold rounded-xl shadow-2xs flex items-center gap-1.5 cursor-pointer"
+              className="h-8.5 px-3 border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/20 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 text-xs font-bold rounded-xl shadow-2xs flex items-center gap-1.5 cursor-pointer transition-all"
               title="Exportar pauta completa para ficheiro Excel"
             >
               <Download className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
               <span>Exportar</span>
             </Button>
 
-            {/* Button: Print */}
             <Button
               variant="outline"
               onClick={() => window.print()}
-              className="h-8.5 px-3 border border-border/80 text-foreground hover:bg-muted text-xs font-semibold rounded-xl shadow-2xs flex items-center gap-1.5 cursor-pointer"
+              className="h-8.5 px-2.5 sm:px-3 border border-border/80 text-foreground hover:bg-muted text-xs font-semibold rounded-xl shadow-2xs flex items-center gap-1.5 cursor-pointer"
               title="Imprimir modelo oficial (A4 Paisagem)"
             >
               <Printer className="h-3.5 w-3.5 shrink-0" />
-              <span>Imprimir</span>
+              <span className="hidden sm:inline">Imprimir</span>
             </Button>
 
-            {/* Save Button */}
+            <Button
+              variant="outline"
+              onClick={handleResetToAuto}
+              className="h-8.5 px-2.5 sm:px-3 border border-zinc-300 dark:border-zinc-700 text-foreground hover:bg-muted text-xs font-semibold rounded-xl shadow-2xs flex items-center gap-1.5 cursor-pointer"
+              title="Recalcular dados com base nas notas atuais dos alunos na Média Geral"
+            >
+              <RefreshCw className="h-3.5 w-3.5 shrink-0" />
+              <span className="hidden sm:inline">Recalcular</span>
+            </Button>
+
             {hasChanges && onUpdateClass && (
               <Button
                 onClick={handleSave}
@@ -879,116 +787,21 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
             )}
           </div>
         </div>
-
-        {/* Collapsible Rules Explanation Card */}
-        {showRulesGuide && (
-          <div className="mt-4 p-4 rounded-xl bg-purple-50/60 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-900/50 text-xs text-foreground space-y-3 animate-in fade-in slide-in-from-top-2 duration-200">
-            <div className="flex items-center justify-between">
-              <h4 className="font-extrabold text-purple-900 dark:text-purple-200 flex items-center gap-1.5 text-sm">
-                <Sparkles className="h-4 w-4 text-purple-600 dark:text-purple-400" />
-                Regras de Preenchimento Rigoroso (Modelo Oficial do Mapa 3/3)
-              </h4>
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] text-muted-foreground">Modo de Cálculos:</span>
-                <button
-                  onClick={() => {
-                    const newMode = !strictMode;
-                    setStrictMode(newMode);
-                    if (newMode) handleApplyStrictRules();
-                  }}
-                  className={`px-2.5 py-0.5 text-[11px] font-bold rounded-full transition-all cursor-pointer ${
-                    strictMode
-                      ? 'bg-purple-600 text-white shadow-2xs'
-                      : 'bg-muted text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  {strictMode ? 'Modo Rígido Automático (Ativado)' : 'Modo Manual'}
-                </button>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-[11px] leading-relaxed">
-              <div className="bg-white/80 dark:bg-zinc-900/80 p-3 rounded-lg border border-purple-100 dark:border-purple-900/40 space-y-1.5">
-                <p className="font-bold text-purple-800 dark:text-purple-300">
-                  Tabela 1: Aproveitamento por Disciplina
-                </p>
-                <ul className="list-disc pl-4 space-y-1 text-muted-foreground">
-                  <li>
-                    <strong className="text-foreground">Alunos Avaliados (A.A.):</strong> Igual à soma das quantificações: <code className="text-purple-700 dark:text-purple-300 font-mono">A.A. = NS + S + Bom + MB + E</code>.
-                  </li>
-                  <li>
-                    <strong className="text-foreground">Positivas:</strong> Nº = <code className="font-mono">S + Bom + MB + E</code> (notas 10 a 20). Percentagem = <code className="font-mono">(Positivas / A.A.) × 100</code>.
-                  </li>
-                  <li>
-                    <strong className="text-foreground">Negativas:</strong> Nº = <code className="font-mono">NS</code> (notas 0 a 9). Percentagem = <code className="font-mono">(Negativas / A.A.) × 100</code>.
-                  </li>
-                  <li>
-                    <strong className="text-foreground">Regra de Fechamento:</strong> <code className="font-mono">Positivas (%) + Negativas (%) = 100,0%</code>.
-                  </li>
-                  <li>
-                    <strong className="text-foreground">Meninas:</strong> Percentagens calculadas sobre o total de alunas avaliadas na disciplina (<code className="font-mono">Meninas Avaliadas = Positivas + Negativas</code>).
-                  </li>
-                  <li>
-                    <strong className="text-foreground">Linha TOTAL:</strong> Soma de cada coluna de contagem e percentagens globais sobre o total de avaliações.
-                  </li>
-                </ul>
-              </div>
-
-              <div className="bg-white/80 dark:bg-zinc-900/80 p-3 rounded-lg border border-purple-100 dark:border-purple-900/40 space-y-1.5">
-                <p className="font-bold text-purple-800 dark:text-purple-300">
-                  Tabela 2: Situação Geral da Turma (Mapa 3/3)
-                </p>
-                <ul className="list-disc pl-4 space-y-1 text-muted-foreground">
-                  <li>
-                    <strong className="text-foreground">Soma por Sexo:</strong> Em todas as 10 colunas, <code className="font-mono">HM = H (Homens) + M (Mulheres)</code>.
-                  </li>
-                  <li>
-                    <strong className="text-foreground">Total da Turma:</strong> <code className="font-mono">Total = Existentes no Início + Que entraram</code>.
-                  </li>
-                  <li>
-                    <strong className="text-foreground">Existentes no Fim do Trimestre:</strong> <code className="font-mono">Existentes Fim = Total - Transferidos</code>.
-                  </li>
-                  <li>
-                    <strong className="text-foreground">Situação Positiva:</strong> Alunos com Média Geral &ge; 10 valores.
-                  </li>
-                  <li>
-                    <strong className="text-foreground">Situação Negativa:</strong> Alunos com Média Geral &lt; 10 valores (<code className="font-mono">Existentes no Fim - Positivas</code>).
-                  </li>
-                  <li>
-                    <strong className="text-foreground">Percentagens:</strong> Calculadas sobre os Existentes no Fim do Trimestre. <code className="font-mono">Positiva (%) + Negativa (%) = 100,0%</code> em H, M e HM.
-                  </li>
-                </ul>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Official Sheet Container (Prints Crisp and Follows the Exact Provided Photo) */}
-      <div className="bg-card rounded-2xl border border-border shadow-xs p-4 sm:p-6 space-y-8 overflow-hidden print:border-0 print:p-0 print:bg-white print:text-black">
-        {/* ============================================================ */}
-        {/* CABEÇALHO OFICIAL DO MINEDH / REPÚBLICA DE MOÇAMBIQUE        */}
-        {/* ============================================================ */}
-        <div className="text-center space-y-1 border-b pb-4 print:border-black">
-          <p className="text-[11px] sm:text-xs font-bold tracking-widest uppercase text-muted-foreground print:text-black">
-            República de Moçambique &bull; Ministério da Educação e Desenvolvimento Humano
+      <div className="bg-card rounded-2xl border border-border shadow-xs p-3.5 sm:p-6 space-y-6 overflow-hidden print:border-0 print:p-0 print:bg-white print:text-black">
+        {/* Document Header - Clean Mozambican Official Structure */}
+        <div className="text-center space-y-1 pb-1">
+          <p className="text-xs sm:text-sm font-bold tracking-widest uppercase text-muted-foreground print:text-black">
+            República de Moçambique
           </p>
-          <h3 className="text-base sm:text-xl font-black uppercase tracking-wider text-foreground print:text-black font-sans">
+          <p className="text-xs sm:text-sm font-semibold tracking-wide text-muted-foreground print:text-black">
+            Ministério da Educação e Desenvolvimento Humano
+          </p>
+          <h3 className="text-base sm:text-xl font-black uppercase tracking-wider text-foreground print:text-black font-sans pt-1">
             APROVEITAMENTO PEDAGÓGICO DO {trimester}º TRIMESTRE
           </h3>
-          <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs text-muted-foreground print:text-black pt-0.5">
-            <span><strong>Escola:</strong> {selectedClass.school || 'EduGestão'}</span>
-            <span>&bull;</span>
-            <span><strong>Turma:</strong> {selectedClass.level} {selectedClass.section}</span>
-            <span>&bull;</span>
-            <span><strong>Sala:</strong> {selectedClass.room || 'Principal'}</span>
-            <span>&bull;</span>
-            <span><strong>Turno:</strong> {selectedClass.shift || 'Diurno'}</span>
-            <span>&bull;</span>
-            <span><strong>Ano Lectivo:</strong> {selectedClass.academicYear || new Date().getFullYear()}</span>
-            <span>&bull;</span>
-            <span><strong>Director de Turma:</strong> {user?.displayName || selectedClass.teacherName || 'Docente'}</span>
-          </div>
         </div>
 
         {/* ============================================================ */}
@@ -999,9 +812,6 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
             <h4 className="text-xs sm:text-sm font-extrabold tracking-wide uppercase text-foreground print:text-black">
               1. Aproveitamento Pedagógico por Disciplina
             </h4>
-            <span className="text-[10px] text-muted-foreground print:hidden">
-              Valores em A.A. calculados por: <code className="text-purple-600 dark:text-purple-400 font-mono">NS + S + Bom + MB + E</code>
-            </span>
           </div>
 
           <div className="overflow-x-auto custom-desktop-scrollbar border border-zinc-400 dark:border-zinc-700 rounded-lg print:border-black">
@@ -1348,9 +1158,6 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
             <h4 className="text-xs sm:text-sm font-extrabold tracking-wide uppercase text-foreground print:text-black">
               2. Situação Geral da Turma (Mapa 3/3)
             </h4>
-            <span className="text-[10px] text-muted-foreground print:hidden">
-              Regra rigorosa: <code className="text-purple-600 dark:text-purple-400 font-mono">HM = H + M</code> &bull; <code className="text-purple-600 dark:text-purple-400 font-mono">Existentes Fim = Total - Transferidos</code> &bull; <code className="text-purple-600 dark:text-purple-400 font-mono">Pos (%) + Neg (%) = 100%</code>
-            </span>
           </div>
 
           <div className="overflow-x-auto custom-desktop-scrollbar border border-zinc-400 dark:border-zinc-700 rounded-lg print:border-black">
@@ -1694,40 +1501,6 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
                 </tr>
               </tbody>
             </table>
-          </div>
-        </div>
-
-        {/* ============================================================ */}
-        {/* RODAPÉ OFICIAL: DATA, LOCALIDADE E ASSINATURAS DO MINEDH     */}
-        {/* ============================================================ */}
-        <div className="pt-6 border-t border-zinc-300 dark:border-zinc-700 print:border-black space-y-6 text-xs text-foreground print:text-black">
-          <div className="text-right italic text-muted-foreground print:text-black">
-            <span>__________________________, aos _____ de ______________________ de 202___</span>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4 text-center">
-            {/* 1. O Director de Turma */}
-            <div className="space-y-2">
-              <p className="font-bold text-xs uppercase tracking-wider">O Director de Turma</p>
-              <div className="pt-6 border-b border-zinc-400 dark:border-zinc-600 print:border-black w-3/4 mx-auto" />
-              <p className="text-[11px] text-muted-foreground print:text-black">
-                {user?.displayName || selectedClass.teacherName || 'Assinatura'}
-              </p>
-            </div>
-
-            {/* 2. O Director Adjunto Pedagógico (DAP) */}
-            <div className="space-y-2">
-              <p className="font-bold text-xs uppercase tracking-wider">O Director Adjunto Pedagógico</p>
-              <div className="pt-6 border-b border-zinc-400 dark:border-zinc-600 print:border-black w-3/4 mx-auto" />
-              <p className="text-[11px] text-muted-foreground print:text-black">D.A.P.</p>
-            </div>
-
-            {/* 3. O Director da Escola */}
-            <div className="space-y-2">
-              <p className="font-bold text-xs uppercase tracking-wider">O Director da Escola</p>
-              <div className="pt-6 border-b border-zinc-400 dark:border-zinc-600 print:border-black w-3/4 mx-auto" />
-              <p className="text-[11px] text-muted-foreground print:text-black">(Carimbo e Assinatura)</p>
-            </div>
           </div>
         </div>
       </div>
