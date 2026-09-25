@@ -2602,12 +2602,13 @@ export default function App() {
               {/* Row 1: Title on the left, Back button on the right */}
               <div className="flex items-center justify-between gap-3">
                 <h2 className="text-lg sm:text-xl font-extrabold text-foreground tracking-tight">
-                  Cálculo da Média Geral
+                  <span className="sm:hidden">Média Geral</span>
+                  <span className="hidden sm:inline">Cálculo da Média Geral</span>
                 </h2>
                 <Button
                   variant="outline"
                   onClick={() => setIsMediaGeralViewOpen(false)}
-                  className="h-9 px-3.5 border border-purple-200 dark:border-purple-900/40 bg-purple-50/20 dark:bg-purple-950/20 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/30 rounded-xl shadow-2xs flex items-center gap-1.5 cursor-pointer transition-all shrink-0 text-xs sm:text-sm font-semibold"
+                  className="h-8.5 sm:h-9 px-3 sm:px-3.5 border border-purple-200 dark:border-purple-900/40 bg-purple-50/20 dark:bg-purple-950/20 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/30 rounded-xl shadow-2xs flex items-center gap-1.5 cursor-pointer transition-all shrink-0 text-xs sm:text-sm font-semibold"
                   title="Voltar para a pauta da turma"
                 >
                   <ChevronLeft className="h-4.5 w-4.5 shrink-0" />
@@ -2675,12 +2676,12 @@ export default function App() {
 
             {/* Table Container */}
             <div className="bg-card rounded-2xl border border-border shadow-xs overflow-hidden">
-              <div className="h-[calc(100vh-220px)] min-h-[420px] overflow-auto overflow-x-scroll always-visible-scrollbar relative scrollbar-thin">
+              <div className="h-[calc(100vh-220px)] min-h-[420px] overflow-auto overflow-x-auto custom-desktop-scrollbar relative scrollbar-thin">
                 <Table>
                   <TableHeader className="sticky top-0 z-10 bg-muted/95 backdrop-blur-xs border-b border-border/80 shadow-2xs">
                     <TableRow className="h-11 border-b border-border/60 bg-muted">
                       <TableHead className="w-[50px] font-bold text-foreground text-center bg-muted">Nº</TableHead>
-                      <TableHead className="w-[200px] min-w-[180px] font-bold text-foreground sticky left-0 z-20 bg-muted border-r border-border/40">
+                      <TableHead className="w-[180px] sm:w-[200px] min-w-[150px] sm:min-w-[180px] font-bold text-foreground md:sticky md:left-0 z-10 md:z-20 bg-muted border-r border-border/40">
                         Nome do Aluno
                       </TableHead>
                       {MEDIA_GERAL_SUBJECTS.map((sub) => (
@@ -2695,7 +2696,7 @@ export default function App() {
                       <TableHead className="w-[75px] text-center font-bold text-purple-700 dark:text-purple-300 bg-purple-500/10 border-l border-border/50">
                         Soma
                       </TableHead>
-                      <TableHead className="w-[80px] text-center font-extrabold text-white bg-purple-600 dark:bg-purple-700 sticky right-0 z-20 shadow-xs">
+                      <TableHead className="w-[75px] sm:w-[80px] min-w-[70px] text-center font-extrabold text-white bg-purple-600 dark:bg-purple-700 md:sticky md:right-0 z-10 md:z-20 shadow-xs">
                         MG
                       </TableHead>
                     </TableRow>
@@ -2714,17 +2715,48 @@ export default function App() {
                         const mgNum = mg.rounded !== '-' ? parseFloat(mg.rounded) : null;
                         const isPositive = mgNum !== null && mgNum >= 10;
                         const isNegative = mgNum !== null && mgNum < 10;
+                        const isRowHighlighted = student.id === highlightedStudentId;
 
                         return (
                           <TableRow
                             key={student.id}
-                            className="h-12 hover:bg-muted/30 odd:bg-muted/10 even:bg-transparent border-b border-border/40 transition-colors"
+                            className={`h-12 border-b transition-all duration-150 ${
+                              isRowHighlighted
+                                ? 'bg-purple-500/20 dark:bg-purple-500/30 border-l-4 border-l-purple-600 dark:border-l-purple-400 font-medium'
+                                : 'hover:bg-muted/30 odd:bg-muted/10 even:bg-transparent border-l-4 border-l-transparent border-border/40'
+                            }`}
                           >
-                            <TableCell className="text-center font-semibold text-muted-foreground text-xs">
-                              {student.studentNumber || (idx + 1)}
+                            <TableCell 
+                              onClick={() => setHighlightedStudentId(prev => prev === student.id ? null : student.id)}
+                              className={`text-center font-semibold text-xs cursor-pointer select-none transition-colors ${
+                                isRowHighlighted 
+                                  ? 'text-purple-700 dark:text-purple-300 font-extrabold bg-purple-500/10' 
+                                  : 'text-muted-foreground hover:text-purple-600'
+                              }`}
+                              title="Clique para destacar este aluno"
+                            >
+                              <div className="flex items-center justify-center gap-1">
+                                {isRowHighlighted && (
+                                  <span className="inline-flex h-2 w-2 rounded-full bg-purple-600 dark:bg-purple-400 animate-pulse shrink-0" />
+                                )}
+                                <span>{student.studentNumber || (idx + 1)}</span>
+                              </div>
                             </TableCell>
-                            <TableCell className="font-semibold text-xs text-foreground sticky left-0 z-10 bg-card/95 backdrop-blur-xs border-r border-border/40 truncate max-w-[200px]">
-                              {student.name}
+                            <TableCell 
+                              onClick={() => setHighlightedStudentId(prev => prev === student.id ? null : student.id)}
+                              className={`font-semibold text-xs cursor-pointer select-none transition-colors border-r border-border/40 truncate max-w-[170px] sm:max-w-[200px] md:sticky md:left-0 z-0 md:z-10 ${
+                                isRowHighlighted 
+                                  ? 'text-purple-900 dark:text-purple-200 font-extrabold bg-purple-100/95 dark:bg-purple-950/95 md:backdrop-blur-xs' 
+                                  : 'text-foreground bg-card/95 md:backdrop-blur-xs hover:text-purple-600 dark:hover:text-purple-400'
+                              }`}
+                              title="Clique para destacar este aluno"
+                            >
+                              <div className="flex items-center gap-1.5 truncate">
+                                <span className="truncate">{student.name}</span>
+                                {isRowHighlighted && (
+                                  <span className="inline-flex h-2 w-2 rounded-full bg-purple-600 dark:bg-purple-400 animate-pulse shrink-0" />
+                                )}
+                              </div>
                             </TableCell>
 
                             {/* 13 Subject Grade Inputs */}
@@ -2740,7 +2772,11 @@ export default function App() {
                                     value={val}
                                     onChange={(e) => updateSubjectGrade(student.id, sub.key, e.target.value)}
                                     placeholder="-"
-                                    className={`h-8 w-14 mx-auto text-center px-1 text-xs font-bold rounded-md border border-border/50 bg-background/50 hover:bg-background focus:border-purple-500 transition-all ${
+                                    className={`h-8 w-14 mx-auto text-center px-1 text-xs font-bold rounded-md border transition-all ${
+                                      isRowHighlighted 
+                                        ? 'border-purple-300 dark:border-purple-700 bg-purple-50/60 dark:bg-purple-950/40' 
+                                        : 'border-border/50 bg-background/50 hover:bg-background'
+                                    } focus:border-purple-500 ${
                                       val === '' 
                                         ? 'text-muted-foreground' 
                                         : isSubPos 
@@ -2755,12 +2791,20 @@ export default function App() {
                             })}
 
                             {/* Sum of grades */}
-                            <TableCell className="text-center font-bold text-xs text-purple-700 dark:text-purple-300 bg-purple-500/5 border-l border-border/40">
+                            <TableCell className={`text-center font-bold text-xs border-l border-border/40 transition-colors ${
+                              isRowHighlighted 
+                                ? 'text-purple-900 dark:text-purple-200 bg-purple-500/20 font-extrabold' 
+                                : 'text-purple-700 dark:text-purple-300 bg-purple-500/5'
+                            }`}>
                               {mg.hasAnyGrade ? mg.sum : '-'}
                             </TableCell>
 
                             {/* Média Geral (MG) with rounding */}
-                            <TableCell className="text-center font-extrabold text-sm sticky right-0 z-10 bg-card/95 backdrop-blur-xs border-l border-border/40 shadow-xs">
+                            <TableCell className={`text-center font-extrabold text-sm md:sticky md:right-0 z-0 md:z-10 border-l border-border/40 shadow-xs transition-colors ${
+                              isRowHighlighted 
+                                ? 'bg-purple-100/95 dark:bg-purple-950/95 md:backdrop-blur-xs' 
+                                : 'bg-card/95 md:backdrop-blur-xs'
+                            }`}>
                               <div className="flex flex-col items-center justify-center">
                                 <span
                                   className={`px-2.5 py-0.5 rounded-lg text-xs font-black shadow-2xs ${

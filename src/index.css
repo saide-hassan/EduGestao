@@ -144,31 +144,30 @@
   }
 }
 
-/* Always visible horizontal scrollbar on desktop */
+/* Custom horizontal scrollbar on desktop (only visible when necessary) */
 @media (min-width: 769px) {
-  .always-visible-scrollbar {
-    overflow-x: scroll !important;
-    scrollbar-width: auto !important;
+  .custom-desktop-scrollbar {
+    overflow-x: auto !important;
+    scrollbar-width: thin !important;
     scrollbar-color: #8C2EE6 rgba(140, 46, 230, 0.12) !important;
   }
-  .always-visible-scrollbar::-webkit-scrollbar {
-    height: 11px !important;
-    width: 8px !important;
-    display: block !important;
+  .custom-desktop-scrollbar::-webkit-scrollbar {
+    height: 10px;
+    width: 8px;
   }
-  .always-visible-scrollbar::-webkit-scrollbar-track {
-    background: rgba(140, 46, 230, 0.08) !important;
+  .custom-desktop-scrollbar::-webkit-scrollbar-track {
+    background: rgba(140, 46, 230, 0.08);
     border-radius: 8px;
     margin: 0 4px;
   }
-  .always-visible-scrollbar::-webkit-scrollbar-thumb {
-    background: #8C2EE6 !important;
+  .custom-desktop-scrollbar::-webkit-scrollbar-thumb {
+    background: #8C2EE6;
     border-radius: 8px;
     border: 2px solid transparent;
     background-clip: content-box;
   }
-  .always-visible-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: #7B2FBE !important;
+  .custom-desktop-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #7B2FBE;
   }
 }
 
