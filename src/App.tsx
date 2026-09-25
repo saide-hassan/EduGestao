@@ -16,7 +16,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { WelcomeScreen } from '@/components/welcome-screen';
 import { LoginScreen } from '@/components/login-screen';
-import { AproveitamentoPedagogicoView } from '@/components/AproveitamentoPedagogicoView';
+import { AproveitamentoPedagogicoView, computeAproveitamentoFromClass, buildAproveitamentoExcelData } from '@/components/AproveitamentoPedagogicoView';
 import { auth, db, logout, getCachedAccessToken, setCachedAccessToken, signInWithGoogle } from '@/lib/firebase';
 import { onAuthStateChanged, User, GoogleAuthProvider } from 'firebase/auth';
 import { collection, onSnapshot, doc, setDoc, deleteDoc, query, where } from 'firebase/firestore';
@@ -1278,7 +1278,11 @@ export default function App() {
     const wb = XLSX.utils.book_new();
     const rawLevel = selectedClass.level.replace(/\s*[Cc]lasse\s*/i, '').trim();
     const sectionName = selectedClass.section ? ` ${selectedClass.section}` : '';
-    const title = `PAUTA GERAL DE AVALIAÇÃO - CÁLCULO DA MÉDIA GERAL (MG)`;
+
+    // ==========================================
+    // FOLHA 1: Pauta da Turma
+    // ==========================================
+    const title = `PAUTA DA TURMA - ${rawLevel}${sectionName} - ${selectedTrimester}º TRIMESTRE`.toUpperCase();
 
     const aoa: any[][] = [
       [title],
@@ -1340,16 +1344,48 @@ export default function App() {
       ]);
     });
 
-    const ws = XLSX.utils.aoa_to_sheet(aoa);
-    ws['!merges'] = [
+    const wsPauta = XLSX.utils.aoa_to_sheet(aoa);
+    wsPauta['!merges'] = [
       { s: { r: 0, c: 0 }, e: { r: 0, c: 17 } },
       { s: { r: 1, c: 0 }, e: { r: 1, c: 17 } },
       { s: { r: 2, c: 0 }, e: { r: 2, c: 17 } }
     ];
-    XLSX.utils.book_append_sheet(wb, ws, `MG ${selectedTrimester}º Trim`);
-    const fileName = `Pauta Media Geral - ${rawLevel}${sectionName} - ${selectedTrimester}T.xlsx`;
+    XLSX.utils.book_append_sheet(wb, wsPauta, 'Pauta da Turma');
+
+    // ==========================================
+    // FOLHA 2: Aproveitamento e Situação Geral
+    // ==========================================
+    const computedAprov = computeAproveitamentoFromClass(
+      selectedClass,
+      selectedTrimester,
+      user?.displayName || selectedClass.teacherName
+    );
+
+    const savedAprov = selectedClass.aproveitamentoData?.[selectedTrimester];
+    const finalT1 = savedAprov?.table1 && Array.isArray(savedAprov.table1) && savedAprov.table1.length > 0
+      ? computedAprov.t1.map((cRow) => {
+          const sRow = savedAprov.table1.find((r: any) => r.id === cRow.id);
+          return sRow ? { ...cRow, ...sRow } : cRow;
+        })
+      : computedAprov.t1;
+    const finalT2 = savedAprov?.table2 ? { ...computedAprov.t2, ...savedAprov.table2 } : computedAprov.t2;
+
+    const aoaAproveitamento = buildAproveitamentoExcelData(
+      selectedClass,
+      selectedTrimester,
+      finalT1,
+      finalT2
+    );
+
+    const wsAproveitamento = XLSX.utils.aoa_to_sheet(aoaAproveitamento);
+    wsAproveitamento['!cols'] = Array.from({ length: 30 }, (_, i) => ({
+      wch: i === 0 ? 18 : i === 1 ? 22 : 8,
+    }));
+    XLSX.utils.book_append_sheet(wb, wsAproveitamento, 'Aproveitamento Pedagógico');
+
+    const fileName = `Pauta da Turma e Aproveitamento - ${rawLevel}${sectionName} - ${selectedTrimester}T.xlsx`;
     XLSX.writeFile(wb, fileName);
-    toast.success('Pauta da Média Geral exportada em Excel com sucesso!');
+    toast.success('Pauta da Turma e Aproveitamento Pedagógico exportados com sucesso em 2 folhas!');
   };
 
   const confirmDeleteStudent = (studentId: string) => {
@@ -2637,21 +2673,22 @@ export default function App() {
           <div className="space-y-4 pt-4 sm:pt-6 animate-in fade-in duration-300">
             {/* Header & Controls Card */}
             <div className="bg-card rounded-2xl border border-border shadow-xs p-4 sm:p-5">
-              {/* Row 1: Title on the left, Back button on the right */}
+              {/* Row 1: Botão Voltar à Esquerda & Título Pauta da Turma à Direita */}
               <div className="flex items-center justify-between gap-3">
-                <h2 className="text-lg sm:text-xl font-extrabold text-foreground tracking-tight">
-                  <span className="sm:hidden">Média Geral</span>
-                  <span className="hidden sm:inline">Cálculo da Média Geral</span>
-                </h2>
                 <Button
                   variant="outline"
                   onClick={() => setIsMediaGeralViewOpen(false)}
                   className="h-8.5 sm:h-9 px-3 sm:px-3.5 border border-purple-200 dark:border-purple-900/40 bg-purple-50/20 dark:bg-purple-950/20 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/30 rounded-xl shadow-2xs flex items-center gap-1.5 cursor-pointer transition-all shrink-0 text-xs sm:text-sm font-semibold"
-                  title="Voltar para a pauta da turma"
+                  title="Voltar para a turma"
                 >
                   <ChevronLeft className="h-4.5 w-4.5 shrink-0" />
                   <span>Voltar</span>
                 </Button>
+
+                <h2 className="text-base sm:text-xl font-extrabold text-foreground tracking-tight text-right flex items-center gap-2">
+                  <span>Pauta da Turma</span>
+                  <Calculator className="h-5 w-5 text-purple-600 dark:text-purple-400 shrink-0" />
+                </h2>
               </div>
 
               {/* Row 2: Repositioned Controls (Trimester selector, Campo de Pesquisa, Botões Sincronizar e Exportar) */}
@@ -4363,7 +4400,7 @@ export default function App() {
               )}
             </div>
 
-            {/* Botão de Cálculo da Média Geral (para Director de Turma) - abaixo da tabela e centralizado */}
+            {/* Botão de Pauta da Turma (para Director de Turma) - abaixo da tabela e centralizado */}
             {selectedClass.isDirector && (
               <div className="flex justify-center items-center py-4 sm:py-6">
                 <Button
@@ -4372,10 +4409,10 @@ export default function App() {
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                   }}
                   className="h-11 px-6 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-sm flex items-center justify-center gap-2.5 shadow-md cursor-pointer transition-all hover:scale-[1.02] active:scale-[0.98] border-0"
-                  title="Abrir página de Cálculo da Média Geral"
+                  title="Abrir Pauta da Turma"
                 >
                   <Calculator className="h-5 w-5 shrink-0" />
-                  <span>Cálculo da Média Geral</span>
+                  <span>Pauta da Turma</span>
                 </Button>
               </div>
             )}

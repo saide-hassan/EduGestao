@@ -2,12 +2,9 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
   ChevronLeft,
   BarChart3,
-  Download,
-  Printer,
   RefreshCw,
   Save,
 } from 'lucide-react';
-import * as XLSX from 'xlsx';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import type { ClassData, Student } from '@/src/App';
@@ -69,7 +66,7 @@ export type Table2Data = {
 };
 
 // Helper: parse string to float (default 0)
-const parseVal = (val: string | number | undefined | null): number => {
+export const parseVal = (val: string | number | undefined | null): number => {
   if (val === undefined || val === null) return 0;
   if (typeof val === 'number') return isNaN(val) ? 0 : val;
   const cleaned = String(val).trim().replace(',', '.');
@@ -78,7 +75,7 @@ const parseVal = (val: string | number | undefined | null): number => {
 };
 
 // Helper: format percent with 1 decimal and comma
-const formatPct = (num: number, total: number): string => {
+export const formatPct = (num: number, total: number): string => {
   if (total <= 0) return '0,0';
   const pct = (num / total) * 100;
   return pct.toFixed(1).replace('.', ',');
@@ -186,6 +183,306 @@ export const applyStrictRulesTable2 = (t2: Table2Data): Table2Data => {
   return result;
 };
 
+// Compute pedagogical balance and general situation dynamically from class data
+export const computeAproveitamentoFromClass = (
+  selectedClass: ClassData,
+  t: '1' | '2' | '3',
+  teacherDisplayName?: string
+): { t1: Table1RowData[]; t2: Table2Data } => {
+  // 1. Compute Table 1
+  const computedT1: Table1RowData[] = APROVEITAMENTO_DISCIPLINAS.map((disc) => {
+    let aa = 0;
+    let ns = 0;
+    let s = 0;
+    let bom = 0;
+    let mb = 0;
+    let e = 0;
+    let meninasPos = 0;
+    let meninasNeg = 0;
+    let meninasAA = 0;
+
+    selectedClass.students.forEach((student) => {
+      // Look for grade using getStudentSubjectGrades
+      const subGrades = getStudentSubjectGrades(student, t);
+      let valStr = subGrades[disc.key] || subGrades[disc.id] || '';
+
+      if (!valStr && disc.aliases) {
+        for (const alias of disc.aliases) {
+          if (subGrades[alias]) {
+            valStr = subGrades[alias];
+            break;
+          }
+        }
+      }
+
+      // Fallback: check if class teaches this subject
+      if (!valStr && selectedClass.subject.trim().toLowerCase() === disc.name.trim().toLowerCase()) {
+        const gradesObj = student.trimesterGrades?.[t] || (t === '1' ? student.grades : undefined);
+        if (gradesObj) {
+          valStr = gradesObj.ap || gradesObj.acs3 || gradesObj.acs2 || gradesObj.acs1 || '';
+        }
+      }
+
+      if (valStr && valStr.trim() !== '' && valStr.trim() !== '-') {
+        const numVal = parseFloat(valStr.replace(',', '.'));
+        if (!isNaN(numVal)) {
+          aa++;
+          const isFemale = isStudentFemale(student);
+          if (isFemale) meninasAA++;
+
+          if (numVal < 10) {
+            ns++;
+            if (isFemale) meninasNeg++;
+          } else {
+            if (isFemale) meninasPos++;
+            if (numVal <= 13) s++;
+            else if (numVal <= 16) bom++;
+            else if (numVal <= 18) mb++;
+            else e++;
+          }
+        }
+      }
+    });
+
+    const posNum = s + bom + mb + e;
+    const negNum = ns;
+    const posPct = aa > 0 ? formatPct(posNum, aa) : '';
+    const negPct = aa > 0 ? formatPct(negNum, aa) : '';
+    const mPosPct = meninasAA > 0 ? formatPct(meninasPos, meninasAA) : '';
+    const mNegPct = meninasAA > 0 ? formatPct(meninasNeg, meninasAA) : '';
+
+    // Default teacher name if class subject matches
+    const isCurrentSubject = selectedClass.subject.trim().toLowerCase() === disc.name.trim().toLowerCase();
+    const defaultTeacher = isCurrentSubject ? (teacherDisplayName || (selectedClass as any).teacherName || '') : '';
+
+    return {
+      id: disc.id,
+      disciplina: disc.name,
+      professor: defaultTeacher,
+      aa: aa > 0 ? String(aa) : '',
+      ns: ns > 0 ? String(ns) : '',
+      s: s > 0 ? String(s) : '',
+      bom: bom > 0 ? String(bom) : '',
+      mb: mb > 0 ? String(mb) : '',
+      e: e > 0 ? String(e) : '',
+      positivasNum: posNum > 0 ? String(posNum) : '',
+      positivasPct: posPct,
+      negativasNum: negNum > 0 ? String(negNum) : '',
+      negativasPct: negPct,
+      meninasPosNum: meninasPos > 0 ? String(meninasPos) : '',
+      meninasPosPct: mPosPct,
+      meninasNegNum: meninasNeg > 0 ? String(meninasNeg) : '',
+      meninasNegPct: mNegPct,
+    };
+  });
+
+  // 2. Compute Table 2 (Situação Geral da Turma - Modelo Rigoroso)
+  let totalH = 0;
+  let totalM = 0;
+  selectedClass.students.forEach((student) => {
+    if (isStudentFemale(student)) totalM++;
+    else totalH++;
+  });
+  const totalHM = totalH + totalM;
+
+  let posH = 0;
+  let posM = 0;
+
+  selectedClass.students.forEach((student) => {
+    const mg = calculateMediaGeralForStudent(student, t);
+    if (mg.hasAnyGrade && mg.rounded !== '-') {
+      const val = parseFloat(mg.rounded);
+      if (!isNaN(val) && val >= 10) {
+        if (isStudentFemale(student)) posM++;
+        else posH++;
+      }
+    }
+  });
+
+  // Rule: Negativas = Existentes - Positivas
+  const negH = Math.max(0, totalH - posH);
+  const negM = Math.max(0, totalM - posM);
+  const posHM = posH + posM;
+  const negHM = negH + negM;
+
+  const posPctH = totalH > 0 ? formatPct(posH, totalH) : '0,0';
+  const posPctM = totalM > 0 ? formatPct(posM, totalM) : '0,0';
+  const posPctHM = totalHM > 0 ? formatPct(posHM, totalHM) : '0,0';
+
+  const negPctH = totalH > 0 ? formatPct(negH, totalH) : '0,0';
+  const negPctM = totalM > 0 ? formatPct(negM, totalM) : '0,0';
+  const negPctHM = totalHM > 0 ? formatPct(negHM, totalHM) : '0,0';
+
+  const computedT2: Table2Data = {
+    mapa33: { h: String(totalH), m: String(totalM), hm: String(totalHM) },
+    existentesFim1: { h: String(totalH), m: String(totalM), hm: String(totalHM) },
+    entraram2: { h: '0', m: '0', hm: '0' },
+    total: { h: String(totalH), m: String(totalM), hm: String(totalHM) },
+    transferidos: { h: '0', m: '0', hm: '0' },
+    existentesFim2: { h: String(totalH), m: String(totalM), hm: String(totalHM) },
+    positivasNum: {
+      h: String(posH),
+      m: String(posM),
+      hm: String(posHM),
+    },
+    positivasPct: { h: posPctH, m: posPctM, hm: posPctHM },
+    negativasNum: {
+      h: String(negH),
+      m: String(negM),
+      hm: String(negHM),
+    },
+    negativasPct: { h: negPctH, m: negPctM, hm: negPctHM },
+  };
+
+  return { t1: computedT1, t2: computedT2 };
+};
+
+// Builder for Excel export of Aproveitamento Pedagógico & Situação Geral
+export const buildAproveitamentoExcelData = (
+  selectedClass: ClassData,
+  trimester: '1' | '2' | '3',
+  table1Data: Table1RowData[],
+  table2Data: Table2Data
+): any[][] => {
+  let aaSum = 0;
+  let nsSum = 0;
+  let sSum = 0;
+  let bomSum = 0;
+  let mbSum = 0;
+  let eSum = 0;
+  let posNumSum = 0;
+  let negNumSum = 0;
+  let mPosNumSum = 0;
+  let mNegNumSum = 0;
+
+  table1Data.forEach((row) => {
+    aaSum += parseVal(row.aa);
+    nsSum += parseVal(row.ns);
+    sSum += parseVal(row.s);
+    bomSum += parseVal(row.bom);
+    mbSum += parseVal(row.mb);
+    eSum += parseVal(row.e);
+    posNumSum += parseVal(row.positivasNum);
+    negNumSum += parseVal(row.negativasNum);
+    mPosNumSum += parseVal(row.meninasPosNum);
+    mNegNumSum += parseVal(row.meninasNegNum);
+  });
+
+  const posPctAvg = aaSum > 0 ? formatPct(posNumSum, aaSum) : '0,0';
+  const negPctAvg = aaSum > 0 ? formatPct(negNumSum, aaSum) : '0,0';
+  const mTotalAA = mPosNumSum + mNegNumSum;
+  const mPosPctAvg = mTotalAA > 0 ? formatPct(mPosNumSum, mTotalAA) : '0,0';
+  const mNegPctAvg = mTotalAA > 0 ? formatPct(mNegNumSum, mTotalAA) : '0,0';
+
+  const aoa: any[][] = [
+    ['REPÚBLICA DE MOÇAMBIQUE'],
+    ['MINISTÉRIO DA EDUCAÇÃO E DESENVOLVIMENTO HUMANO'],
+    [`APROVEITAMENTO PEDAGÓGICO DO ${trimester}º TRIMESTRE`],
+    [],
+    // Table 1 Header Row 1
+    ['Disciplina', 'Professor', 'A.A.', 'Quantificação', '', '', '', '', 'Resultados', '', '', '', 'Meninas', '', '', ''],
+    // Table 1 Header Row 2
+    ['', '', '', 'NS', 'S', 'Bom', 'MB', 'E', 'Positivas', '', 'Negativas', '', 'Positivas', '', 'Negativas', ''],
+    // Table 1 Header Row 3
+    ['', '', '', '0/9', '10/13', '14/16', '17/18', '19/20', 'Nº', '%', 'Nº', '%', 'Nº', '%', 'Nº', '%'],
+  ];
+
+  // Table 1 Data rows
+  table1Data.forEach((row) => {
+    aoa.push([
+      row.disciplina,
+      row.professor,
+      row.aa,
+      row.ns,
+      row.s,
+      row.bom,
+      row.mb,
+      row.e,
+      row.positivasNum,
+      row.positivasPct ? `${row.positivasPct}%` : '',
+      row.negativasNum,
+      row.negativasPct ? `${row.negativasPct}%` : '',
+      row.meninasPosNum,
+      row.meninasPosPct ? `${row.meninasPosPct}%` : '',
+      row.meninasNegNum,
+      row.meninasNegPct ? `${row.meninasNegPct}%` : '',
+    ]);
+  });
+
+  // Total row
+  aoa.push([
+    'TOTAL',
+    '',
+    aaSum,
+    nsSum,
+    sSum,
+    bomSum,
+    mbSum,
+    eSum,
+    posNumSum,
+    `${posPctAvg}%`,
+    negNumSum,
+    `${negPctAvg}%`,
+    mPosNumSum,
+    `${mPosPctAvg}%`,
+    mNegNumSum,
+    `${mNegPctAvg}%`,
+  ]);
+
+  // Spacers
+  aoa.push([]);
+  aoa.push([]);
+
+  // Table 2 Header Row 1
+  aoa.push(['SITUAÇÃO GERAL DA TURMA (MAPA 3/3)']);
+  aoa.push([
+    'Mapa 3/3', '', '',
+    `Existentes no ${trimester === '1' ? 'Início do 1º' : trimester === '2' ? 'fim do 1º' : 'fim do 2º'} Trimestre`, '', '',
+    `Que entraram no ${trimester}º Trimestre`, '', '',
+    'Total', '', '',
+    'Transferidos', '', '',
+    `Existentes no Fim do ${trimester}º Trimestre`, '', '',
+    'Situação Positiva (Número)', '', '',
+    'Situação Positiva (%)', '', '',
+    'Situação Negativa (Número)', '', '',
+    'Situação Negativa (%)', '', '',
+  ]);
+
+  // Table 2 Header Row 2 (H, M, HM)
+  aoa.push([
+    'H', 'M', 'HM',
+    'H', 'M', 'HM',
+    'H', 'M', 'HM',
+    'H', 'M', 'HM',
+    'H', 'M', 'HM',
+    'H', 'M', 'HM',
+    'H', 'M', 'HM',
+    'H', 'M', 'HM',
+    'H', 'M', 'HM',
+    'H', 'M', 'HM',
+  ]);
+
+  // Table 2 Data row
+  aoa.push([
+    table2Data.mapa33.h, table2Data.mapa33.m, table2Data.mapa33.hm,
+    table2Data.existentesFim1.h, table2Data.existentesFim1.m, table2Data.existentesFim1.hm,
+    table2Data.entraram2.h, table2Data.entraram2.m, table2Data.entraram2.hm,
+    table2Data.total.h, table2Data.total.m, table2Data.total.hm,
+    table2Data.transferidos.h, table2Data.transferidos.m, table2Data.transferidos.hm,
+    table2Data.existentesFim2.h, table2Data.existentesFim2.m, table2Data.existentesFim2.hm,
+    table2Data.positivasNum.h, table2Data.positivasNum.m, table2Data.positivasNum.hm,
+    table2Data.positivasPct.h ? `${table2Data.positivasPct.h}%` : '0,0%',
+    table2Data.positivasPct.m ? `${table2Data.positivasPct.m}%` : '0,0%',
+    table2Data.positivasPct.hm ? `${table2Data.positivasPct.hm}%` : '0,0%',
+    table2Data.negativasNum.h, table2Data.negativasNum.m, table2Data.negativasNum.hm,
+    table2Data.negativasPct.h ? `${table2Data.negativasPct.h}%` : '0,0%',
+    table2Data.negativasPct.m ? `${table2Data.negativasPct.m}%` : '0,0%',
+    table2Data.negativasPct.hm ? `${table2Data.negativasPct.hm}%` : '0,0%',
+  ]);
+
+  return aoa;
+};
+
 interface AproveitamentoPedagogicoViewProps {
   selectedClass: ClassData;
   onBack: () => void;
@@ -217,170 +514,17 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
   });
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
-  const strictMode = true;
 
-  // Auto compute data from students in the class
-  const computeFromClass = useMemo(() => {
-    return (t: '1' | '2' | '3') => {
-      // 1. Compute Table 1
-      const computedT1: Table1RowData[] = APROVEITAMENTO_DISCIPLINAS.map((disc) => {
-        let aa = 0;
-        let ns = 0;
-        let s = 0;
-        let bom = 0;
-        let mb = 0;
-        let e = 0;
-        let meninasPos = 0;
-        let meninasNeg = 0;
-        let meninasAA = 0;
-
-        selectedClass.students.forEach((student) => {
-          // Look for grade using getStudentSubjectGrades
-          const subGrades = getStudentSubjectGrades(student, t);
-          let valStr = subGrades[disc.key] || subGrades[disc.id] || '';
-
-          if (!valStr && disc.aliases) {
-            for (const alias of disc.aliases) {
-              if (subGrades[alias]) {
-                valStr = subGrades[alias];
-                break;
-              }
-            }
-          }
-
-          // Fallback: check if class teaches this subject
-          if (!valStr && selectedClass.subject.trim().toLowerCase() === disc.name.trim().toLowerCase()) {
-            const gradesObj = student.trimesterGrades?.[t] || (t === '1' ? student.grades : undefined);
-            if (gradesObj) {
-              valStr = gradesObj.ap || gradesObj.acs3 || gradesObj.acs2 || gradesObj.acs1 || '';
-            }
-          }
-
-          if (valStr && valStr.trim() !== '' && valStr.trim() !== '-') {
-            const numVal = parseFloat(valStr.replace(',', '.'));
-            if (!isNaN(numVal)) {
-              aa++;
-              const isFemale = isStudentFemale(student);
-              if (isFemale) meninasAA++;
-
-              if (numVal < 10) {
-                ns++;
-                if (isFemale) meninasNeg++;
-              } else {
-                if (isFemale) meninasPos++;
-                if (numVal <= 13) s++;
-                else if (numVal <= 16) bom++;
-                else if (numVal <= 18) mb++;
-                else e++;
-              }
-            }
-          }
-        });
-
-        const posNum = s + bom + mb + e;
-        const negNum = ns;
-        const posPct = aa > 0 ? formatPct(posNum, aa) : '';
-        const negPct = aa > 0 ? formatPct(negNum, aa) : '';
-        const mPosPct = meninasAA > 0 ? formatPct(meninasPos, meninasAA) : '';
-        const mNegPct = meninasAA > 0 ? formatPct(meninasNeg, meninasAA) : '';
-
-        // Default teacher name if class subject matches
-        const isCurrentSubject = selectedClass.subject.trim().toLowerCase() === disc.name.trim().toLowerCase();
-        const defaultTeacher = isCurrentSubject ? (user?.displayName || selectedClass.teacherName || '') : '';
-
-        return {
-          id: disc.id,
-          disciplina: disc.name,
-          professor: defaultTeacher,
-          aa: aa > 0 ? String(aa) : '',
-          ns: ns > 0 ? String(ns) : '',
-          s: s > 0 ? String(s) : '',
-          bom: bom > 0 ? String(bom) : '',
-          mb: mb > 0 ? String(mb) : '',
-          e: e > 0 ? String(e) : '',
-          positivasNum: posNum > 0 ? String(posNum) : '',
-          positivasPct: posPct,
-          negativasNum: negNum > 0 ? String(negNum) : '',
-          negativasPct: negPct,
-          meninasPosNum: meninasPos > 0 ? String(meninasPos) : '',
-          meninasPosPct: mPosPct,
-          meninasNegNum: meninasNeg > 0 ? String(meninasNeg) : '',
-          meninasNegPct: mNegPct,
-        };
-      });
-
-      // 2. Compute Table 2 (Situação Geral da Turma - Modelo Rigoroso)
-      let totalH = 0;
-      let totalM = 0;
-      selectedClass.students.forEach((student) => {
-        if (isStudentFemale(student)) totalM++;
-        else totalH++;
-      });
-      const totalHM = totalH + totalM;
-
-      let posH = 0;
-      let posM = 0;
-
-      selectedClass.students.forEach((student) => {
-        const mg = calculateMediaGeralForStudent(student, t);
-        if (mg.hasAnyGrade && mg.rounded !== '-') {
-          const val = parseFloat(mg.rounded);
-          if (!isNaN(val) && val >= 10) {
-            if (isStudentFemale(student)) posM++;
-            else posH++;
-          }
-        }
-      });
-
-      // Rule: Negativas = Existentes - Positivas
-      const negH = Math.max(0, totalH - posH);
-      const negM = Math.max(0, totalM - posM);
-      const posHM = posH + posM;
-      const negHM = negH + negM;
-
-      const posPctH = totalH > 0 ? formatPct(posH, totalH) : '0,0';
-      const posPctM = totalM > 0 ? formatPct(posM, totalM) : '0,0';
-      const posPctHM = totalHM > 0 ? formatPct(posHM, totalHM) : '0,0';
-
-      const negPctH = totalH > 0 ? formatPct(negH, totalH) : '0,0';
-      const negPctM = totalM > 0 ? formatPct(negM, totalM) : '0,0';
-      const negPctHM = totalHM > 0 ? formatPct(negHM, totalHM) : '0,0';
-
-      const computedT2: Table2Data = {
-        mapa33: { h: String(totalH), m: String(totalM), hm: String(totalHM) },
-        existentesFim1: { h: String(totalH), m: String(totalM), hm: String(totalHM) },
-        entraram2: { h: '0', m: '0', hm: '0' },
-        total: { h: String(totalH), m: String(totalM), hm: String(totalHM) },
-        transferidos: { h: '0', m: '0', hm: '0' },
-        existentesFim2: { h: String(totalH), m: String(totalM), hm: String(totalHM) },
-        positivasNum: {
-          h: String(posH),
-          m: String(posM),
-          hm: String(posHM),
-        },
-        positivasPct: { h: posPctH, m: posPctM, hm: posPctHM },
-        negativasNum: {
-          h: String(negH),
-          m: String(negM),
-          hm: String(negHM),
-        },
-        negativasPct: { h: negPctH, m: negPctM, hm: negPctHM },
-      };
-
-      return { t1: computedT1, t2: computedT2 };
-    };
-  }, [selectedClass, user]);
-
-  // Load data for active trimester (merging saved overrides if any)
+  // Load and auto compute data for active trimester based on Pauta da Turma
   useEffect(() => {
+    const computed = computeAproveitamentoFromClass(selectedClass, trimester, user?.displayName);
     const saved = selectedClass.aproveitamentoData?.[trimester];
-    const computed = computeFromClass(trimester);
 
     if (saved && saved.table1 && Array.isArray(saved.table1) && saved.table1.length > 0) {
       const mergedT1 = computed.t1.map((cRow) => {
         const sRow = saved.table1.find((r: Table1RowData) => r.id === cRow.id);
         const base = sRow ? { ...cRow, ...sRow } : cRow;
-        return strictMode ? applyStrictRulesTable1Row(base) : base;
+        return applyStrictRulesTable1Row(base);
       });
       setTable1Data(mergedT1);
     } else {
@@ -389,52 +533,20 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
 
     if (saved && saved.table2) {
       const mergedT2 = { ...computed.t2, ...saved.table2 };
-      setTable2Data(strictMode ? applyStrictRulesTable2(mergedT2) : mergedT2);
+      setTable2Data(applyStrictRulesTable2(mergedT2));
     } else {
       setTable2Data(computed.t2);
     }
 
     setHasChanges(false);
-  }, [trimester, selectedClass, computeFromClass, strictMode]);
-
-  // Apply strict rules across both tables
-  const handleApplyStrictRules = () => {
-    setTable1Data((prev) => prev.map((row) => applyStrictRulesTable1Row(row)));
-    setTable2Data((prev) => applyStrictRulesTable2(prev));
-    setHasChanges(true);
-    toast.success('Regras oficiais do modelo aplicadas e cálculos harmonizados com rigor!');
-  };
+  }, [trimester, selectedClass, user]);
 
   // Handle cell edit in Table 1
   const handleTable1Change = (index: number, field: keyof Table1RowData, value: string) => {
     setTable1Data((prev) => {
       const updated = [...prev];
       let row = { ...updated[index], [field]: value };
-
-      if (strictMode) {
-        row = applyStrictRulesTable1Row(row);
-      } else {
-        // Semi-auto calculation in flexible mode
-        const nsNum = parseVal(row.ns);
-        const sNum = parseVal(row.s);
-        const bomNum = parseVal(row.bom);
-        const mbNum = parseVal(row.mb);
-        const eNum = parseVal(row.e);
-
-        if (['ns', 's', 'bom', 'mb', 'e'].includes(field as string)) {
-          const calcPos = sNum + bomNum + mbNum + eNum;
-          const calcNeg = nsNum;
-          const calcAA = calcPos + calcNeg;
-          if (calcAA > 0) {
-            row.aa = String(calcAA);
-            row.positivasNum = String(calcPos);
-            row.positivasPct = formatPct(calcPos, calcAA);
-            row.negativasNum = String(calcNeg);
-            row.negativasPct = formatPct(calcNeg, calcAA);
-          }
-        }
-      }
-
+      row = applyStrictRulesTable1Row(row);
       updated[index] = row;
       return updated;
     });
@@ -447,17 +559,7 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
       const updated = { ...prev };
       const currentGroup = { ...updated[group], [sub]: value };
       updated[group] = currentGroup;
-
-      if (strictMode) {
-        return applyStrictRulesTable2(updated);
-      } else {
-        if (sub === 'h' || sub === 'm') {
-          const hVal = parseVal(sub === 'h' ? value : currentGroup.h);
-          const mVal = parseVal(sub === 'm' ? value : currentGroup.m);
-          currentGroup.hm = String(hVal + mVal);
-        }
-        return updated;
-      }
+      return applyStrictRulesTable2(updated);
     });
     setHasChanges(true);
   };
@@ -487,15 +589,6 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
     } finally {
       setIsSaving(false);
     }
-  };
-
-  // Reset to auto-computed values from class
-  const handleResetToAuto = () => {
-    const computed = computeFromClass(trimester);
-    setTable1Data(computed.t1);
-    setTable2Data(computed.t2);
-    setHasChanges(true);
-    toast.info('Dados sincronizados e recalculados a partir das notas da turma.');
   };
 
   // Table 1 Totals (Strict Column by Column Sum)
@@ -548,156 +641,6 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
     };
   }, [table1Data]);
 
-  // Export to Excel with Strict Structure matching Photo
-  const handleExportExcel = () => {
-    try {
-      const wb = XLSX.utils.book_new();
-
-      const aoa: any[][] = [
-        ['REPÚBLICA DE MOÇAMBIQUE'],
-        ['MINISTÉRIO DA EDUCAÇÃO E DESENVOLVIMENTO HUMANO'],
-        [`APROVEITAMENTO PEDAGÓGICO DO ${trimester}º TRIMESTRE`],
-        [
-          `Escola: ${selectedClass.school || 'EduGestão'} | Turma: ${selectedClass.level} ${selectedClass.section} | Sala: ${selectedClass.room || '-'} | Turno: ${selectedClass.shift || 'Diurno'} | Ano Lectivo: ${selectedClass.academicYear || '-'}`,
-        ],
-        [],
-        // Table 1 Header Row 1
-        ['Disciplina', 'Professor', 'A.A.', 'Quantificação', '', '', '', '', 'Resultados', '', '', '', 'Meninas', '', '', ''],
-        // Table 1 Header Row 2
-        ['', '', '', 'NS', 'S', 'Bom', 'MB', 'E', 'Positivas', '', 'Negativas', '', 'Positivas', '', 'Negativas', ''],
-        // Table 1 Header Row 3
-        ['', '', '', '0/9', '10/13', '14/16', '17/18', '19/20', 'Nº', '%', 'Nº', '%', 'Nº', '%', 'Nº', '%'],
-      ];
-
-      // Table 1 Data rows
-      table1Data.forEach((row) => {
-        aoa.push([
-          row.disciplina,
-          row.professor,
-          row.aa,
-          row.ns,
-          row.s,
-          row.bom,
-          row.mb,
-          row.e,
-          row.positivasNum,
-          row.positivasPct ? `${row.positivasPct}%` : '',
-          row.negativasNum,
-          row.negativasPct ? `${row.negativasPct}%` : '',
-          row.meninasPosNum,
-          row.meninasPosPct ? `${row.meninasPosPct}%` : '',
-          row.meninasNegNum,
-          row.meninasNegPct ? `${row.meninasNegPct}%` : '',
-        ]);
-      });
-
-      // Total row
-      aoa.push([
-        'TOTAL',
-        '',
-        table1Totals.aa,
-        table1Totals.ns,
-        table1Totals.s,
-        table1Totals.bom,
-        table1Totals.mb,
-        table1Totals.e,
-        table1Totals.posNum,
-        `${table1Totals.posPct}%`,
-        table1Totals.negNum,
-        `${table1Totals.negPct}%`,
-        table1Totals.mPosNum,
-        `${table1Totals.mPosPct}%`,
-        table1Totals.mNegNum,
-        `${table1Totals.mNegPct}%`,
-      ]);
-
-      // Spacers
-      aoa.push([]);
-      aoa.push([]);
-
-      // Table 2 Header Row 1
-      aoa.push(['SITUAÇÃO GERAL DA TURMA (MAPA 3/3)']);
-      aoa.push([
-        'Mapa 3/3', '', '',
-        `Existentes no ${trimester === '1' ? 'Início do 1º' : trimester === '2' ? 'fim do 1º' : 'fim do 2º'} Trimestre`, '', '',
-        `Que entraram no ${trimester}º Trimestre`, '', '',
-        'Total', '', '',
-        'Transferidos', '', '',
-        `Existentes no Fim do ${trimester}º Trimestre`, '', '',
-        'Situação Positiva (Número)', '', '',
-        'Situação Positiva (%)', '', '',
-        'Situação Negativa (Número)', '', '',
-        'Situação Negativa (%)', '', '',
-      ]);
-
-      // Table 2 Header Row 2 (H, M, HM)
-      aoa.push([
-        'H', 'M', 'HM',
-        'H', 'M', 'HM',
-        'H', 'M', 'HM',
-        'H', 'M', 'HM',
-        'H', 'M', 'HM',
-        'H', 'M', 'HM',
-        'H', 'M', 'HM',
-        'H', 'M', 'HM',
-        'H', 'M', 'HM',
-        'H', 'M', 'HM',
-      ]);
-
-      // Table 2 Data row
-      aoa.push([
-        table2Data.mapa33.h, table2Data.mapa33.m, table2Data.mapa33.hm,
-        table2Data.existentesFim1.h, table2Data.existentesFim1.m, table2Data.existentesFim1.hm,
-        table2Data.entraram2.h, table2Data.entraram2.m, table2Data.entraram2.hm,
-        table2Data.total.h, table2Data.total.m, table2Data.total.hm,
-        table2Data.transferidos.h, table2Data.transferidos.m, table2Data.transferidos.hm,
-        table2Data.existentesFim2.h, table2Data.existentesFim2.m, table2Data.existentesFim2.hm,
-        table2Data.positivasNum.h, table2Data.positivasNum.m, table2Data.positivasNum.hm,
-        table2Data.positivasPct.h ? `${table2Data.positivasPct.h}%` : '0,0%',
-        table2Data.positivasPct.m ? `${table2Data.positivasPct.m}%` : '0,0%',
-        table2Data.positivasPct.hm ? `${table2Data.positivasPct.hm}%` : '0,0%',
-        table2Data.negativasNum.h, table2Data.negativasNum.m, table2Data.negativasNum.hm,
-        table2Data.negativasPct.h ? `${table2Data.negativasPct.h}%` : '0,0%',
-        table2Data.negativasPct.m ? `${table2Data.negativasPct.m}%` : '0,0%',
-        table2Data.negativasPct.hm ? `${table2Data.negativasPct.hm}%` : '0,0%',
-      ]);
-
-      // Signatures spacer
-      aoa.push([]);
-      aoa.push([]);
-      aoa.push(['Localidade e Data: ________________________, aos _____ de _______________ de 202___']);
-      aoa.push([]);
-      aoa.push([
-        'O Director de Turma: ________________________________',
-        '',
-        '',
-        '',
-        'O Director Adjunto Pedagógico: ________________________________',
-        '',
-        '',
-        '',
-        'O Director da Escola: ________________________________',
-      ]);
-
-      const ws = XLSX.utils.aoa_to_sheet(aoa);
-
-      const colWidths = Array.from({ length: 30 }, (_, i) => ({
-        wch: i === 0 ? 18 : i === 1 ? 22 : 8,
-      }));
-      ws['!cols'] = colWidths;
-
-      XLSX.utils.book_append_sheet(wb, ws, `Aproveitamento ${trimester}º Trim`);
-      XLSX.writeFile(
-        wb,
-        `Aproveitamento_Pedagogico_${selectedClass.level.replace(/\s+/g, '_')}_${selectedClass.section}_${trimester}Trimestre.xlsx`
-      );
-      toast.success('Pauta oficial exportada com sucesso para Excel!');
-    } catch (e) {
-      console.error(e);
-      toast.error('Erro ao exportar para Excel.');
-    }
-  };
-
   return (
     <div className="space-y-6 pt-4 sm:pt-6 animate-in fade-in duration-300">
       {/* Top Header Card (Hidden on Print) */}
@@ -708,7 +651,7 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
             variant="outline"
             onClick={onBack}
             className="h-9 px-3.5 border border-purple-200 dark:border-purple-900/40 bg-purple-50/20 dark:bg-purple-950/20 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/30 rounded-xl shadow-2xs flex items-center gap-1.5 cursor-pointer transition-all shrink-0 text-xs sm:text-sm font-semibold"
-            title="Voltar para a página de Cálculo da Média Geral"
+            title="Voltar para a Pauta da Turma"
           >
             <ChevronLeft className="h-4.5 w-4.5 shrink-0" />
             <span>Voltar</span>
@@ -720,15 +663,15 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
           </h2>
         </div>
 
-        {/* Row 2: Reorganização da Aba de Selecção dos Trimestres & Botões de Acção */}
-        <div className="flex flex-wrap items-center justify-between gap-2.5 pt-2 border-t border-border/50">
-          {/* Trimester Tabs */}
+        {/* Row 2: Aba de Selecção de Trimestres Centralizada */}
+        <div className="flex items-center justify-center pt-2 border-t border-border/50 relative">
+          {/* Trimester Tabs - Centralized */}
           <div className="flex p-0.5 bg-muted/70 rounded-xl border border-border/40 select-none">
             {(['1', '2', '3'] as const).map((t) => (
               <button
                 key={t}
                 onClick={() => setTrimester(t)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                className={`px-4 sm:px-6 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                   trimester === t
                     ? 'bg-purple-600 text-white shadow-xs'
                     : 'text-muted-foreground hover:text-foreground'
@@ -739,39 +682,9 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
             ))}
           </div>
 
-          {/* Action Buttons */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <Button
-              variant="outline"
-              onClick={handleExportExcel}
-              className="h-8.5 px-3 border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/20 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 text-xs font-bold rounded-xl shadow-2xs flex items-center gap-1.5 cursor-pointer transition-all"
-              title="Exportar pauta completa para ficheiro Excel"
-            >
-              <Download className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-              <span>Exportar</span>
-            </Button>
-
-            <Button
-              variant="outline"
-              onClick={() => window.print()}
-              className="h-8.5 px-2.5 sm:px-3 border border-border/80 text-foreground hover:bg-muted text-xs font-semibold rounded-xl shadow-2xs flex items-center gap-1.5 cursor-pointer"
-              title="Imprimir modelo oficial (A4 Paisagem)"
-            >
-              <Printer className="h-3.5 w-3.5 shrink-0" />
-              <span className="hidden sm:inline">Imprimir</span>
-            </Button>
-
-            <Button
-              variant="outline"
-              onClick={handleResetToAuto}
-              className="h-8.5 px-2.5 sm:px-3 border border-zinc-300 dark:border-zinc-700 text-foreground hover:bg-muted text-xs font-semibold rounded-xl shadow-2xs flex items-center gap-1.5 cursor-pointer"
-              title="Recalcular dados com base nas notas atuais dos alunos na Média Geral"
-            >
-              <RefreshCw className="h-3.5 w-3.5 shrink-0" />
-              <span className="hidden sm:inline">Recalcular</span>
-            </Button>
-
-            {hasChanges && onUpdateClass && (
+          {/* Optional Save button if manual changes occur */}
+          {hasChanges && onUpdateClass && (
+            <div className="absolute right-0 top-2">
               <Button
                 onClick={handleSave}
                 disabled={isSaving}
@@ -784,12 +697,12 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
                 )}
                 <span>Guardar</span>
               </Button>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Official Sheet Container (Prints Crisp and Follows the Exact Provided Photo) */}
+      {/* Official Sheet Container (Prints Crisp and Follows the Exact Clean Format) */}
       <div className="bg-card rounded-2xl border border-border shadow-xs p-3.5 sm:p-6 space-y-6 overflow-hidden print:border-0 print:p-0 print:bg-white print:text-black">
         {/* Document Header - Clean Mozambican Official Structure */}
         <div className="text-center space-y-1 pb-1">
@@ -858,7 +771,7 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
                   </th>
                 </tr>
 
-                {/* Subheaders matching photo: NS 0/9, S 10/13, Bom 14/16, MB 17/18, E 19/20, etc. */}
+                {/* Subheaders: NS 0/9, S 10/13, Bom 14/16, MB 17/18, E 19/20, etc. */}
                 <tr className="bg-zinc-200/90 dark:bg-zinc-800/90 text-zinc-900 dark:text-zinc-100 font-bold border-b border-zinc-400 dark:border-zinc-700 print:bg-gray-150 print:text-black print:border-black text-[11px]">
                   {/* Quantificação subcolumns */}
                   <th className="border-r border-zinc-400 dark:border-zinc-700 p-1 w-11 print:border-black">
@@ -920,7 +833,7 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
                 </tr>
               </thead>
 
-              {/* Table 1: 15 Exact Disciplines Body */}
+              {/* Table 1 Body */}
               <tbody>
                 {table1Data.map((row, idx) => (
                   <tr
@@ -1151,7 +1064,7 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
         </div>
 
         {/* ============================================================ */}
-        {/* TABELA 2: Situação Geral da Turma (Exatamente como na foto)  */}
+        {/* TABELA 2: Situação Geral da Turma (Mapa 3/3)                 */}
         {/* ============================================================ */}
         <div className="space-y-3 pt-4">
           <div className="flex items-center justify-between">
