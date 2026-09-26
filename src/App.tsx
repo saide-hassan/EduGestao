@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Plus, Users, BookOpen, School, GraduationCap, ChevronLeft, Trash2, UserPlus, Save, Search, Download, Pencil, Home, LogOut, Star, Layers, Sun, Moon, Upload, FileSpreadsheet, FileText, UploadCloud, Check, AlertTriangle, X, ChevronDown, Cloud, Wifi, WifiOff, CloudLightning, CloudOff, CheckCircle2, Calculator, BarChart3, Sparkles } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import mammoth from 'mammoth';
@@ -99,6 +99,70 @@ export const MEDIA_GERAL_SUBJECTS = [
 export type SubjectKey = typeof MEDIA_GERAL_SUBJECTS[number]['key'];
 
 const emptyGrades = (): Grades => ({ acs1: '', acs2: '', acs3: '', ap: '', exame: '' });
+
+export const normalizeSearchText = (text: string): string => {
+  return (text || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+};
+
+export const getStudentOrderNumber = (student: Student, sortedList?: Student[]): string => {
+  if (student.studentNumber && student.studentNumber.trim()) {
+    return student.studentNumber.trim();
+  }
+  if (sortedList && sortedList.length > 0) {
+    const idx = sortedList.findIndex((s) => s.id === student.id);
+    if (idx >= 0) return String(idx + 1);
+  }
+  return '-';
+};
+
+export const filterStudentByQuery = (
+  student: Student,
+  query: string,
+  classOrderIndex: number
+): boolean => {
+  const clean = query.trim();
+  if (!clean) return true;
+
+  // 1. Check if user typed a number or prefix + number, e.g. "5", "05", "nº 5", "n 5", "n.º 5", "#5", "aluno 5", "numero 5"
+  const numberMatch = clean.match(/^(?:n[º°.]*|no\.?|#|aluno\s+|n[úu]mero\s+)?\s*(\d+)$/i);
+  if (numberMatch) {
+    const targetNum = parseInt(numberMatch[1], 10);
+    const sAssignedNum = student.studentNumber ? parseInt(student.studentNumber, 10) : NaN;
+    const sRawNumStr = (student.studentNumber || '').trim();
+
+    // Exact number match:
+    // If student has an assigned studentNumber, compare numerically or verbatim (handles "01" vs "1" or "12")
+    // If student doesn't have an assigned studentNumber, compare with their sequential list order
+    const matchesExactNumber =
+      (!isNaN(sAssignedNum) && sAssignedNum === targetNum) ||
+      (sRawNumStr === numberMatch[1]) ||
+      (!student.studentNumber && classOrderIndex === targetNum);
+
+    if (matchesExactNumber) return true;
+  }
+
+  // 2. Text Search (Name, and alphanumeric studentNumber if any)
+  const normQuery = normalizeSearchText(clean);
+  const normName = normalizeSearchText(student.name);
+  const normStudentNumber = normalizeSearchText(student.studentNumber || '');
+
+  // Exact or prefix match on alphanumeric studentNumber (e.g. "A-12")
+  if (normStudentNumber && (normStudentNumber === normQuery || normStudentNumber.startsWith(normQuery))) {
+    return true;
+  }
+
+  // Name match: all words in query must appear in student's name
+  const queryWords = normQuery.split(/\s+/).filter(Boolean);
+  if (queryWords.length > 0 && queryWords.every((word) => normName.includes(word))) {
+    return true;
+  }
+
+  return false;
+};
 
 const getStudentGrades = (student: Student, trimester: '1' | '2' | '3'): Grades => {
   if (student.trimesterGrades && student.trimesterGrades[trimester]) {
@@ -1440,34 +1504,34 @@ export default function App() {
     setClassToDelete(classId);
   };
 
-  const filteredStudents = selectedClass?.students.filter(s => 
-    (s.name || '').toLowerCase().includes(searchQuery.toLowerCase())
-  ).sort((a, b) => {
-    const numA = parseInt(a.studentNumber || '9999', 10);
-    const numB = parseInt(b.studentNumber || '9999', 10);
-    if (!isNaN(numA) && !isNaN(numB) && numA !== numB) return numA - numB;
-    return (a.name || '').localeCompare(b.name || '');
-  }) || [];
+  const sortedClassStudents = useMemo(() => {
+    return [...(selectedClass?.students || [])].sort((a, b) => {
+      const numA = parseInt(a.studentNumber || '9999', 10);
+      const numB = parseInt(b.studentNumber || '9999', 10);
+      if (!isNaN(numA) && !isNaN(numB) && numA !== numB) return numA - numB;
+      return (a.name || '').localeCompare(b.name || '');
+    });
+  }, [selectedClass?.students]);
 
-  const filteredMediaGeralStudents = (selectedClass?.students || []).filter(s => {
-    if (!mediaGeralSearch.trim()) return true;
-    const term = mediaGeralSearch.toLowerCase();
-    return (s.name || '').toLowerCase().includes(term) || (s.studentNumber && s.studentNumber.includes(term));
-  }).sort((a, b) => {
-    const numA = parseInt(a.studentNumber || '9999', 10);
-    const numB = parseInt(b.studentNumber || '9999', 10);
-    if (!isNaN(numA) && !isNaN(numB) && numA !== numB) return numA - numB;
-    return (a.name || '').localeCompare(b.name || '');
-  });
+  const filteredStudents = useMemo(() => {
+    if (!searchQuery.trim()) return sortedClassStudents;
+    return sortedClassStudents.filter((s, idx) => 
+      filterStudentByQuery(s, searchQuery, idx + 1)
+    );
+  }, [sortedClassStudents, searchQuery]);
 
-  const studentsNeedingApoio = (selectedClass?.students.filter(student => {
-    return getApoioAlertStatus(student, selectedTrimester) === 'red';
-  }) || []).sort((a, b) => {
-    const numA = parseInt(a.studentNumber || '9999', 10);
-    const numB = parseInt(b.studentNumber || '9999', 10);
-    if (!isNaN(numA) && !isNaN(numB) && numA !== numB) return numA - numB;
-    return (a.name || '').localeCompare(b.name || '');
-  });
+  const filteredMediaGeralStudents = useMemo(() => {
+    if (!mediaGeralSearch.trim()) return sortedClassStudents;
+    return sortedClassStudents.filter((s, idx) => 
+      filterStudentByQuery(s, mediaGeralSearch, idx + 1)
+    );
+  }, [sortedClassStudents, mediaGeralSearch]);
+
+  const studentsNeedingApoio = useMemo(() => {
+    return sortedClassStudents.filter(student => {
+      return getApoioAlertStatus(student, selectedTrimester) === 'red';
+    });
+  }, [sortedClassStudents, selectedTrimester]);
 
   const buildExcelWorkbook = () => {
     if (!selectedClass) return null;
@@ -2716,11 +2780,23 @@ export default function App() {
                   <div className="relative flex-1 sm:w-60 md:w-64">
                     <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-muted-foreground/60" />
                     <Input
-                      placeholder="Procurar aluno por nome ou nº..."
-                      className="pl-9 h-8.5 bg-muted/40 border-border/70 text-xs rounded-xl w-full"
+                      placeholder="Procurar por nome ou nº (ex: 5, João)..."
+                      className="pl-9 pr-8 h-8.5 bg-muted/40 border-border/70 text-xs rounded-xl w-full focus:border-purple-500"
                       value={mediaGeralSearch}
                       onChange={(e) => setMediaGeralSearch(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Escape') setMediaGeralSearch('');
+                      }}
                     />
+                    {mediaGeralSearch && (
+                      <button
+                        onClick={() => setMediaGeralSearch('')}
+                        className="absolute right-2.5 top-2.5 text-muted-foreground/60 hover:text-foreground cursor-pointer transition-colors p-0.5 rounded-full hover:bg-muted"
+                        title="Limpar pesquisa (Esc)"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    )}
                   </div>
 
                   {/* Botões Sincronizar e Exportar */}
@@ -2787,7 +2863,25 @@ export default function App() {
                     {filteredMediaGeralStudents.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={17} className="text-center py-16 text-muted-foreground text-sm">
-                          Nenhum aluno encontrado.
+                          <div className="flex flex-col items-center justify-center gap-2 max-w-sm mx-auto">
+                            <Search className="h-8 w-8 text-muted-foreground/40" />
+                            <p className="font-semibold text-foreground">
+                              {mediaGeralSearch.trim() ? `Nenhum aluno encontrado para "${mediaGeralSearch}".` : 'Nenhum aluno encontrado.'}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              Verifique se o número ou o nome digitado está correto.
+                            </p>
+                            {mediaGeralSearch.trim() && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setMediaGeralSearch('')}
+                                className="mt-1 h-7 text-xs px-2.5 rounded-lg border-purple-300 dark:border-purple-800 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-950/50"
+                              >
+                                Limpar pesquisa
+                              </Button>
+                            )}
+                          </div>
                         </TableCell>
                       </TableRow>
                     ) : (
@@ -2821,7 +2915,7 @@ export default function App() {
                                 {isRowHighlighted && (
                                   <span className="inline-flex h-2 w-2 rounded-full bg-purple-600 dark:bg-purple-400 animate-pulse shrink-0" />
                                 )}
-                                <span>{student.studentNumber || (idx + 1)}</span>
+                                <span>{getStudentOrderNumber(student, sortedClassStudents)}</span>
                               </div>
                             </TableCell>
                             <TableCell 
@@ -2983,11 +3077,23 @@ export default function App() {
                   <div className="relative flex-1 w-full">
                     <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground/60 focus:text-primary transition-colors" />
                     <Input 
-                      placeholder="Procurar aluno..." 
-                      className="pl-8.5 bg-muted/45 border-border/80 focus:border-purple-500 hover:bg-muted/60 h-8.5 rounded-lg text-xs"
+                      placeholder="Procurar por nome ou nº (ex: 5, Maria)..." 
+                      className="pl-8.5 pr-8 bg-muted/45 border-border/80 focus:border-purple-500 hover:bg-muted/60 h-8.5 rounded-lg text-xs"
                       value={searchQuery || ''}
                       onChange={(e) => setSearchQuery(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Escape') setSearchQuery('');
+                      }}
                     />
+                    {searchQuery && (
+                      <button
+                        onClick={() => setSearchQuery('')}
+                        className="absolute right-2.5 top-2.5 text-muted-foreground/60 hover:text-foreground cursor-pointer transition-colors p-0.5 rounded-full hover:bg-muted"
+                        title="Limpar pesquisa (Esc)"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    )}
                   </div>
                   
                   {/* Action Buttons */}
@@ -3594,8 +3700,22 @@ export default function App() {
               ) : filteredStudents.length === 0 ? (
                 <div className="text-center py-16">
                   <Search className="h-10 w-10 text-muted-foreground/50 mx-auto mb-3" />
-                  <h3 className="text-lg font-medium text-foreground">Nenhum aluno encontrado</h3>
-                  <p className="text-muted-foreground mt-1 text-sm">Tente procurar por outro nome.</p>
+                  <h3 className="text-lg font-medium text-foreground">
+                    {searchQuery.trim() ? `Nenhum aluno encontrado para "${searchQuery}"` : 'Nenhum aluno encontrado'}
+                  </h3>
+                  <p className="text-muted-foreground mt-1 text-sm">
+                    Verifique se o número ou o nome digitado está correto.
+                  </p>
+                  {searchQuery.trim() && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setSearchQuery('')}
+                      className="mt-3 h-8 text-xs px-3 rounded-lg border-purple-300 dark:border-purple-800 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-950/50 cursor-pointer"
+                    >
+                      Limpar pesquisa
+                    </Button>
+                  )}
                 </div>
               ) : (
                 <div className="w-full flex flex-col">
@@ -3870,7 +3990,7 @@ export default function App() {
                                       : 'hover:bg-muted/40 odd:bg-muted/15 even:bg-transparent border-l-transparent'
                                   }`}
                                 >
-                                  <TableCell className="font-medium text-muted-foreground align-middle">{student.studentNumber || '-'}</TableCell>
+                                  <TableCell className="font-medium text-muted-foreground align-middle">{getStudentOrderNumber(student, sortedClassStudents)}</TableCell>
                                   <TableCell 
                                     className={`font-semibold align-middle cursor-pointer transition-colors select-none ${
                                       student.id === highlightedStudentId 
@@ -4097,7 +4217,7 @@ export default function App() {
                                     : 'hover:bg-muted/40 odd:bg-muted/15 even:bg-transparent border-l-transparent'
                                 }`}
                               >
-                                <TableCell className="font-medium text-muted-foreground align-middle">{student.studentNumber || '-'}</TableCell>
+                                <TableCell className="font-medium text-muted-foreground align-middle">{getStudentOrderNumber(student, sortedClassStudents)}</TableCell>
                                 <TableCell 
                                   className={`font-semibold align-middle cursor-pointer transition-colors select-none ${
                                     student.id === highlightedStudentId 
@@ -4199,7 +4319,7 @@ export default function App() {
                                   : 'hover:bg-muted/40 odd:bg-muted/15 even:bg-transparent border-l-transparent'
                               }`}
                             >
-                              <TableCell className="font-medium text-muted-foreground align-middle">{student.studentNumber || '-'}</TableCell>
+                              <TableCell className="font-medium text-muted-foreground align-middle">{getStudentOrderNumber(student, sortedClassStudents)}</TableCell>
                               <TableCell 
                                 className={`font-semibold align-middle cursor-pointer transition-colors select-none ${
                                   student.id === highlightedStudentId 
