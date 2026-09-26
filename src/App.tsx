@@ -127,22 +127,26 @@ export const filterStudentByQuery = (
   const clean = query.trim();
   if (!clean) return true;
 
-  // 1. Check if user typed a number or prefix + number, e.g. "5", "05", "nº 5", "n 5", "n.º 5", "#5", "aluno 5", "numero 5"
-  const numberMatch = clean.match(/^(?:n[º°.]*|no\.?|#|aluno\s+|n[úu]mero\s+)?\s*(\d+)$/i);
+  // 1. Check if user typed a number or prefix/suffix + number, e.g. "1", "01", "1º", "1.", "nº 1", "n 1", "n.º 1", "#1", "aluno 1", "numero 1", "número 1"
+  const numberMatch = clean.match(/^(?:n[º°.]*|no\.?|#|aluno\s+|n[úu]mero\s+)?\s*(\d+)[º°.]?$/i);
   if (numberMatch) {
     const targetNum = parseInt(numberMatch[1], 10);
-    const sAssignedNum = student.studentNumber ? parseInt(student.studentNumber, 10) : NaN;
+    const sAssignedNum =
+      student.studentNumber && student.studentNumber.trim()
+        ? parseInt(student.studentNumber.trim(), 10)
+        : NaN;
     const sRawNumStr = (student.studentNumber || '').trim();
+    const hasAssignedNumber = !isNaN(sAssignedNum) || sRawNumStr !== '';
 
     // Exact number match:
-    // If student has an assigned studentNumber, compare numerically or verbatim (handles "01" vs "1" or "12")
-    // If student doesn't have an assigned studentNumber, compare with their sequential list order
-    const matchesExactNumber =
-      (!isNaN(sAssignedNum) && sAssignedNum === targetNum) ||
-      (sRawNumStr === numberMatch[1]) ||
-      (!student.studentNumber && classOrderIndex === targetNum);
+    // If student has an assigned studentNumber, compare numerically or verbatim (e.g. "01" matches 1, "1" matches 1)
+    // If student has no assigned studentNumber, compare with their sequential class list order
+    const matchesExactNumber = hasAssignedNumber
+      ? (!isNaN(sAssignedNum) && sAssignedNum === targetNum) || sRawNumStr === numberMatch[1]
+      : classOrderIndex === targetNum;
 
-    if (matchesExactNumber) return true;
+    // Strict number search: return immediately so numbers starting with targetNum (like 10..19 for 1) are NEVER included
+    return matchesExactNumber;
   }
 
   // 2. Text Search (Name, and alphanumeric studentNumber if any)
@@ -150,8 +154,8 @@ export const filterStudentByQuery = (
   const normName = normalizeSearchText(student.name);
   const normStudentNumber = normalizeSearchText(student.studentNumber || '');
 
-  // Exact or prefix match on alphanumeric studentNumber (e.g. "A-12")
-  if (normStudentNumber && (normStudentNumber === normQuery || normStudentNumber.startsWith(normQuery))) {
+  // Exact match on alphanumeric studentNumber (e.g. "A-12") - NEVER prefix/startsWith
+  if (normStudentNumber && normStudentNumber === normQuery) {
     return true;
   }
 
@@ -3010,7 +3014,7 @@ export default function App() {
               </div>
             </div>
 
-            {/* Botão de Aproveitamento Pedagógico - depois da tabela */}
+            {/* Botão de Situação da Turma - depois da tabela */}
             <div className="flex justify-center items-center py-4 sm:py-6">
               <Button
                 onClick={() => {
@@ -3018,10 +3022,10 @@ export default function App() {
                   window.scrollTo({ top: 0, behavior: 'smooth' });
                 }}
                 className="h-11 px-6 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-sm flex items-center justify-center gap-2.5 shadow-md cursor-pointer transition-all hover:scale-[1.02] active:scale-[0.98] border-0"
-                title="Abrir página de análise do Aproveitamento Pedagógico"
+                title="Abrir página de análise da Situação da Turma"
               >
                 <BarChart3 className="h-5 w-5 shrink-0" />
-                <span>Aproveitamento Pedagógico</span>
+                <span>Situação da Turma</span>
               </Button>
             </div>
           </div>

@@ -645,7 +645,7 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
     <div className="space-y-6 pt-4 sm:pt-6 animate-in fade-in duration-300">
       {/* Top Header Card (Hidden on Print) */}
       <div className="bg-card rounded-2xl border border-border shadow-xs p-3.5 sm:p-5 no-print space-y-3.5">
-        {/* Row 1: Botão Voltar à Esquerda & Título Aproveitamento Pedagógico à Direita */}
+        {/* Row 1: Botão Voltar à Esquerda & Título Situação da Turma à Direita */}
         <div className="flex items-center justify-between gap-3">
           <Button
             variant="outline"
@@ -658,8 +658,8 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
           </Button>
 
           <h2 className="text-sm sm:text-lg md:text-xl font-black text-foreground tracking-tight text-right flex items-center justify-end gap-1.5 sm:gap-2">
-            <span>Aproveitamento Pedagógico</span>
             <BarChart3 className="h-4.5 w-4.5 sm:h-5 sm:w-5 text-purple-600 dark:text-purple-400 shrink-0" />
+            <span>Situação da Turma</span>
           </h2>
         </div>
 
@@ -723,7 +723,7 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <h4 className="text-xs sm:text-sm md:text-base font-black tracking-wide uppercase text-foreground print:text-black">
-              1. Aproveitamento Pedagógico por Disciplina
+              1. Aproveitamento Pedagógico
             </h4>
           </div>
 
