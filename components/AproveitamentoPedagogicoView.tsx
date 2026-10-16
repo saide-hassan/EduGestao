@@ -12,6 +12,7 @@ import {
   calculateMediaGeralForStudent,
   isStudentFemale,
   getStudentSubjectGrades,
+  MEDIA_GERAL_SUBJECTS,
 } from '@/src/App';
 
 export const APROVEITAMENTO_DISCIPLINAS = [
@@ -52,6 +53,72 @@ export type Table1RowData = {
   meninasNegPct: string;
 };
 
+/**
+ * Verifica se a disciplina consta oficialmente na Pauta da Turma (MEDIA_GERAL_SUBJECTS).
+ * Disciplinas que não constam na pauta (como Filosofia e Francês no 1º ciclo)
+ * devem permanecer estritamente vazias na tabela de aproveitamento pedagógico.
+ */
+export const isSubjectInPauta = (
+  disc: { id: string; name?: string; key?: string } | string
+): boolean => {
+  if (!disc) return false;
+  const id = typeof disc === 'string' ? disc : disc.id;
+  const key = typeof disc === 'string' ? disc : (disc.key || disc.id);
+  const name = typeof disc === 'string' ? disc : (disc.name || disc.id);
+
+  const idLower = id.trim().toLowerCase();
+  const keyLower = key.trim().toLowerCase();
+  const nameLower = name.trim().toLowerCase();
+
+  // Exclusões explícitas: disciplinas que não constam na Pauta da Turma
+  if (
+    idLower === 'filosofia' ||
+    keyLower === 'fil' ||
+    nameLower === 'filosofia' ||
+    idLower === 'frances' ||
+    keyLower === 'fr' ||
+    nameLower === 'francês' ||
+    nameLower === 'frances'
+  ) {
+    return false;
+  }
+
+  return MEDIA_GERAL_SUBJECTS.some((sub) => {
+    const sKey = sub.key.toLowerCase();
+    const sName = sub.name.toLowerCase();
+    const sLabel = sub.label.toLowerCase();
+    return (
+      sKey === keyLower ||
+      sKey === idLower ||
+      sName === nameLower ||
+      sLabel === keyLower
+    );
+  });
+};
+
+/**
+ * Cria uma linha totalmente vazia para disciplinas que não constam na Pauta da Turma
+ */
+export const createEmptyTable1Row = (id: string, disciplina: string): Table1RowData => ({
+  id,
+  disciplina,
+  professor: '',
+  aa: '',
+  ns: '',
+  s: '',
+  bom: '',
+  mb: '',
+  e: '',
+  positivasNum: '',
+  positivasPct: '',
+  negativasNum: '',
+  negativasPct: '',
+  meninasPosNum: '',
+  meninasPosPct: '',
+  meninasNegNum: '',
+  meninasNegPct: '',
+});
+
 export type Table2Data = {
   mapa33: { h: string; m: string; hm: string };
   existentesFim1: { h: string; m: string; hm: string };
@@ -88,6 +155,10 @@ export const getGradeForStudentAndSubject = (
   disc: { id: string; name: string; key: string; aliases?: readonly string[] },
   selectedClassSubject?: string
 ): string => {
+  // Se a disciplina NÃO consta na Pauta da Turma (ex: Filosofia), não possui notas na pauta
+  if (!isSubjectInPauta(disc)) {
+    return '';
+  }
   const subGrades = getStudentSubjectGrades(student, t);
   if (!subGrades) return '';
 
@@ -342,6 +413,11 @@ export const computeAproveitamentoFromClass = (
 ): { t1: Table1RowData[]; t2: Table2Data } => {
   // 1. Compute Table 1 (Aproveitamento Pedagógico obtido rigorosamente da Pauta da Turma)
   const computedT1: Table1RowData[] = APROVEITAMENTO_DISCIPLINAS.map((disc) => {
+    // Se a disciplina NÃO consta na Pauta da Turma (ex: Filosofia, Francês),
+    // deve estar estritamente vazia, sem informações correspondentes!
+    if (!isSubjectInPauta(disc)) {
+      return createEmptyTable1Row(disc.id, disc.name);
+    }
     let aa = 0;
     let ns = 0;
     let s = 0;
@@ -453,6 +529,7 @@ export const computeAproveitamentoFromClass = (
       let studentSum = 0;
       let studentCount = 0;
       APROVEITAMENTO_DISCIPLINAS.forEach((disc) => {
+        if (!isSubjectInPauta(disc)) return;
         const valStr = getGradeForStudentAndSubject(student, t, disc, selectedClass.subject);
         const cat = classifyGrade(valStr);
         if (cat !== null) {
@@ -587,25 +664,7 @@ export const buildAproveitamentoExcelData = (
     ]);
   });
 
-  // Total row
-  aoa.push([
-    'TOTAL',
-    '',
-    aaSum,
-    nsSum,
-    sSum,
-    bomSum,
-    mbSum,
-    eSum,
-    posNumSum,
-    `${posPctAvg}%`,
-    negNumSum,
-    `${negPctAvg}%`,
-    mPosNumSum,
-    `${mPosPctAvg}%`,
-    mNegNumSum,
-    `${mNegPctAvg}%`,
-  ]);
+  // A tabela oficial de aproveitamento pedagógico não possui linha de total
 
   // Spacers
   aoa.push([]);
@@ -700,6 +759,12 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
 
     if (saved && saved.table1 && Array.isArray(saved.table1) && saved.table1.length > 0) {
       const mergedT1 = computed.t1.map((cRow) => {
+        // Se a disciplina NÃO consta na Pauta da Turma (ex: Filosofia, Francês),
+        // deve permanecer estritamente vazia, sem informações correspondentes!
+        if (!isSubjectInPauta(cRow.id) && !isSubjectInPauta(cRow.disciplina)) {
+          return createEmptyTable1Row(cRow.id, cRow.disciplina);
+        }
+
         const sRow = saved.table1.find(
           (r: Table1RowData) =>
             r.id === cRow.id ||
@@ -816,55 +881,7 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
     }
   };
 
-  // Table 1 Totals (Strict Column by Column Sum)
-  const table1Totals = useMemo(() => {
-    let aaSum = 0;
-    let nsSum = 0;
-    let sSum = 0;
-    let bomSum = 0;
-    let mbSum = 0;
-    let eSum = 0;
-    let posNumSum = 0;
-    let negNumSum = 0;
-    let mPosNumSum = 0;
-    let mNegNumSum = 0;
 
-    table1Data.forEach((row) => {
-      aaSum += parseVal(row.aa);
-      nsSum += parseVal(row.ns);
-      sSum += parseVal(row.s);
-      bomSum += parseVal(row.bom);
-      mbSum += parseVal(row.mb);
-      eSum += parseVal(row.e);
-      posNumSum += parseVal(row.positivasNum);
-      negNumSum += parseVal(row.negativasNum);
-      mPosNumSum += parseVal(row.meninasPosNum);
-      mNegNumSum += parseVal(row.meninasNegNum);
-    });
-
-    const posPctAvg = aaSum > 0 ? formatPct(posNumSum, aaSum) : '0,0';
-    const negPctAvg = aaSum > 0 ? formatPct(negNumSum, aaSum) : '0,0';
-    const mTotalAA = mPosNumSum + mNegNumSum;
-    const mPosPctAvg = mTotalAA > 0 ? formatPct(mPosNumSum, mTotalAA) : '0,0';
-    const mNegPctAvg = mTotalAA > 0 ? formatPct(mNegNumSum, mTotalAA) : '0,0';
-
-    return {
-      aa: aaSum,
-      ns: nsSum,
-      s: sSum,
-      bom: bomSum,
-      mb: mbSum,
-      e: eSum,
-      posNum: posNumSum,
-      posPct: posPctAvg,
-      negNum: negNumSum,
-      negPct: negPctAvg,
-      mPosNum: mPosNumSum,
-      mPosPct: mPosPctAvg,
-      mNegNum: mNegNumSum,
-      mNegPct: mNegPctAvg,
-    };
-  }, [table1Data]);
 
   return (
     <div className="space-y-6 pt-4 sm:pt-6 animate-in fade-in duration-300">
@@ -1071,10 +1088,14 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
 
               {/* Table 1 Body */}
               <tbody>
-                {table1Data.map((row, idx) => (
+                {table1Data.map((row, idx) => {
+                  const inPauta = isSubjectInPauta(row.id) || isSubjectInPauta(row.disciplina);
+                  return (
                   <tr
                     key={row.id}
-                    className="border-b border-zinc-300 dark:border-zinc-700 hover:bg-muted/30 odd:bg-muted/5 even:bg-transparent print:border-black"
+                    className={`border-b border-zinc-300 dark:border-zinc-700 hover:bg-muted/30 odd:bg-muted/5 even:bg-transparent print:border-black ${
+                      !inPauta ? 'opacity-65 bg-muted/15' : ''
+                    }`}
                   >
                     {/* Disciplina Name */}
                     <td className="border-r border-zinc-300 dark:border-zinc-700 p-1.5 text-left font-bold text-foreground print:text-black whitespace-nowrap">
@@ -1087,8 +1108,11 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
                         type="text"
                         value={row.professor}
                         onChange={(e) => handleTable1Change(idx, 'professor', e.target.value)}
-                        placeholder="Nome do Prof."
-                        className="w-full text-center bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-purple-500 rounded text-xs print:text-[9px]"
+                        placeholder=""
+                        disabled={!inPauta}
+                        className={`w-full text-center bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-purple-500 rounded text-xs print:text-[9px] ${
+                          !inPauta ? 'cursor-not-allowed opacity-40' : ''
+                        }`}
                       />
                     </td>
 
@@ -1098,7 +1122,7 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
                         type="text"
                         value={row.aa}
                         onChange={(e) => handleTable1Change(idx, 'aa', e.target.value)}
-                        placeholder="-"
+                        placeholder="" disabled={!inPauta}
                         className="w-full text-center bg-transparent border-0 focus:outline-none font-bold text-foreground text-xs print:text-[9px]"
                         title="Alunos Avaliados = NS + S + Bom + MB + E"
                       />
@@ -1110,7 +1134,7 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
                         type="text"
                         value={row.ns}
                         onChange={(e) => handleTable1Change(idx, 'ns', e.target.value)}
-                        placeholder="-"
+                        placeholder="" disabled={!inPauta}
                         className={`w-full text-center bg-transparent border-0 focus:outline-none text-xs print:text-[9px] ${
                           row.ns && row.ns !== '0' ? 'text-red-600 dark:text-red-400 font-bold' : ''
                         }`}
@@ -1123,7 +1147,7 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
                         type="text"
                         value={row.s}
                         onChange={(e) => handleTable1Change(idx, 's', e.target.value)}
-                        placeholder="-"
+                        placeholder="" disabled={!inPauta}
                         className="w-full text-center bg-transparent border-0 focus:outline-none text-xs print:text-[9px]"
                       />
                     </td>
@@ -1134,7 +1158,7 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
                         type="text"
                         value={row.bom}
                         onChange={(e) => handleTable1Change(idx, 'bom', e.target.value)}
-                        placeholder="-"
+                        placeholder="" disabled={!inPauta}
                         className="w-full text-center bg-transparent border-0 focus:outline-none text-xs print:text-[9px]"
                       />
                     </td>
@@ -1145,7 +1169,7 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
                         type="text"
                         value={row.mb}
                         onChange={(e) => handleTable1Change(idx, 'mb', e.target.value)}
-                        placeholder="-"
+                        placeholder="" disabled={!inPauta}
                         className="w-full text-center bg-transparent border-0 focus:outline-none text-xs print:text-[9px]"
                       />
                     </td>
@@ -1156,7 +1180,7 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
                         type="text"
                         value={row.e}
                         onChange={(e) => handleTable1Change(idx, 'e', e.target.value)}
-                        placeholder="-"
+                        placeholder="" disabled={!inPauta}
                         className="w-full text-center bg-transparent border-0 focus:outline-none text-xs print:text-[9px]"
                       />
                     </td>
@@ -1167,7 +1191,7 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
                         type="text"
                         value={row.positivasNum}
                         onChange={(e) => handleTable1Change(idx, 'positivasNum', e.target.value)}
-                        placeholder="-"
+                        placeholder="" disabled={!inPauta}
                         className="w-full text-center bg-transparent border-0 focus:outline-none font-bold text-xs print:text-[9px]"
                         title="Positivas Nº = S + Bom + MB + E"
                       />
@@ -1179,7 +1203,7 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
                         type="text"
                         value={row.positivasPct}
                         onChange={(e) => handleTable1Change(idx, 'positivasPct', e.target.value)}
-                        placeholder="-"
+                        placeholder="" disabled={!inPauta}
                         className="w-full text-center bg-transparent border-0 focus:outline-none text-xs print:text-[9px]"
                         title="Positivas % = (Positivas / A.A.) * 100"
                       />
@@ -1191,7 +1215,7 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
                         type="text"
                         value={row.negativasNum}
                         onChange={(e) => handleTable1Change(idx, 'negativasNum', e.target.value)}
-                        placeholder="-"
+                        placeholder="" disabled={!inPauta}
                         className="w-full text-center bg-transparent border-0 focus:outline-none font-bold text-xs print:text-[9px]"
                         title="Negativas Nº = NS"
                       />
@@ -1203,7 +1227,7 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
                         type="text"
                         value={row.negativasPct}
                         onChange={(e) => handleTable1Change(idx, 'negativasPct', e.target.value)}
-                        placeholder="-"
+                        placeholder="" disabled={!inPauta}
                         className="w-full text-center bg-transparent border-0 focus:outline-none text-xs print:text-[9px]"
                         title="Negativas % = (Negativas / A.A.) * 100"
                       />
@@ -1215,7 +1239,7 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
                         type="text"
                         value={row.meninasPosNum}
                         onChange={(e) => handleTable1Change(idx, 'meninasPosNum', e.target.value)}
-                        placeholder="-"
+                        placeholder="" disabled={!inPauta}
                         className="w-full text-center bg-transparent border-0 focus:outline-none font-semibold text-xs print:text-[9px]"
                       />
                     </td>
@@ -1226,7 +1250,7 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
                         type="text"
                         value={row.meninasPosPct}
                         onChange={(e) => handleTable1Change(idx, 'meninasPosPct', e.target.value)}
-                        placeholder="-"
+                        placeholder="" disabled={!inPauta}
                         className="w-full text-center bg-transparent border-0 focus:outline-none text-xs print:text-[9px]"
                         title="Meninas Positivas % = (Meninas Pos / Meninas Avaliadas) * 100"
                       />
@@ -1238,7 +1262,7 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
                         type="text"
                         value={row.meninasNegNum}
                         onChange={(e) => handleTable1Change(idx, 'meninasNegNum', e.target.value)}
-                        placeholder="-"
+                        placeholder="" disabled={!inPauta}
                         className="w-full text-center bg-transparent border-0 focus:outline-none font-semibold text-xs print:text-[9px]"
                       />
                     </td>
@@ -1249,52 +1273,14 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
                         type="text"
                         value={row.meninasNegPct}
                         onChange={(e) => handleTable1Change(idx, 'meninasNegPct', e.target.value)}
-                        placeholder="-"
+                        placeholder="" disabled={!inPauta}
                         className="w-full text-center bg-transparent border-0 focus:outline-none text-xs print:text-[9px]"
                         title="Meninas Negativas % = (Meninas Neg / Meninas Avaliadas) * 100"
                       />
                     </td>
                   </tr>
-                ))}
-
-                {/* Total Row */}
-                <tr className="bg-zinc-200/90 dark:bg-zinc-800/90 font-black border-t-2 border-zinc-500 dark:border-zinc-600 print:bg-gray-200 print:text-black print:border-black text-xs print:text-[9px]">
-                  <td className="border-r border-zinc-400 dark:border-zinc-700 p-2 text-left font-black tracking-wider">
-                    TOTAL
-                  </td>
-                  <td className="border-r border-zinc-400 dark:border-zinc-700 p-2 text-muted-foreground">-</td>
-                  <td className="border-r border-zinc-400 dark:border-zinc-700 p-2 text-center font-black bg-muted/20">
-                    {table1Totals.aa}
-                  </td>
-                  <td className="border-r border-zinc-400 dark:border-zinc-700 p-2 text-center">{table1Totals.ns}</td>
-                  <td className="border-r border-zinc-400 dark:border-zinc-700 p-2 text-center">{table1Totals.s}</td>
-                  <td className="border-r border-zinc-400 dark:border-zinc-700 p-2 text-center">{table1Totals.bom}</td>
-                  <td className="border-r border-zinc-400 dark:border-zinc-700 p-2 text-center">{table1Totals.mb}</td>
-                  <td className="border-r border-zinc-400 dark:border-zinc-700 p-2 text-center">{table1Totals.e}</td>
-                  <td className="border-r border-zinc-400 dark:border-zinc-700 p-2 text-center text-blue-700 dark:text-blue-300 font-black bg-blue-50/30 dark:bg-blue-950/30 print:text-black">
-                    {table1Totals.posNum}
-                  </td>
-                  <td className="border-r border-zinc-400 dark:border-zinc-700 p-2 text-center font-bold">
-                    {table1Totals.posPct}%
-                  </td>
-                  <td className="border-r border-zinc-400 dark:border-zinc-700 p-2 text-center text-red-700 dark:text-red-300 font-black bg-red-50/30 dark:bg-red-950/30 print:text-black">
-                    {table1Totals.negNum}
-                  </td>
-                  <td className="border-r border-zinc-400 dark:border-zinc-700 p-2 text-center font-bold">
-                    {table1Totals.negPct}%
-                  </td>
-                  <td className="border-r border-zinc-400 dark:border-zinc-700 p-2 text-center font-black text-emerald-700 dark:text-emerald-300 print:text-black">
-                    {table1Totals.mPosNum}
-                  </td>
-                  <td className="border-r border-zinc-400 dark:border-zinc-700 p-2 text-center font-bold">
-                    {table1Totals.mPosPct}%
-                  </td>
-                  <td className="border-r border-zinc-400 dark:border-zinc-700 p-2 text-center font-black text-red-700 dark:text-red-300 print:text-black">
-                    {table1Totals.mNegNum}
-                  </td>
-                  <td className="p-2 text-center font-bold">{table1Totals.mNegPct}%</td>
-                </tr>
-              </tbody>
+                );})}
+</tbody>
             </table>
           </div>
         </div>
