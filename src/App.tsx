@@ -1229,6 +1229,8 @@ export default function App() {
       })
     };
     
+    setClasses(prev => prev.map(c => c.id === selectedClass.id ? updatedClass : c));
+
     try {
       await setDoc(doc(db, 'classes', selectedClass.id), updatedClass);
       setHasUnsyncedChanges(true);
@@ -1266,6 +1268,9 @@ export default function App() {
         return s;
       })
     };
+
+    // Actualização de estado em memória imediata para que a Pauta e a Situação da Turma fiquem 100% síncronas
+    setClasses(prev => prev.map(c => c.id === selectedClass.id ? updatedClass : c));
 
     try {
       await setDoc(doc(db, 'classes', selectedClass.id), updatedClass);
@@ -1329,6 +1334,8 @@ export default function App() {
       toast.info("Nenhuma média calculada nas avaliações desta turma para sincronizar.");
       return;
     }
+
+    setClasses(prev => prev.map(c => c.id === selectedClass.id ? updatedClass : c));
 
     try {
       await setDoc(doc(db, 'classes', selectedClass.id), updatedClass);

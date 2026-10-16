@@ -15,21 +15,21 @@ import {
 } from '@/src/App';
 
 export const APROVEITAMENTO_DISCIPLINAS = [
-  { id: 'portugues', name: 'Português', key: 'P', aliases: ['portugues', 'lp', 'lingua_portuguesa'] },
-  { id: 'ingles', name: 'Inglês', key: 'I', aliases: ['ingles', 'ing', 'lingua_inglesa'] },
-  { id: 'historia', name: 'História', key: 'H', aliases: ['historia', 'hist'] },
-  { id: 'geografia', name: 'Geografia', key: 'G', aliases: ['geografia', 'geo'] },
-  { id: 'filosofia', name: 'Filosofia', key: 'FIL', aliases: ['filosofia', 'fil'] },
-  { id: 'matematica', name: 'Matemática', key: 'M', aliases: ['matematica', 'mat'] },
-  { id: 'fisica', name: 'Física', key: 'F', aliases: ['fisica', 'fis'] },
-  { id: 'quimica', name: 'Química', key: 'Q', aliases: ['quimica', 'qui'] },
-  { id: 'biologia', name: 'Biologia', key: 'B', aliases: ['biologia', 'bio'] },
-  { id: 'ed_visual', name: 'Ed. Visual', key: 'EdV', aliases: ['ed_visual', 'ev', 'desenho'] },
-  { id: 'frances', name: 'Francês', key: 'FR', aliases: ['frances', 'fr'] },
-  { id: 'ne', name: 'NE', key: 'NE', aliases: ['ne', 'edmc', 'ed_moral', 'empreendedorismo'] },
-  { id: 'ap', name: 'AP', key: 'AP', aliases: ['ap', 'agropecuaria', 'agro_pecuaria'] },
-  { id: 'dgd', name: 'DGD', key: 'DGD', aliases: ['dgd', 'tics', 'tic', 'desenho_geometria'] },
-  { id: 'ed_fisica', name: 'Ed. Física', key: 'EdF', aliases: ['ed_fisica', 'ef', 'educacao_fisica'] },
+  { id: 'portugues', name: 'Português', key: 'P', aliases: ['portugues', 'lp', 'lingua_portuguesa', 'p', 'P'] },
+  { id: 'ingles', name: 'Inglês', key: 'I', aliases: ['ingles', 'ing', 'lingua_inglesa', 'i', 'I', 'english'] },
+  { id: 'historia', name: 'História', key: 'H', aliases: ['historia', 'hist', 'h', 'H'] },
+  { id: 'geografia', name: 'Geografia', key: 'G', aliases: ['geografia', 'geo', 'g', 'G'] },
+  { id: 'filosofia', name: 'Filosofia', key: 'FIL', aliases: ['filosofia', 'fil', 'FIL'] },
+  { id: 'matematica', name: 'Matemática', key: 'M', aliases: ['matematica', 'mat', 'm', 'M'] },
+  { id: 'fisica', name: 'Física', key: 'F', aliases: ['fisica', 'fis', 'f', 'F'] },
+  { id: 'quimica', name: 'Química', key: 'Q', aliases: ['quimica', 'qui', 'q', 'Q'] },
+  { id: 'biologia', name: 'Biologia', key: 'B', aliases: ['biologia', 'bio', 'b', 'B'] },
+  { id: 'ed_visual', name: 'Ed. Visual', key: 'EdV', aliases: ['ed_visual', 'ev', 'desenho', 'EdV', 'edv', 'Ed. V', 'ed. v', 'educacao visual'] },
+  { id: 'frances', name: 'Francês', key: 'FR', aliases: ['frances', 'fr', 'FR'] },
+  { id: 'edmc', name: 'Ed. MC / NE', key: 'EdMC', aliases: ['edmc', 'EdMC', 'ne', 'NE', 'ed_moral', 'empreendedorismo', 'Ed. MC', 'ed. mc', 'moral', 'educacao moral e civica'] },
+  { id: 'ap', name: 'Agropecuária', key: 'AP', aliases: ['ap', 'AP', 'agropecuaria', 'agro_pecuaria'] },
+  { id: 'tics', name: 'TICs / DGD', key: 'TICs', aliases: ['tics', 'TICs', 'dgd', 'DGD', 'tic', 'TIC', 'desenho_geometria', 'tecnologias', 'tecnologias de informacao e comunicacao'] },
+  { id: 'ed_fisica', name: 'Ed. Física', key: 'EdF', aliases: ['ed_fisica', 'ef', 'educacao_fisica', 'EdF', 'edf', 'Ed. F', 'ed. f', 'educacao fisica'] },
 ] as const;
 
 export type Table1RowData = {
@@ -81,6 +81,103 @@ export const formatPct = (num: number, total: number): string => {
   return pct.toFixed(1).replace('.', ',');
 };
 
+// Helper: Get student grade for a specific subject from Pauta da Turma with case-insensitive and alias fallbacks
+export const getGradeForStudentAndSubject = (
+  student: Student,
+  t: '1' | '2' | '3',
+  disc: { id: string; name: string; key: string; aliases?: readonly string[] },
+  selectedClassSubject?: string
+): string => {
+  const subGrades = getStudentSubjectGrades(student, t);
+  if (!subGrades) return '';
+
+  // 1. Direct match on key or id
+  if (subGrades[disc.key] !== undefined && subGrades[disc.key] !== null && subGrades[disc.key].trim() !== '') {
+    return subGrades[disc.key].trim();
+  }
+  if (subGrades[disc.id] !== undefined && subGrades[disc.id] !== null && subGrades[disc.id].trim() !== '') {
+    return subGrades[disc.id].trim();
+  }
+
+  // 2. Case-insensitive key and id check
+  const targetKeyLower = disc.key.toLowerCase().trim();
+  const targetIdLower = disc.id.toLowerCase().trim();
+  for (const [k, v] of Object.entries(subGrades)) {
+    if (v !== undefined && v !== null && v.trim() !== '') {
+      const kLower = k.toLowerCase().trim();
+      if (kLower === targetKeyLower || kLower === targetIdLower) {
+        return v.trim();
+      }
+    }
+  }
+
+  // 3. Aliases match (case-insensitive)
+  if (disc.aliases) {
+    for (const alias of disc.aliases) {
+      const aliasLower = alias.toLowerCase().trim();
+      for (const [k, v] of Object.entries(subGrades)) {
+        if (v !== undefined && v !== null && v.trim() !== '') {
+          if (k.toLowerCase().trim() === aliasLower) {
+            return v.trim();
+          }
+        }
+      }
+    }
+  }
+
+  // 4. Fallback: check if class teaches this subject
+  if (selectedClassSubject && (
+    selectedClassSubject.trim().toLowerCase() === disc.name.trim().toLowerCase() ||
+    (disc.aliases && disc.aliases.some(a => selectedClassSubject.trim().toLowerCase().includes(a.toLowerCase())))
+  )) {
+    const gradesObj = student.trimesterGrades?.[t] || (t === '1' ? student.grades : undefined);
+    if (gradesObj) {
+      const acsList = [gradesObj.acs1, gradesObj.acs2, gradesObj.acs3]
+        .map((x) => parseFloat((x || '').replace(',', '.')))
+        .filter((x) => !isNaN(x));
+      const apVal = parseFloat((gradesObj.ap || '').replace(',', '.'));
+      if (acsList.length > 0 && !isNaN(apVal)) {
+        const rawAcs = acsList.reduce((a, b) => a + b, 0) / acsList.length;
+        const acsAvg = Math.round(rawAcs);
+        const avg = Math.round((acsAvg + apVal) / 2);
+        return String(avg);
+      }
+      return gradesObj.ap || gradesObj.acs3 || gradesObj.acs2 || gradesObj.acs1 || '';
+    }
+  }
+
+  return '';
+};
+
+export type GradeCategory = 'NS' | 'S' | 'Bom' | 'MB' | 'E';
+
+/**
+ * Classifies a grade according to the rigorous Mozambican scale:
+ * NS: 0 a 9 valores
+ * S: 10 a 13 valores
+ * Bom: 14 a 16 valores
+ * MB: 17 a 18 valores
+ * E: 19 a 20 valores
+ */
+export const classifyGrade = (valStr: string): GradeCategory | null => {
+  if (!valStr || valStr.trim() === '' || valStr.trim() === '-') return null;
+  const num = parseFloat(valStr.replace(',', '.'));
+  if (isNaN(num)) return null;
+
+  const rounded = Math.round(num);
+
+  if (rounded >= 0 && rounded <= 9) return 'NS'; // 0 a 9 valores: Não Suficiente
+  if (rounded >= 10 && rounded <= 13) return 'S'; // 10 a 13 valores: Suficiente
+  if (rounded >= 14 && rounded <= 16) return 'Bom'; // 14 a 16 valores: Bom
+  if (rounded >= 17 && rounded <= 18) return 'MB'; // 17 a 18 valores: Muito Bom
+  if (rounded >= 19 && rounded <= 20) return 'E'; // 19 a 20 valores: Excelente
+
+  if (rounded < 0) return 'NS';
+  if (rounded > 20) return 'E';
+
+  return null;
+};
+
 // Strict Table 1 Rules Engine
 export const applyStrictRulesTable1Row = (row: Table1RowData): Table1RowData => {
   const ns = parseVal(row.ns);
@@ -89,37 +186,48 @@ export const applyStrictRulesTable1Row = (row: Table1RowData): Table1RowData => 
   const mb = parseVal(row.mb);
   const e = parseVal(row.e);
 
-  // Rule 1.1: A.A. = NS + S + Bom + MB + E
+  // Regra 1: A.A. refere aos alunos avaliados = NS + S + Bom + MB + E
   const hasQuant = ns > 0 || s > 0 || bom > 0 || mb > 0 || e > 0;
   const aa = hasQuant ? ns + s + bom + mb + e : parseVal(row.aa);
 
-  // Rule 1.2: Positivas = S + Bom + MB + E
+  // Regra 2: Resultados obtidos estritamente a partir das colunas de Quantificação
+  // Positivas = S + Bom + MB + E
   const posNum = s + bom + mb + e;
-  // Rule 1.3: Negativas = NS
+  // Negativas = NS
   const negNum = ns;
 
-  // Rule 1.4: Percentagens sobre A.A.
-  const posPct = aa > 0 ? formatPct(posNum, aa) : (row.positivasPct || '0,0');
-  const negPct = aa > 0 ? formatPct(negNum, aa) : (row.negativasPct || '0,0');
+  // Percentagens sobre A.A.
+  const posPct = aa > 0 ? formatPct(posNum, aa) : '';
+  const negPct = aa > 0 ? formatPct(negNum, aa) : '';
 
-  // Rule 1.5: Meninas
-  const mPos = parseVal(row.meninasPosNum);
-  const mNeg = parseVal(row.meninasNegNum);
+  // Regra 3: Meninas (observando as colunas de Quantificação)
+  let mPos = parseVal(row.meninasPosNum);
+  let mNeg = parseVal(row.meninasNegNum);
+
+  // Clamping de integridade: Meninas não podem exceder o total da respectiva situação
+  if (posNum > 0 && mPos > posNum) mPos = posNum;
+  if (negNum > 0 && mNeg > negNum) mNeg = negNum;
+
   const mAA = mPos + mNeg;
-  const mPosPct = mAA > 0 ? formatPct(mPos, mAA) : (aa > 0 && mPos > 0 ? formatPct(mPos, aa) : '0,0');
-  const mNegPct = mAA > 0 ? formatPct(mNeg, mAA) : (aa > 0 && mNeg > 0 ? formatPct(mNeg, aa) : '0,0');
+  const mPosPct = mAA > 0 ? formatPct(mPos, mAA) : '';
+  const mNegPct = mAA > 0 ? formatPct(mNeg, mAA) : '';
 
   return {
     ...row,
     aa: aa > 0 ? String(aa) : (hasQuant ? '0' : row.aa),
+    ns: ns > 0 ? String(ns) : (row.ns === '0' ? '0' : ''),
+    s: s > 0 ? String(s) : (row.s === '0' ? '0' : ''),
+    bom: bom > 0 ? String(bom) : (row.bom === '0' ? '0' : ''),
+    mb: mb > 0 ? String(mb) : (row.mb === '0' ? '0' : ''),
+    e: e > 0 ? String(e) : (row.e === '0' ? '0' : ''),
     positivasNum: posNum > 0 ? String(posNum) : (hasQuant ? '0' : row.positivasNum),
     positivasPct: aa > 0 ? posPct : '',
     negativasNum: negNum > 0 ? String(negNum) : (hasQuant ? '0' : row.negativasNum),
     negativasPct: aa > 0 ? negPct : '',
-    meninasPosNum: mPos > 0 ? String(mPos) : (row.meninasPosNum ? '0' : ''),
-    meninasPosPct: mAA > 0 ? mPosPct : (row.meninasPosPct || ''),
-    meninasNegNum: mNeg > 0 ? String(mNeg) : (row.meninasNegNum ? '0' : ''),
-    meninasNegPct: mAA > 0 ? mNegPct : (row.meninasNegPct || ''),
+    meninasPosNum: mPos > 0 ? String(mPos) : (row.meninasPosNum === '0' ? '0' : ''),
+    meninasPosPct: mAA > 0 ? mPosPct : '',
+    meninasNegNum: mNeg > 0 ? String(mNeg) : (row.meninasNegNum === '0' ? '0' : ''),
+    meninasNegPct: mAA > 0 ? mNegPct : '',
   };
 };
 
@@ -160,8 +268,10 @@ export const applyStrictRulesTable2 = (t2: Table2Data): Table2Data => {
   result.existentesFim2.hm = String(hExist2 + mExist2);
 
   // Rule 2.5: Positivas e Negativas (Número)
-  const hPos = parseVal(result.positivasNum.h);
-  const mPos = parseVal(result.positivasNum.m);
+  const hPos = Math.min(hExist2, parseVal(result.positivasNum.h));
+  const mPos = Math.min(mExist2, parseVal(result.positivasNum.m));
+  result.positivasNum.h = String(hPos);
+  result.positivasNum.m = String(mPos);
   result.positivasNum.hm = String(hPos + mPos);
 
   // Rule 2.6: Negativas = Existentes no Fim - Positivas
@@ -171,7 +281,7 @@ export const applyStrictRulesTable2 = (t2: Table2Data): Table2Data => {
   result.negativasNum.m = String(mNeg);
   result.negativasNum.hm = String(hNeg + mNeg);
 
-  // Rule 2.7: Percentagens sobre Existentes no Fim (devem fechar em 100%)
+  // Rule 2.7: Percentagens sobre Existentes no Fim (fecham em 100%)
   result.positivasPct.h = hExist2 > 0 ? formatPct(hPos, hExist2) : '0,0';
   result.positivasPct.m = mExist2 > 0 ? formatPct(mPos, mExist2) : '0,0';
   result.positivasPct.hm = (hExist2 + mExist2) > 0 ? formatPct(hPos + mPos, hExist2 + mExist2) : '0,0';
@@ -183,13 +293,54 @@ export const applyStrictRulesTable2 = (t2: Table2Data): Table2Data => {
   return result;
 };
 
+// Derive Table 2 from Table 1 totals when Table 1 is manually edited
+export const deriveTable2FromTable1 = (t1: Table1RowData[], currentT2: Table2Data): Table2Data => {
+  let posNumSum = 0;
+  let negNumSum = 0;
+  let mPosNumSum = 0;
+  let mNegNumSum = 0;
+
+  t1.forEach((row) => {
+    posNumSum += parseVal(row.positivasNum);
+    negNumSum += parseVal(row.negativasNum);
+    mPosNumSum += parseVal(row.meninasPosNum);
+    mNegNumSum += parseVal(row.meninasNegNum);
+  });
+
+  const totalAAT1 = posNumSum + negNumSum;
+  const totalMAAT1 = mPosNumSum + mNegNumSum;
+  const hPosNumSum = Math.max(0, posNumSum - mPosNumSum);
+  const hNegNumSum = Math.max(0, negNumSum - mNegNumSum);
+  const totalHAAT1 = hPosNumSum + hNegNumSum;
+
+  const result: Table2Data = JSON.parse(JSON.stringify(currentT2));
+  const hExist2 = parseVal(result.existentesFim2.h);
+  const mExist2 = parseVal(result.existentesFim2.m);
+
+  if (totalAAT1 > 0) {
+    const mRate = totalMAAT1 > 0 ? mPosNumSum / totalMAAT1 : 0;
+    const hRate = totalHAAT1 > 0 ? hPosNumSum / totalHAAT1 : 0;
+
+    const posH = Math.min(hExist2, Math.round(hExist2 * hRate));
+    const posM = Math.min(mExist2, Math.round(mExist2 * mRate));
+
+    result.positivasNum.h = String(posH);
+    result.positivasNum.m = String(posM);
+    result.positivasNum.hm = String(posH + posM);
+
+    return applyStrictRulesTable2(result);
+  }
+
+  return applyStrictRulesTable2(result);
+};
+
 // Compute pedagogical balance and general situation dynamically from class data
 export const computeAproveitamentoFromClass = (
   selectedClass: ClassData,
   t: '1' | '2' | '3',
   teacherDisplayName?: string
 ): { t1: Table1RowData[]; t2: Table2Data } => {
-  // 1. Compute Table 1
+  // 1. Compute Table 1 (Aproveitamento Pedagógico obtido rigorosamente da Pauta da Turma)
   const computedT1: Table1RowData[] = APROVEITAMENTO_DISCIPLINAS.map((disc) => {
     let aa = 0;
     let ns = 0;
@@ -202,57 +353,56 @@ export const computeAproveitamentoFromClass = (
     let meninasAA = 0;
 
     selectedClass.students.forEach((student) => {
-      // Look for grade using getStudentSubjectGrades
-      const subGrades = getStudentSubjectGrades(student, t);
-      let valStr = subGrades[disc.key] || subGrades[disc.id] || '';
+      const valStr = getGradeForStudentAndSubject(student, t, disc, selectedClass.subject);
+      const cat = classifyGrade(valStr);
 
-      if (!valStr && disc.aliases) {
-        for (const alias of disc.aliases) {
-          if (subGrades[alias]) {
-            valStr = subGrades[alias];
-            break;
-          }
-        }
-      }
+      if (cat !== null) {
+        aa++;
+        const isFemale = isStudentFemale(student);
+        if (isFemale) meninasAA++;
 
-      // Fallback: check if class teaches this subject
-      if (!valStr && selectedClass.subject.trim().toLowerCase() === disc.name.trim().toLowerCase()) {
-        const gradesObj = student.trimesterGrades?.[t] || (t === '1' ? student.grades : undefined);
-        if (gradesObj) {
-          valStr = gradesObj.ap || gradesObj.acs3 || gradesObj.acs2 || gradesObj.acs1 || '';
-        }
-      }
-
-      if (valStr && valStr.trim() !== '' && valStr.trim() !== '-') {
-        const numVal = parseFloat(valStr.replace(',', '.'));
-        if (!isNaN(numVal)) {
-          aa++;
-          const isFemale = isStudentFemale(student);
-          if (isFemale) meninasAA++;
-
-          if (numVal < 10) {
+        switch (cat) {
+          case 'NS':
             ns++;
             if (isFemale) meninasNeg++;
-          } else {
+            break;
+          case 'S':
+            s++;
             if (isFemale) meninasPos++;
-            if (numVal <= 13) s++;
-            else if (numVal <= 16) bom++;
-            else if (numVal <= 18) mb++;
-            else e++;
-          }
+            break;
+          case 'Bom':
+            bom++;
+            if (isFemale) meninasPos++;
+            break;
+          case 'MB':
+            mb++;
+            if (isFemale) meninasPos++;
+            break;
+          case 'E':
+            e++;
+            if (isFemale) meninasPos++;
+            break;
         }
       }
     });
 
+    // Resultados observando estritamente as colunas de Quantificação:
+    // Positivas = S + Bom + MB + E
     const posNum = s + bom + mb + e;
+    // Negativas = NS
     const negNum = ns;
+
+    // Percentagens sobre A.A.
     const posPct = aa > 0 ? formatPct(posNum, aa) : '';
     const negPct = aa > 0 ? formatPct(negNum, aa) : '';
+
+    // Meninas observando a Quantificação
     const mPosPct = meninasAA > 0 ? formatPct(meninasPos, meninasAA) : '';
     const mNegPct = meninasAA > 0 ? formatPct(meninasNeg, meninasAA) : '';
 
     // Default teacher name if class subject matches
-    const isCurrentSubject = selectedClass.subject.trim().toLowerCase() === disc.name.trim().toLowerCase();
+    const isCurrentSubject = selectedClass.subject.trim().toLowerCase() === disc.name.trim().toLowerCase() ||
+      (disc.aliases && disc.aliases.some(a => selectedClass.subject.trim().toLowerCase().includes(a.toLowerCase())));
     const defaultTeacher = isCurrentSubject ? (teacherDisplayName || (selectedClass as any).teacherName || '') : '';
 
     return {
@@ -260,23 +410,23 @@ export const computeAproveitamentoFromClass = (
       disciplina: disc.name,
       professor: defaultTeacher,
       aa: aa > 0 ? String(aa) : '',
-      ns: ns > 0 ? String(ns) : '',
-      s: s > 0 ? String(s) : '',
-      bom: bom > 0 ? String(bom) : '',
-      mb: mb > 0 ? String(mb) : '',
-      e: e > 0 ? String(e) : '',
-      positivasNum: posNum > 0 ? String(posNum) : '',
+      ns: aa > 0 ? String(ns) : '',
+      s: aa > 0 ? String(s) : '',
+      bom: aa > 0 ? String(bom) : '',
+      mb: aa > 0 ? String(mb) : '',
+      e: aa > 0 ? String(e) : '',
+      positivasNum: aa > 0 ? String(posNum) : '',
       positivasPct: posPct,
-      negativasNum: negNum > 0 ? String(negNum) : '',
+      negativasNum: aa > 0 ? String(negNum) : '',
       negativasPct: negPct,
-      meninasPosNum: meninasPos > 0 ? String(meninasPos) : '',
+      meninasPosNum: meninasAA > 0 ? String(meninasPos) : '',
       meninasPosPct: mPosPct,
-      meninasNegNum: meninasNeg > 0 ? String(meninasNeg) : '',
+      meninasNegNum: meninasAA > 0 ? String(meninasNeg) : '',
       meninasNegPct: mNegPct,
     };
   });
 
-  // 2. Compute Table 2 (Situação Geral da Turma - Modelo Rigoroso)
+  // 2. Compute Table 2 (Situação Geral da Turma - Observando rigorosamente os dados da Pauta e da Tabela 1)
   let totalH = 0;
   let totalM = 0;
   selectedClass.students.forEach((student) => {
@@ -288,29 +438,57 @@ export const computeAproveitamentoFromClass = (
   let posH = 0;
   let posM = 0;
 
+  // Analisa cada aluno através da Pauta da Turma (Média Geral da Pauta):
   selectedClass.students.forEach((student) => {
+    // 1. Tentar primeiro o cálculo oficial de Média Geral da Pauta (calculateMediaGeralForStudent)
     const mg = calculateMediaGeralForStudent(student, t);
     if (mg.hasAnyGrade && mg.rounded !== '-') {
-      const val = parseFloat(mg.rounded);
-      if (!isNaN(val) && val >= 10) {
+      const num = parseFloat(mg.rounded);
+      if (!isNaN(num) && num >= 10) {
         if (isStudentFemale(student)) posM++;
         else posH++;
+      }
+    } else {
+      // 2. Fallback: média de todas as disciplinas avaliadas
+      let studentSum = 0;
+      let studentCount = 0;
+      APROVEITAMENTO_DISCIPLINAS.forEach((disc) => {
+        const valStr = getGradeForStudentAndSubject(student, t, disc, selectedClass.subject);
+        const cat = classifyGrade(valStr);
+        if (cat !== null) {
+          const num = parseFloat(valStr.replace(',', '.'));
+          if (!isNaN(num)) {
+            studentSum += num;
+            studentCount++;
+          }
+        }
+      });
+      if (studentCount > 0) {
+        const studentAvg = studentSum / studentCount;
+        const roundedAvg = Math.round(studentAvg);
+        if (roundedAvg >= 10) {
+          if (isStudentFemale(student)) posM++;
+          else posH++;
+        }
       }
     }
   });
 
-  // Rule: Negativas = Existentes - Positivas
-  const negH = Math.max(0, totalH - posH);
-  const negM = Math.max(0, totalM - posM);
+  const hExist2 = totalH;
+  const mExist2 = totalM;
   const posHM = posH + posM;
+
+  // Regra Estrita: Negativas = Existentes no Fim - Positivas
+  const negH = Math.max(0, hExist2 - posH);
+  const negM = Math.max(0, mExist2 - posM);
   const negHM = negH + negM;
 
-  const posPctH = totalH > 0 ? formatPct(posH, totalH) : '0,0';
-  const posPctM = totalM > 0 ? formatPct(posM, totalM) : '0,0';
+  const posPctH = hExist2 > 0 ? formatPct(posH, hExist2) : '0,0';
+  const posPctM = mExist2 > 0 ? formatPct(posM, mExist2) : '0,0';
   const posPctHM = totalHM > 0 ? formatPct(posHM, totalHM) : '0,0';
 
-  const negPctH = totalH > 0 ? formatPct(negH, totalH) : '0,0';
-  const negPctM = totalM > 0 ? formatPct(negM, totalM) : '0,0';
+  const negPctH = hExist2 > 0 ? formatPct(negH, hExist2) : '0,0';
+  const negPctM = mExist2 > 0 ? formatPct(negM, mExist2) : '0,0';
   const negPctHM = totalHM > 0 ? formatPct(negHM, totalHM) : '0,0';
 
   const computedT2: Table2Data = {
@@ -319,7 +497,7 @@ export const computeAproveitamentoFromClass = (
     entraram2: { h: '0', m: '0', hm: '0' },
     total: { h: String(totalH), m: String(totalM), hm: String(totalHM) },
     transferidos: { h: '0', m: '0', hm: '0' },
-    existentesFim2: { h: String(totalH), m: String(totalM), hm: String(totalHM) },
+    existentesFim2: { h: String(hExist2), m: String(mExist2), hm: String(hExist2 + mExist2) },
     positivasNum: {
       h: String(posH),
       m: String(posM),
@@ -522,8 +700,29 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
 
     if (saved && saved.table1 && Array.isArray(saved.table1) && saved.table1.length > 0) {
       const mergedT1 = computed.t1.map((cRow) => {
-        const sRow = saved.table1.find((r: Table1RowData) => r.id === cRow.id);
-        const base = sRow ? { ...cRow, ...sRow } : cRow;
+        const sRow = saved.table1.find(
+          (r: Table1RowData) =>
+            r.id === cRow.id ||
+            r.disciplina.toLowerCase().trim() === cRow.disciplina.toLowerCase().trim() ||
+            (cRow.id === 'edmc' && (r.id === 'ne' || r.disciplina.toLowerCase().includes('moral') || r.disciplina.toLowerCase().includes('ne'))) ||
+            (cRow.id === 'tics' && (r.id === 'dgd' || r.disciplina.toLowerCase().includes('tic') || r.disciplina.toLowerCase().includes('dgd')))
+        );
+        if (!sRow) return cRow;
+
+        const cAA = parseVal(cRow.aa);
+
+        // Se a disciplina tem alunos avaliados na Pauta da Turma (cAA > 0),
+        // a Pauta da Turma é a FONTE OFICIAL estrita para quantificação e resultados!
+        // Preserva o nome do professor introduzido manualmente.
+        if (cAA > 0) {
+          return {
+            ...cRow,
+            professor: sRow.professor || cRow.professor,
+          };
+        }
+
+        // Se ainda não foram lançadas notas na Pauta para esta disciplina, preserva eventuais valores manuais
+        const base = { ...cRow, ...sRow };
         return applyStrictRulesTable1Row(base);
       });
       setTable1Data(mergedT1);
@@ -532,7 +731,15 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
     }
 
     if (saved && saved.table2) {
-      const mergedT2 = { ...computed.t2, ...saved.table2 };
+      // Para a Tabela 2: preserva dados contextuais manuais (transferidos, que entraram, mapa33 se editado),
+      // mas as Positivas e Negativas refletem rigorosamente o aproveitamento pedagógico oficial!
+      const mergedT2: Table2Data = {
+        ...computed.t2,
+        mapa33: saved.table2.mapa33 || computed.t2.mapa33,
+        existentesFim1: saved.table2.existentesFim1 || computed.t2.existentesFim1,
+        entraram2: saved.table2.entraram2 || computed.t2.entraram2,
+        transferidos: saved.table2.transferidos || computed.t2.transferidos,
+      };
       setTable2Data(applyStrictRulesTable2(mergedT2));
     } else {
       setTable2Data(computed.t2);
@@ -548,9 +755,27 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
       let row = { ...updated[index], [field]: value };
       row = applyStrictRulesTable1Row(row);
       updated[index] = row;
+      // Also update Table 2 so it strictly observes Table 1
+      setTable2Data((prevT2) => deriveTable2FromTable1(updated, prevT2));
       return updated;
     });
     setHasChanges(true);
+  };
+
+  // Recalculate everything fresh from Pauta da Turma
+  const handleRecalculateFromPauta = () => {
+    const fresh = computeAproveitamentoFromClass(selectedClass, trimester, user?.displayName);
+    const mergedT1 = fresh.t1.map((cRow) => {
+      const existing = table1Data.find((r) => r.id === cRow.id);
+      return {
+        ...cRow,
+        professor: existing?.professor || cRow.professor,
+      };
+    });
+    setTable1Data(mergedT1);
+    setTable2Data(fresh.t2);
+    setHasChanges(true);
+    toast.success('Aproveitamento Pedagógico e Situação Geral recalculados com sucesso a partir da Pauta da Turma!');
   };
 
   // Handle cell edit in Table 2
@@ -663,8 +888,19 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
           </h2>
         </div>
 
-        {/* Row 2: Aba de Selecção de Trimestres Centralizada */}
-        <div className="flex items-center justify-center pt-2 border-t border-border/50 relative">
+        {/* Row 2: Aba de Selecção de Trimestres e Acções */}
+        <div className="flex flex-wrap items-center justify-between gap-2.5 pt-2 border-t border-border/50">
+          {/* Botão Recalcular a partir da Pauta da Turma */}
+          <Button
+            variant="outline"
+            onClick={handleRecalculateFromPauta}
+            className="h-8.5 px-3 border border-purple-200 dark:border-purple-900/40 bg-purple-50/20 dark:bg-purple-950/20 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/30 rounded-xl text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-all shadow-2xs"
+            title="Recalcular dados das tabelas rigorosamente a partir da Pauta da Turma"
+          >
+            <RefreshCw className="h-3.5 w-3.5 shrink-0 text-purple-600 dark:text-purple-400" />
+            <span>Recalcular da Pauta</span>
+          </Button>
+
           {/* Trimester Tabs - Centralized */}
           <div className="flex p-0.5 bg-muted/70 rounded-xl border border-border/40 select-none">
             {(['1', '2', '3'] as const).map((t) => (
@@ -683,21 +919,21 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
           </div>
 
           {/* Optional Save button if manual changes occur */}
-          {hasChanges && onUpdateClass && (
-            <div className="absolute right-0 top-2">
-              <Button
-                onClick={handleSave}
-                disabled={isSaving}
-                className="h-8 px-3 sm:px-3.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-xl shadow-2xs flex items-center gap-1.5 cursor-pointer border-0"
-              >
-                {isSaving ? (
-                  <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <Save className="h-3.5 w-3.5" />
-                )}
-                <span className="hidden sm:inline">Guardar</span>
-              </Button>
-            </div>
+          {hasChanges && onUpdateClass ? (
+            <Button
+              onClick={handleSave}
+              disabled={isSaving}
+              className="h-8.5 px-3.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-xl shadow-2xs flex items-center gap-1.5 cursor-pointer border-0"
+            >
+              {isSaving ? (
+                <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Save className="h-3.5 w-3.5" />
+              )}
+              <span>Guardar</span>
+            </Button>
+          ) : (
+            <div className="w-28 hidden sm:block" />
           )}
         </div>
       </div>
