@@ -16,21 +16,21 @@ import {
 } from '@/src/App';
 
 export const APROVEITAMENTO_DISCIPLINAS = [
-  { id: 'portugues', name: 'Português', key: 'P', aliases: ['portugues', 'lp', 'lingua_portuguesa', 'p', 'P'] },
-  { id: 'ingles', name: 'Inglês', key: 'I', aliases: ['ingles', 'ing', 'lingua_inglesa', 'i', 'I', 'english'] },
-  { id: 'historia', name: 'História', key: 'H', aliases: ['historia', 'hist', 'h', 'H'] },
+  { id: 'portugues', name: 'Português', key: 'P', aliases: ['portugues', 'português', 'lp', 'lingua portuguesa', 'língua portuguesa', 'lingua_portuguesa', 'p', 'P'] },
+  { id: 'ingles', name: 'Inglês', key: 'I', aliases: ['ingles', 'inglês', 'ing', 'lingua inglesa', 'língua inglesa', 'lingua_inglesa', 'i', 'I', 'english'] },
+  { id: 'historia', name: 'História', key: 'H', aliases: ['historia', 'história', 'hist', 'h', 'H'] },
   { id: 'geografia', name: 'Geografia', key: 'G', aliases: ['geografia', 'geo', 'g', 'G'] },
   { id: 'filosofia', name: 'Filosofia', key: 'FIL', aliases: ['filosofia', 'fil', 'FIL'] },
-  { id: 'matematica', name: 'Matemática', key: 'M', aliases: ['matematica', 'mat', 'm', 'M'] },
-  { id: 'fisica', name: 'Física', key: 'F', aliases: ['fisica', 'fis', 'f', 'F'] },
-  { id: 'quimica', name: 'Química', key: 'Q', aliases: ['quimica', 'qui', 'q', 'Q'] },
+  { id: 'matematica', name: 'Matemática', key: 'M', aliases: ['matematica', 'matemática', 'mat', 'm', 'M'] },
+  { id: 'fisica', name: 'Física', key: 'F', aliases: ['fisica', 'física', 'fis', 'f', 'F'] },
+  { id: 'quimica', name: 'Química', key: 'Q', aliases: ['quimica', 'química', 'qui', 'q', 'Q'] },
   { id: 'biologia', name: 'Biologia', key: 'B', aliases: ['biologia', 'bio', 'b', 'B'] },
-  { id: 'ed_visual', name: 'Ed. Visual', key: 'EdV', aliases: ['ed_visual', 'ev', 'desenho', 'EdV', 'edv', 'Ed. V', 'ed. v', 'educacao visual'] },
-  { id: 'frances', name: 'Francês', key: 'FR', aliases: ['frances', 'fr', 'FR'] },
-  { id: 'edmc', name: 'Ed. MC / NE', key: 'EdMC', aliases: ['edmc', 'EdMC', 'ne', 'NE', 'ed_moral', 'empreendedorismo', 'Ed. MC', 'ed. mc', 'moral', 'educacao moral e civica'] },
-  { id: 'ap', name: 'Agropecuária', key: 'AP', aliases: ['ap', 'AP', 'agropecuaria', 'agro_pecuaria'] },
-  { id: 'tics', name: 'TICs / DGD', key: 'TICs', aliases: ['tics', 'TICs', 'dgd', 'DGD', 'tic', 'TIC', 'desenho_geometria', 'tecnologias', 'tecnologias de informacao e comunicacao'] },
-  { id: 'ed_fisica', name: 'Ed. Física', key: 'EdF', aliases: ['ed_fisica', 'ef', 'educacao_fisica', 'EdF', 'edf', 'Ed. F', 'ed. f', 'educacao fisica'] },
+  { id: 'ed_visual', name: 'Ed. Visual', key: 'EdV', aliases: ['ed_visual', 'ev', 'desenho', 'EdV', 'edv', 'Ed. V', 'ed. v', 'ed v', 'educacao visual', 'educação visual'] },
+  { id: 'frances', name: 'Francês', key: 'FR', aliases: ['frances', 'francês', 'fr', 'FR'] },
+  { id: 'edmc', name: 'Ed. MC / NE', key: 'EdMC', aliases: ['edmc', 'EdMC', 'ne', 'NE', 'ed_moral', 'empreendedorismo', 'Ed. MC', 'ed. mc', 'ed mc', 'moral', 'educacao moral e civica', 'educação moral e cívica'] },
+  { id: 'ap', name: 'Agropecuária', key: 'AP', aliases: ['ap', 'AP', 'agropecuaria', 'agropecuária', 'agro_pecuaria'] },
+  { id: 'tics', name: 'TICs / DGD', key: 'TICs', aliases: ['tics', 'TICs', 'dgd', 'DGD', 'tic', 'TIC', 'desenho_geometria', 'tecnologias', 'tecnologias de informacao e comunicacao', 'tecnologias de informação e comunicação'] },
+  { id: 'ed_fisica', name: 'Ed. Física', key: 'EdF', aliases: ['ed_fisica', 'ef', 'educacao_fisica', 'educação física', 'EdF', 'edf', 'Ed. F', 'ed. f', 'ed f', 'educacao fisica'] },
 ] as const;
 
 export type Table1RowData = {
@@ -58,65 +58,100 @@ export type Table1RowData = {
  * Disciplinas que não constam na pauta (como Filosofia e Francês no 1º ciclo)
  * devem permanecer estritamente vazias na tabela de aproveitamento pedagógico.
  */
-export const isSubjectInPauta = (
-  disc: { id: string; name?: string; key?: string } | string
-): boolean => {
-  if (!disc) return false;
+const normStr = (s: string): string =>
+  (s || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]/g, '')
+    .trim();
+
+/**
+ * Mapeia uma disciplina de APROVEITAMENTO_DISCIPLINAS para a sua coluna correspondente
+ * na Pauta da Turma (MEDIA_GERAL_SUBJECTS).
+ * Disciplinas que não constam na Pauta da Turma (como Filosofia e Francês no 1º ciclo) retornam null.
+ */
+export const getPautaSubjectForDisciplina = (
+  disc: { id: string; name?: string; key?: string; aliases?: readonly string[] } | string
+): { key: string; label: string; name: string } | null => {
+  if (!disc) return null;
   const id = typeof disc === 'string' ? disc : disc.id;
   const key = typeof disc === 'string' ? disc : (disc.key || disc.id);
   const name = typeof disc === 'string' ? disc : (disc.name || disc.id);
+  const aliases = typeof disc === 'string' ? [] : (disc.aliases || []);
 
-  const idLower = id.trim().toLowerCase();
-  const keyLower = key.trim().toLowerCase();
-  const nameLower = name.trim().toLowerCase();
+  const idNorm = normStr(id);
+  const keyNorm = normStr(key);
+  const nameNorm = normStr(name);
+  const aliasesNorm = aliases.map(normStr);
 
-  // Exclusões explícitas: disciplinas que não constam na Pauta da Turma
-  if (
-    idLower === 'filosofia' ||
-    keyLower === 'fil' ||
-    nameLower === 'filosofia' ||
-    idLower === 'frances' ||
-    keyLower === 'fr' ||
-    nameLower === 'francês' ||
-    nameLower === 'frances'
-  ) {
-    return false;
+  // Exclusões explícitas: Filosofia e Francês não constam na Pauta da Turma do 1º Ciclo
+  if (idNorm === 'filosofia' || keyNorm === 'fil' || nameNorm.includes('filosofia')) return null;
+  if (idNorm === 'frances' || keyNorm === 'fr' || nameNorm.includes('frances')) return null;
+
+  for (const sub of MEDIA_GERAL_SUBJECTS) {
+    const sKeyNorm = normStr(sub.key);
+    const sNameNorm = normStr(sub.name);
+    const sLabelNorm = normStr(sub.label);
+
+    if (
+      sKeyNorm === keyNorm ||
+      sKeyNorm === idNorm ||
+      sNameNorm === nameNorm ||
+      sLabelNorm === keyNorm ||
+      sLabelNorm === nameNorm ||
+      sLabelNorm === idNorm ||
+      aliasesNorm.includes(sKeyNorm) ||
+      aliasesNorm.includes(sLabelNorm) ||
+      aliasesNorm.includes(sNameNorm)
+    ) {
+      return sub as any;
+    }
   }
 
-  return MEDIA_GERAL_SUBJECTS.some((sub) => {
-    const sKey = sub.key.toLowerCase();
-    const sName = sub.name.toLowerCase();
-    const sLabel = sub.label.toLowerCase();
-    return (
-      sKey === keyLower ||
-      sKey === idLower ||
-      sName === nameLower ||
-      sLabel === keyLower
-    );
-  });
+  // Tenta encontrar em APROVEITAMENTO_DISCIPLINAS por id ou nome para resolver aliases
+  const foundDisc = APROVEITAMENTO_DISCIPLINAS.find(
+    (d) => normStr(d.id) === idNorm || normStr(d.name) === nameNorm || normStr(d.key) === keyNorm
+  );
+  if (foundDisc && foundDisc !== disc) {
+    return getPautaSubjectForDisciplina(foundDisc);
+  }
+
+  return null;
 };
 
 /**
- * Cria uma linha totalmente vazia para disciplinas que não constam na Pauta da Turma
+ * Verifica se a disciplina consta oficialmente na Pauta da Turma (MEDIA_GERAL_SUBJECTS).
+ */
+export const isSubjectInPauta = (
+  disc: { id: string; name?: string; key?: string; aliases?: readonly string[] } | string
+): boolean => {
+  return getPautaSubjectForDisciplina(disc) !== null;
+};
+
+/**
+ * Cria uma linha padrão com traço '-' para disciplinas que não constam na Pauta da Turma
+ * ou para disciplinas que ainda não possuem dados lançados na Pauta da Turma.
+ * Nenhuma disciplina fica bloqueada: o utilizador pode editar livremente qualquer campo.
  */
 export const createEmptyTable1Row = (id: string, disciplina: string): Table1RowData => ({
   id,
   disciplina,
-  professor: '',
-  aa: '',
-  ns: '',
-  s: '',
-  bom: '',
-  mb: '',
-  e: '',
-  positivasNum: '',
-  positivasPct: '',
-  negativasNum: '',
-  negativasPct: '',
-  meninasPosNum: '',
-  meninasPosPct: '',
-  meninasNegNum: '',
-  meninasNegPct: '',
+  professor: '-',
+  aa: '-',
+  ns: '-',
+  s: '-',
+  bom: '-',
+  mb: '-',
+  e: '-',
+  positivasNum: '-',
+  positivasPct: '-',
+  negativasNum: '-',
+  negativasPct: '-',
+  meninasPosNum: '-',
+  meninasPosPct: '-',
+  meninasNegNum: '-',
+  meninasNegPct: '-',
 });
 
 export type Table2Data = {
@@ -137,6 +172,7 @@ export const parseVal = (val: string | number | undefined | null): number => {
   if (val === undefined || val === null) return 0;
   if (typeof val === 'number') return isNaN(val) ? 0 : val;
   const cleaned = String(val).trim().replace(',', '.');
+  if (cleaned === '' || cleaned === '-') return 0;
   const num = parseFloat(cleaned);
   return isNaN(num) ? 0 : num;
 };
@@ -152,68 +188,82 @@ export const formatPct = (num: number, total: number): string => {
 export const getGradeForStudentAndSubject = (
   student: Student,
   t: '1' | '2' | '3',
-  disc: { id: string; name: string; key: string; aliases?: readonly string[] },
+  disc: { id: string; name: string; key: string; aliases?: readonly string[] } | string,
   selectedClassSubject?: string
 ): string => {
-  // Se a disciplina NÃO consta na Pauta da Turma (ex: Filosofia), não possui notas na pauta
-  if (!isSubjectInPauta(disc)) {
+  const pautaSub = getPautaSubjectForDisciplina(disc);
+  // Se a disciplina NÃO consta na Pauta da Turma (ex: Filosofia, Francês), não tem notas na pauta
+  if (!pautaSub) {
     return '';
   }
+
   const subGrades = getStudentSubjectGrades(student, t);
   if (!subGrades) return '';
 
-  // 1. Direct match on key or id
-  if (subGrades[disc.key] !== undefined && subGrades[disc.key] !== null && subGrades[disc.key].trim() !== '') {
-    return subGrades[disc.key].trim();
-  }
-  if (subGrades[disc.id] !== undefined && subGrades[disc.id] !== null && subGrades[disc.id].trim() !== '') {
-    return subGrades[disc.id].trim();
+  // 1. Direct match com a chave oficial da Pauta da Turma (ex: 'EdV', 'EdF', 'P', 'M', etc.)
+  if (subGrades[pautaSub.key] !== undefined && subGrades[pautaSub.key] !== null) {
+    const vStr = String(subGrades[pautaSub.key]).trim();
+    if (vStr !== '' && vStr !== '-') return vStr;
   }
 
-  // 2. Case-insensitive key and id check
-  const targetKeyLower = disc.key.toLowerCase().trim();
-  const targetIdLower = disc.id.toLowerCase().trim();
+  // 2. Case-insensitive key match na Pauta
+  const targetKeyLower = pautaSub.key.toLowerCase().trim();
   for (const [k, v] of Object.entries(subGrades)) {
-    if (v !== undefined && v !== null && v.trim() !== '') {
-      const kLower = k.toLowerCase().trim();
-      if (kLower === targetKeyLower || kLower === targetIdLower) {
-        return v.trim();
+    if (v !== undefined && v !== null) {
+      const vStr = String(v).trim();
+      if (vStr !== '' && vStr !== '-' && k.toLowerCase().trim() === targetKeyLower) {
+        return vStr;
       }
     }
   }
 
-  // 3. Aliases match (case-insensitive)
-  if (disc.aliases) {
-    for (const alias of disc.aliases) {
-      const aliasLower = alias.toLowerCase().trim();
-      for (const [k, v] of Object.entries(subGrades)) {
-        if (v !== undefined && v !== null && v.trim() !== '') {
-          if (k.toLowerCase().trim() === aliasLower) {
-            return v.trim();
-          }
+  // 3. Match contra disc.id, disc.key ou aliases se disc for object
+  if (typeof disc === 'object') {
+    const idLower = disc.id.toLowerCase().trim();
+    const keyLower = disc.key.toLowerCase().trim();
+    for (const [k, v] of Object.entries(subGrades)) {
+      if (v !== undefined && v !== null) {
+        const vStr = String(v).trim();
+        const kLower = k.toLowerCase().trim();
+        if (vStr !== '' && vStr !== '-' && (kLower === idLower || kLower === keyLower)) {
+          return vStr;
+        }
+        if (disc.aliases && disc.aliases.some((a) => a.toLowerCase().trim() === kLower)) {
+          if (vStr !== '' && vStr !== '-') return vStr;
         }
       }
     }
   }
 
-  // 4. Fallback: check if class teaches this subject
-  if (selectedClassSubject && (
-    selectedClassSubject.trim().toLowerCase() === disc.name.trim().toLowerCase() ||
-    (disc.aliases && disc.aliases.some(a => selectedClassSubject.trim().toLowerCase().includes(a.toLowerCase())))
-  )) {
-    const gradesObj = student.trimesterGrades?.[t] || (t === '1' ? student.grades : undefined);
-    if (gradesObj) {
-      const acsList = [gradesObj.acs1, gradesObj.acs2, gradesObj.acs3]
-        .map((x) => parseFloat((x || '').replace(',', '.')))
-        .filter((x) => !isNaN(x));
-      const apVal = parseFloat((gradesObj.ap || '').replace(',', '.'));
-      if (acsList.length > 0 && !isNaN(apVal)) {
-        const rawAcs = acsList.reduce((a, b) => a + b, 0) / acsList.length;
-        const acsAvg = Math.round(rawAcs);
-        const avg = Math.round((acsAvg + apVal) / 2);
-        return String(avg);
+  // 4. Fallback: se o professor logado leciona esta disciplina na turma
+  if (selectedClassSubject) {
+    const normSub = normStr(selectedClassSubject);
+    const matchesCurrent =
+      normSub === normStr(pautaSub.name) ||
+      normSub === normStr(pautaSub.label) ||
+      normSub === normStr(pautaSub.key) ||
+      (typeof disc === 'object' && (
+        normSub === normStr(disc.name) ||
+        normSub === normStr(disc.id) ||
+        (disc.aliases && disc.aliases.some((a) => normSub.includes(normStr(a))))
+      ));
+
+    if (matchesCurrent) {
+      const gradesObj = student.trimesterGrades?.[t] || (t === '1' ? student.grades : undefined);
+      if (gradesObj) {
+        const acsList = [gradesObj.acs1, gradesObj.acs2, gradesObj.acs3]
+          .map((x) => parseFloat((x || '').replace(',', '.')))
+          .filter((x) => !isNaN(x));
+        const apVal = parseFloat((gradesObj.ap || '').replace(',', '.'));
+        if (acsList.length > 0 && !isNaN(apVal)) {
+          const rawAcs = acsList.reduce((a, b) => a + b, 0) / acsList.length;
+          const acsAvg = Math.round(rawAcs);
+          const avg = Math.round((acsAvg + apVal) / 2);
+          return String(avg);
+        }
+        const single = (gradesObj.ap || gradesObj.acs3 || gradesObj.acs2 || gradesObj.acs1 || '').trim();
+        if (single !== '' && single !== '-') return single;
       }
-      return gradesObj.ap || gradesObj.acs3 || gradesObj.acs2 || gradesObj.acs1 || '';
     }
   }
 
@@ -257,8 +307,38 @@ export const applyStrictRulesTable1Row = (row: Table1RowData): Table1RowData => 
   const mb = parseVal(row.mb);
   const e = parseVal(row.e);
 
+  // Verifica se o utilizador introduziu números válidos em alguma célula de quantificação
+  const hasQuant =
+    (row.ns !== '' && row.ns !== '-' && ns > 0) ||
+    (row.s !== '' && row.s !== '-' && s > 0) ||
+    (row.bom !== '' && row.bom !== '-' && bom > 0) ||
+    (row.mb !== '' && row.mb !== '-' && mb > 0) ||
+    (row.e !== '' && row.e !== '-' && e > 0);
+
+  // Se a linha não tem números lançados e está marcada com traço, mantém os traços
+  if (!hasQuant && (row.aa === '-' || row.aa === '')) {
+    const dashIfEmpty = (v: string) => (v === '' ? '-' : v);
+    return {
+      ...row,
+      professor: row.professor || '-',
+      aa: dashIfEmpty(row.aa),
+      ns: dashIfEmpty(row.ns),
+      s: dashIfEmpty(row.s),
+      bom: dashIfEmpty(row.bom),
+      mb: dashIfEmpty(row.mb),
+      e: dashIfEmpty(row.e),
+      positivasNum: dashIfEmpty(row.positivasNum),
+      positivasPct: dashIfEmpty(row.positivasPct),
+      negativasNum: dashIfEmpty(row.negativasNum),
+      negativasPct: dashIfEmpty(row.negativasPct),
+      meninasPosNum: dashIfEmpty(row.meninasPosNum),
+      meninasPosPct: dashIfEmpty(row.meninasPosPct),
+      meninasNegNum: dashIfEmpty(row.meninasNegNum),
+      meninasNegPct: dashIfEmpty(row.meninasNegPct),
+    };
+  }
+
   // Regra 1: A.A. refere aos alunos avaliados = NS + S + Bom + MB + E
-  const hasQuant = ns > 0 || s > 0 || bom > 0 || mb > 0 || e > 0;
   const aa = hasQuant ? ns + s + bom + mb + e : parseVal(row.aa);
 
   // Regra 2: Resultados obtidos estritamente a partir das colunas de Quantificação
@@ -268,8 +348,8 @@ export const applyStrictRulesTable1Row = (row: Table1RowData): Table1RowData => 
   const negNum = ns;
 
   // Percentagens sobre A.A.
-  const posPct = aa > 0 ? formatPct(posNum, aa) : '';
-  const negPct = aa > 0 ? formatPct(negNum, aa) : '';
+  const posPct = aa > 0 ? formatPct(posNum, aa) : '-';
+  const negPct = aa > 0 ? formatPct(negNum, aa) : '-';
 
   // Regra 3: Meninas (observando as colunas de Quantificação)
   let mPos = parseVal(row.meninasPosNum);
@@ -278,27 +358,26 @@ export const applyStrictRulesTable1Row = (row: Table1RowData): Table1RowData => 
   // Clamping de integridade: Meninas não podem exceder o total da respectiva situação
   if (posNum > 0 && mPos > posNum) mPos = posNum;
   if (negNum > 0 && mNeg > negNum) mNeg = negNum;
-
   const mAA = mPos + mNeg;
-  const mPosPct = mAA > 0 ? formatPct(mPos, mAA) : '';
-  const mNegPct = mAA > 0 ? formatPct(mNeg, mAA) : '';
+  const mPosPct = mAA > 0 ? formatPct(mPos, mAA) : '-';
+  const mNegPct = mAA > 0 ? formatPct(mNeg, mAA) : '-';
 
   return {
     ...row,
-    aa: aa > 0 ? String(aa) : (hasQuant ? '0' : row.aa),
-    ns: ns > 0 ? String(ns) : (row.ns === '0' ? '0' : ''),
-    s: s > 0 ? String(s) : (row.s === '0' ? '0' : ''),
-    bom: bom > 0 ? String(bom) : (row.bom === '0' ? '0' : ''),
-    mb: mb > 0 ? String(mb) : (row.mb === '0' ? '0' : ''),
-    e: e > 0 ? String(e) : (row.e === '0' ? '0' : ''),
-    positivasNum: posNum > 0 ? String(posNum) : (hasQuant ? '0' : row.positivasNum),
-    positivasPct: aa > 0 ? posPct : '',
-    negativasNum: negNum > 0 ? String(negNum) : (hasQuant ? '0' : row.negativasNum),
-    negativasPct: aa > 0 ? negPct : '',
-    meninasPosNum: mPos > 0 ? String(mPos) : (row.meninasPosNum === '0' ? '0' : ''),
-    meninasPosPct: mAA > 0 ? mPosPct : '',
-    meninasNegNum: mNeg > 0 ? String(mNeg) : (row.meninasNegNum === '0' ? '0' : ''),
-    meninasNegPct: mAA > 0 ? mNegPct : '',
+    aa: aa > 0 ? String(aa) : (hasQuant ? '0' : '-'),
+    ns: ns > 0 ? String(ns) : (row.ns === '0' ? '0' : (hasQuant ? '0' : '-')),
+    s: s > 0 ? String(s) : (row.s === '0' ? '0' : (hasQuant ? '0' : '-')),
+    bom: bom > 0 ? String(bom) : (row.bom === '0' ? '0' : (hasQuant ? '0' : '-')),
+    mb: mb > 0 ? String(mb) : (row.mb === '0' ? '0' : (hasQuant ? '0' : '-')),
+    e: e > 0 ? String(e) : (row.e === '0' ? '0' : (hasQuant ? '0' : '-')),
+    positivasNum: posNum > 0 ? String(posNum) : (hasQuant ? '0' : '-'),
+    positivasPct: aa > 0 ? posPct : '-',
+    negativasNum: negNum > 0 ? String(negNum) : (hasQuant ? '0' : '-'),
+    negativasPct: aa > 0 ? negPct : '-',
+    meninasPosNum: mPos > 0 ? String(mPos) : (row.meninasPosNum === '0' ? '0' : (hasQuant ? '0' : '-')),
+    meninasPosPct: mAA > 0 ? mPosPct : '-',
+    meninasNegNum: mNeg > 0 ? String(mNeg) : (row.meninasNegNum === '0' ? '0' : (hasQuant ? '0' : '-')),
+    meninasNegPct: mAA > 0 ? mNegPct : '-',
   };
 };
 
@@ -411,13 +490,15 @@ export const computeAproveitamentoFromClass = (
   t: '1' | '2' | '3',
   teacherDisplayName?: string
 ): { t1: Table1RowData[]; t2: Table2Data } => {
-  // 1. Compute Table 1 (Aproveitamento Pedagógico obtido rigorosamente da Pauta da Turma)
+  // 1. Compute Table 1 (Aproveitamento Pedagógico obtido através da verificação cuidadosa da Pauta da Turma)
   const computedT1: Table1RowData[] = APROVEITAMENTO_DISCIPLINAS.map((disc) => {
-    // Se a disciplina NÃO consta na Pauta da Turma (ex: Filosofia, Francês),
-    // deve estar estritamente vazia, sem informações correspondentes!
-    if (!isSubjectInPauta(disc)) {
+    const pautaSub = getPautaSubjectForDisciplina(disc);
+    // Se a disciplina NÃO consta na Pauta da Turma (ex: Filosofia, Francês no 1º ciclo),
+    // deve conter simplesmente um traço '-', conforme solicitado:
+    if (!pautaSub) {
       return createEmptyTable1Row(disc.id, disc.name);
     }
+
     let aa = 0;
     let ns = 0;
     let s = 0;
@@ -431,12 +512,10 @@ export const computeAproveitamentoFromClass = (
     selectedClass.students.forEach((student) => {
       const valStr = getGradeForStudentAndSubject(student, t, disc, selectedClass.subject);
       const cat = classifyGrade(valStr);
-
       if (cat !== null) {
         aa++;
         const isFemale = isStudentFemale(student);
         if (isFemale) meninasAA++;
-
         switch (cat) {
           case 'NS':
             ns++;
@@ -462,6 +541,36 @@ export const computeAproveitamentoFromClass = (
       }
     });
 
+    // Default teacher name if class subject matches
+    const isCurrentSubject =
+      selectedClass.subject.trim().toLowerCase() === disc.name.trim().toLowerCase() ||
+      (disc.aliases && disc.aliases.some(a => selectedClass.subject.trim().toLowerCase().includes(a.toLowerCase())));
+    const defaultTeacher = isCurrentSubject ? (teacherDisplayName || (selectedClass as any).teacherName || '') : '';
+
+    // Se na Pauta da Turma não constam dados para esta disciplina (aa === 0),
+    // coloca-se simplesmente um traço '-' em todas as células numéricas
+    if (aa === 0) {
+      return {
+        id: disc.id,
+        disciplina: disc.name,
+        professor: defaultTeacher || '-',
+        aa: '-',
+        ns: '-',
+        s: '-',
+        bom: '-',
+        mb: '-',
+        e: '-',
+        positivasNum: '-',
+        positivasPct: '-',
+        negativasNum: '-',
+        negativasPct: '-',
+        meninasPosNum: '-',
+        meninasPosPct: '-',
+        meninasNegNum: '-',
+        meninasNegPct: '-',
+      };
+    }
+
     // Resultados observando estritamente as colunas de Quantificação:
     // Positivas = S + Bom + MB + E
     const posNum = s + bom + mb + e;
@@ -469,35 +578,30 @@ export const computeAproveitamentoFromClass = (
     const negNum = ns;
 
     // Percentagens sobre A.A.
-    const posPct = aa > 0 ? formatPct(posNum, aa) : '';
-    const negPct = aa > 0 ? formatPct(negNum, aa) : '';
+    const posPct = formatPct(posNum, aa);
+    const negPct = formatPct(negNum, aa);
 
     // Meninas observando a Quantificação
-    const mPosPct = meninasAA > 0 ? formatPct(meninasPos, meninasAA) : '';
-    const mNegPct = meninasAA > 0 ? formatPct(meninasNeg, meninasAA) : '';
-
-    // Default teacher name if class subject matches
-    const isCurrentSubject = selectedClass.subject.trim().toLowerCase() === disc.name.trim().toLowerCase() ||
-      (disc.aliases && disc.aliases.some(a => selectedClass.subject.trim().toLowerCase().includes(a.toLowerCase())));
-    const defaultTeacher = isCurrentSubject ? (teacherDisplayName || (selectedClass as any).teacherName || '') : '';
+    const mPosPct = meninasAA > 0 ? formatPct(meninasPos, meninasAA) : '-';
+    const mNegPct = meninasAA > 0 ? formatPct(meninasNeg, meninasAA) : '-';
 
     return {
       id: disc.id,
       disciplina: disc.name,
-      professor: defaultTeacher,
-      aa: aa > 0 ? String(aa) : '',
-      ns: aa > 0 ? String(ns) : '',
-      s: aa > 0 ? String(s) : '',
-      bom: aa > 0 ? String(bom) : '',
-      mb: aa > 0 ? String(mb) : '',
-      e: aa > 0 ? String(e) : '',
-      positivasNum: aa > 0 ? String(posNum) : '',
+      professor: defaultTeacher || '-',
+      aa: String(aa),
+      ns: String(ns),
+      s: String(s),
+      bom: String(bom),
+      mb: String(mb),
+      e: String(e),
+      positivasNum: String(posNum),
       positivasPct: posPct,
-      negativasNum: aa > 0 ? String(negNum) : '',
+      negativasNum: String(negNum),
       negativasPct: negPct,
-      meninasPosNum: meninasAA > 0 ? String(meninasPos) : '',
+      meninasPosNum: meninasAA > 0 ? String(meninasPos) : '0',
       meninasPosPct: mPosPct,
-      meninasNegNum: meninasAA > 0 ? String(meninasNeg) : '',
+      meninasNegNum: meninasAA > 0 ? String(meninasNeg) : '0',
       meninasNegPct: mNegPct,
     };
   });
@@ -646,24 +750,23 @@ export const buildAproveitamentoExcelData = (
   table1Data.forEach((row) => {
     aoa.push([
       row.disciplina,
-      row.professor,
-      row.aa,
-      row.ns,
-      row.s,
-      row.bom,
-      row.mb,
-      row.e,
-      row.positivasNum,
-      row.positivasPct ? `${row.positivasPct}%` : '',
-      row.negativasNum,
-      row.negativasPct ? `${row.negativasPct}%` : '',
-      row.meninasPosNum,
-      row.meninasPosPct ? `${row.meninasPosPct}%` : '',
-      row.meninasNegNum,
-      row.meninasNegPct ? `${row.meninasNegPct}%` : '',
+      row.professor || '-',
+      row.aa || '-',
+      row.ns || '-',
+      row.s || '-',
+      row.bom || '-',
+      row.mb || '-',
+      row.e || '-',
+      row.positivasNum || '-',
+      row.positivasPct ? (row.positivasPct === '-' ? '-' : `${row.positivasPct}%`) : '-',
+      row.negativasNum || '-',
+      row.negativasPct ? (row.negativasPct === '-' ? '-' : `${row.negativasPct}%`) : '-',
+      row.meninasPosNum || '-',
+      row.meninasPosPct ? (row.meninasPosPct === '-' ? '-' : `${row.meninasPosPct}%`) : '-',
+      row.meninasNegNum || '-',
+      row.meninasNegPct ? (row.meninasNegPct === '-' ? '-' : `${row.meninasNegPct}%`) : '-',
     ]);
   });
-
   // A tabela oficial de aproveitamento pedagógico não possui linha de total
 
   // Spacers
@@ -759,9 +862,17 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
 
     if (saved && saved.table1 && Array.isArray(saved.table1) && saved.table1.length > 0) {
       const mergedT1 = computed.t1.map((cRow) => {
-        // Se a disciplina NÃO consta na Pauta da Turma (ex: Filosofia, Francês),
-        // deve permanecer estritamente vazia, sem informações correspondentes!
-        if (!isSubjectInPauta(cRow.id) && !isSubjectInPauta(cRow.disciplina)) {
+        // Se a disciplina NÃO consta na Pauta da Turma (como Filosofia e Francês no 1º ciclo)
+        if (!isSubjectInPauta(cRow.id)) {
+          // Permite manter dados manuais caso o utilizador os tenha introduzido voluntariamente
+          const sRow = saved.table1.find(
+            (r: Table1RowData) =>
+              r.id === cRow.id ||
+              r.disciplina.toLowerCase().trim() === cRow.disciplina.toLowerCase().trim()
+          );
+          if (sRow && parseVal(sRow.aa) > 0) {
+            return applyStrictRulesTable1Row({ ...cRow, ...sRow });
+          }
           return createEmptyTable1Row(cRow.id, cRow.disciplina);
         }
 
@@ -770,25 +881,32 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
             r.id === cRow.id ||
             r.disciplina.toLowerCase().trim() === cRow.disciplina.toLowerCase().trim() ||
             (cRow.id === 'edmc' && (r.id === 'ne' || r.disciplina.toLowerCase().includes('moral') || r.disciplina.toLowerCase().includes('ne'))) ||
-            (cRow.id === 'tics' && (r.id === 'dgd' || r.disciplina.toLowerCase().includes('tic') || r.disciplina.toLowerCase().includes('dgd')))
+            (cRow.id === 'tics' && (r.id === 'dgd' || r.disciplina.toLowerCase().includes('tic') || r.disciplina.toLowerCase().includes('dgd'))) ||
+            (cRow.id === 'ed_visual' && (r.id === 'ev' || r.disciplina.toLowerCase().includes('visual') || r.disciplina.toLowerCase().includes('edv'))) ||
+            (cRow.id === 'ed_fisica' && (r.id === 'ef' || r.disciplina.toLowerCase().includes('fisica') || r.disciplina.toLowerCase().includes('edf')))
         );
+
         if (!sRow) return cRow;
 
         const cAA = parseVal(cRow.aa);
-
-        // Se a disciplina tem alunos avaliados na Pauta da Turma (cAA > 0),
+        // Se a disciplina tem notas avaliadas na Pauta da Turma (cAA > 0),
         // a Pauta da Turma é a FONTE OFICIAL estrita para quantificação e resultados!
-        // Preserva o nome do professor introduzido manualmente.
+        // Preserva o professor introduzido manualmente se existir.
         if (cAA > 0) {
           return {
             ...cRow,
-            professor: sRow.professor || cRow.professor,
+            professor: (sRow.professor && sRow.professor !== '-') ? sRow.professor : cRow.professor,
           };
         }
 
-        // Se ainda não foram lançadas notas na Pauta para esta disciplina, preserva eventuais valores manuais
-        const base = { ...cRow, ...sRow };
-        return applyStrictRulesTable1Row(base);
+        // Se na Pauta ainda não constam notas para esta disciplina mas o utilizador preencheu manualmente:
+        const sAA = parseVal(sRow.aa);
+        if (sAA > 0) {
+          const base = { ...cRow, ...sRow };
+          return applyStrictRulesTable1Row(base);
+        }
+
+        return cRow;
       });
       setTable1Data(mergedT1);
     } else {
@@ -1088,14 +1206,10 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
 
               {/* Table 1 Body */}
               <tbody>
-                {table1Data.map((row, idx) => {
-                  const inPauta = isSubjectInPauta(row.id) || isSubjectInPauta(row.disciplina);
-                  return (
+                {table1Data.map((row, idx) => (
                   <tr
                     key={row.id}
-                    className={`border-b border-zinc-300 dark:border-zinc-700 hover:bg-muted/30 odd:bg-muted/5 even:bg-transparent print:border-black ${
-                      !inPauta ? 'opacity-65 bg-muted/15' : ''
-                    }`}
+                    className="border-b border-zinc-300 dark:border-zinc-700 hover:bg-muted/30 odd:bg-muted/5 even:bg-transparent print:border-black"
                   >
                     {/* Disciplina Name */}
                     <td className="border-r border-zinc-300 dark:border-zinc-700 p-1.5 text-left font-bold text-foreground print:text-black whitespace-nowrap">
@@ -1108,11 +1222,8 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
                         type="text"
                         value={row.professor}
                         onChange={(e) => handleTable1Change(idx, 'professor', e.target.value)}
-                        placeholder=""
-                        disabled={!inPauta}
-                        className={`w-full text-center bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-purple-500 rounded text-xs print:text-[9px] ${
-                          !inPauta ? 'cursor-not-allowed opacity-40' : ''
-                        }`}
+                        placeholder="-"
+                        className="w-full text-center bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-purple-500 rounded text-xs print:text-[9px]"
                       />
                     </td>
 
@@ -1122,7 +1233,7 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
                         type="text"
                         value={row.aa}
                         onChange={(e) => handleTable1Change(idx, 'aa', e.target.value)}
-                        placeholder="" disabled={!inPauta}
+                        placeholder="-"
                         className="w-full text-center bg-transparent border-0 focus:outline-none font-bold text-foreground text-xs print:text-[9px]"
                         title="Alunos Avaliados = NS + S + Bom + MB + E"
                       />
@@ -1134,9 +1245,9 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
                         type="text"
                         value={row.ns}
                         onChange={(e) => handleTable1Change(idx, 'ns', e.target.value)}
-                        placeholder="" disabled={!inPauta}
+                        placeholder="-"
                         className={`w-full text-center bg-transparent border-0 focus:outline-none text-xs print:text-[9px] ${
-                          row.ns && row.ns !== '0' ? 'text-red-600 dark:text-red-400 font-bold' : ''
+                          row.ns && row.ns !== '0' && row.ns !== '-' ? 'text-red-600 dark:text-red-400 font-bold' : ''
                         }`}
                       />
                     </td>
@@ -1147,7 +1258,7 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
                         type="text"
                         value={row.s}
                         onChange={(e) => handleTable1Change(idx, 's', e.target.value)}
-                        placeholder="" disabled={!inPauta}
+                        placeholder="-"
                         className="w-full text-center bg-transparent border-0 focus:outline-none text-xs print:text-[9px]"
                       />
                     </td>
@@ -1158,7 +1269,7 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
                         type="text"
                         value={row.bom}
                         onChange={(e) => handleTable1Change(idx, 'bom', e.target.value)}
-                        placeholder="" disabled={!inPauta}
+                        placeholder="-"
                         className="w-full text-center bg-transparent border-0 focus:outline-none text-xs print:text-[9px]"
                       />
                     </td>
@@ -1169,7 +1280,7 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
                         type="text"
                         value={row.mb}
                         onChange={(e) => handleTable1Change(idx, 'mb', e.target.value)}
-                        placeholder="" disabled={!inPauta}
+                        placeholder="-"
                         className="w-full text-center bg-transparent border-0 focus:outline-none text-xs print:text-[9px]"
                       />
                     </td>
@@ -1180,7 +1291,7 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
                         type="text"
                         value={row.e}
                         onChange={(e) => handleTable1Change(idx, 'e', e.target.value)}
-                        placeholder="" disabled={!inPauta}
+                        placeholder="-"
                         className="w-full text-center bg-transparent border-0 focus:outline-none text-xs print:text-[9px]"
                       />
                     </td>
@@ -1191,7 +1302,7 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
                         type="text"
                         value={row.positivasNum}
                         onChange={(e) => handleTable1Change(idx, 'positivasNum', e.target.value)}
-                        placeholder="" disabled={!inPauta}
+                        placeholder="-"
                         className="w-full text-center bg-transparent border-0 focus:outline-none font-bold text-xs print:text-[9px]"
                         title="Positivas Nº = S + Bom + MB + E"
                       />
@@ -1203,7 +1314,7 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
                         type="text"
                         value={row.positivasPct}
                         onChange={(e) => handleTable1Change(idx, 'positivasPct', e.target.value)}
-                        placeholder="" disabled={!inPauta}
+                        placeholder="-"
                         className="w-full text-center bg-transparent border-0 focus:outline-none text-xs print:text-[9px]"
                         title="Positivas % = (Positivas / A.A.) * 100"
                       />
@@ -1215,7 +1326,7 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
                         type="text"
                         value={row.negativasNum}
                         onChange={(e) => handleTable1Change(idx, 'negativasNum', e.target.value)}
-                        placeholder="" disabled={!inPauta}
+                        placeholder="-"
                         className="w-full text-center bg-transparent border-0 focus:outline-none font-bold text-xs print:text-[9px]"
                         title="Negativas Nº = NS"
                       />
@@ -1227,7 +1338,7 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
                         type="text"
                         value={row.negativasPct}
                         onChange={(e) => handleTable1Change(idx, 'negativasPct', e.target.value)}
-                        placeholder="" disabled={!inPauta}
+                        placeholder="-"
                         className="w-full text-center bg-transparent border-0 focus:outline-none text-xs print:text-[9px]"
                         title="Negativas % = (Negativas / A.A.) * 100"
                       />
@@ -1239,7 +1350,7 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
                         type="text"
                         value={row.meninasPosNum}
                         onChange={(e) => handleTable1Change(idx, 'meninasPosNum', e.target.value)}
-                        placeholder="" disabled={!inPauta}
+                        placeholder="-"
                         className="w-full text-center bg-transparent border-0 focus:outline-none font-semibold text-xs print:text-[9px]"
                       />
                     </td>
@@ -1250,7 +1361,7 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
                         type="text"
                         value={row.meninasPosPct}
                         onChange={(e) => handleTable1Change(idx, 'meninasPosPct', e.target.value)}
-                        placeholder="" disabled={!inPauta}
+                        placeholder="-"
                         className="w-full text-center bg-transparent border-0 focus:outline-none text-xs print:text-[9px]"
                         title="Meninas Positivas % = (Meninas Pos / Meninas Avaliadas) * 100"
                       />
@@ -1262,7 +1373,7 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
                         type="text"
                         value={row.meninasNegNum}
                         onChange={(e) => handleTable1Change(idx, 'meninasNegNum', e.target.value)}
-                        placeholder="" disabled={!inPauta}
+                        placeholder="-"
                         className="w-full text-center bg-transparent border-0 focus:outline-none font-semibold text-xs print:text-[9px]"
                       />
                     </td>
@@ -1273,14 +1384,14 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
                         type="text"
                         value={row.meninasNegPct}
                         onChange={(e) => handleTable1Change(idx, 'meninasNegPct', e.target.value)}
-                        placeholder="" disabled={!inPauta}
+                        placeholder="-"
                         className="w-full text-center bg-transparent border-0 focus:outline-none text-xs print:text-[9px]"
                         title="Meninas Negativas % = (Meninas Neg / Meninas Avaliadas) * 100"
                       />
                     </td>
                   </tr>
-                );})}
-</tbody>
+                ))}
+              </tbody>
             </table>
           </div>
         </div>
