@@ -2788,11 +2788,12 @@ export default function App() {
                 {/* Search & Actions */}
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full md:w-auto">
                   {/* Campo de Pesquisa */}
-                  <div className="relative flex-1 sm:w-60 md:w-64">
-                    <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-muted-foreground/60" />
+                  <div className="relative flex-1 sm:w-72 md:w-80">
+                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4.5 w-4.5 text-muted-foreground/60 pointer-events-none" />
                     <Input
+                      type="search"
                       placeholder="Procurar por nome ou nº (ex: 5, João)..."
-                      className="pl-9 pr-8 h-8.5 bg-muted/40 border-border/70 text-xs rounded-xl w-full focus:border-purple-500"
+                      className="pl-10.5 pr-10 h-11 bg-muted/40 border-border/70 hover:border-purple-400 focus:border-purple-500 text-sm rounded-xl w-full shadow-2xs transition-all"
                       value={mediaGeralSearch}
                       onChange={(e) => setMediaGeralSearch(e.target.value)}
                       onKeyDown={(e) => {
@@ -2801,11 +2802,12 @@ export default function App() {
                     />
                     {mediaGeralSearch && (
                       <button
+                        type="button"
                         onClick={() => setMediaGeralSearch('')}
-                        className="absolute right-2.5 top-2.5 text-muted-foreground/60 hover:text-foreground cursor-pointer transition-colors p-0.5 rounded-full hover:bg-muted"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/60 hover:text-foreground cursor-pointer transition-colors p-1 rounded-full hover:bg-muted/80 flex items-center justify-center"
                         title="Limpar pesquisa (Esc)"
                       >
-                        <X className="h-3 w-3" />
+                        <X className="h-4 w-4" />
                       </button>
                     )}
                   </div>
@@ -2815,20 +2817,20 @@ export default function App() {
                     <Button
                       variant="outline"
                       onClick={pullCurrentSubjectGrades}
-                      className="flex-1 sm:flex-initial h-8.5 px-3 border border-purple-200 dark:border-purple-900/50 bg-purple-50/10 dark:bg-purple-950/10 text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/30 text-xs font-semibold rounded-xl shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
+                      className="flex-1 sm:flex-initial h-11 px-3.5 border border-purple-200 dark:border-purple-900/50 bg-purple-50/10 dark:bg-purple-950/10 text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/30 text-xs sm:text-sm font-semibold rounded-xl shadow-2xs flex items-center justify-center gap-2 cursor-pointer transition-colors"
                       title={`Sincronizar notas de ${selectedClass.subject}`}
                     >
-                      <BookOpen className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
+                      <BookOpen className="h-4 w-4 text-purple-600 dark:text-purple-400 shrink-0" />
                       <span>Sincronizar</span>
                     </Button>
 
                     <Button
                       variant="outline"
                       onClick={exportMediaGeralToExcel}
-                      className="flex-1 sm:flex-initial h-8.5 px-3 border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/10 dark:bg-emerald-950/10 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 text-xs font-semibold rounded-xl shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
+                      className="flex-1 sm:flex-initial h-11 px-3.5 border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/10 dark:bg-emerald-950/10 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 text-xs sm:text-sm font-semibold rounded-xl shadow-2xs flex items-center justify-center gap-2 cursor-pointer transition-colors"
                       title="Exportar pauta completa da Média Geral para Excel"
                     >
-                      <Download className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                      <Download className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
                       <span>Exportar</span>
                     </Button>
                   </div>
@@ -3086,10 +3088,11 @@ export default function App() {
                 <div className="flex flex-col md:flex-row items-stretch md:items-center gap-2 sm:gap-3 w-full">
                   {/* Search box */}
                   <div className="relative flex-1 w-full">
-                    <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground/60 focus:text-primary transition-colors" />
+                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4.5 w-4.5 text-muted-foreground/60 focus:text-primary pointer-events-none transition-colors" />
                     <Input 
+                      type="search"
                       placeholder="Procurar por nome ou nº (ex: 5, Maria)..." 
-                      className="pl-8.5 pr-8 bg-muted/45 border-border/80 focus:border-purple-500 hover:bg-muted/60 h-8.5 rounded-lg text-xs"
+                      className="pl-10.5 pr-10 bg-muted/45 border-border/80 focus:border-purple-500 hover:border-purple-400 hover:bg-muted/60 h-11 rounded-xl text-sm w-full transition-all shadow-2xs"
                       value={searchQuery || ''}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       onKeyDown={(e) => {
@@ -3098,11 +3101,12 @@ export default function App() {
                     />
                     {searchQuery && (
                       <button
+                        type="button"
                         onClick={() => setSearchQuery('')}
-                        className="absolute right-2.5 top-2.5 text-muted-foreground/60 hover:text-foreground cursor-pointer transition-colors p-0.5 rounded-full hover:bg-muted"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/60 hover:text-foreground cursor-pointer transition-colors p-1 rounded-full hover:bg-muted/80 flex items-center justify-center"
                         title="Limpar pesquisa (Esc)"
                       >
-                        <X className="h-3 w-3" />
+                        <X className="h-4 w-4" />
                       </button>
                     )}
                   </div>
@@ -3112,11 +3116,11 @@ export default function App() {
                     <Button 
                       variant="outline" 
                       onClick={exportToExcel} 
-                      className="flex-1 sm:flex-none whitespace-nowrap h-8.5 px-3 border border-purple-200 dark:border-purple-900/50 bg-purple-50/10 dark:bg-purple-950/10 text-purple-700 dark:text-purple-300 hover:bg-purple-50 hover:text-purple-800 dark:hover:bg-purple-900/30 font-semibold rounded-lg text-xs shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer transition-all" 
+                      className="flex-1 sm:flex-none whitespace-nowrap h-11 px-3.5 sm:px-4 border border-purple-200 dark:border-purple-900/50 bg-purple-50/10 dark:bg-purple-950/10 text-purple-700 dark:text-purple-300 hover:bg-purple-50 hover:text-purple-800 dark:hover:bg-purple-900/30 font-semibold rounded-xl text-xs sm:text-sm shadow-2xs flex items-center justify-center gap-2 cursor-pointer transition-all" 
                       title="Exportar para Excel" 
                       disabled={selectedClass.students.length === 0}
                     >
-                      <Download className="h-3.5 w-3.5 shrink-0 text-purple-500/80 dark:text-purple-400/80" />
+                      <Download className="h-4 w-4 shrink-0 text-purple-500/80 dark:text-purple-400/80" />
                       <span>Exportar</span>
                     </Button>
 
@@ -3128,19 +3132,19 @@ export default function App() {
                         setImportMode('file');
                         setPastedNames('');
                         setIsImportOpen(true);
-                      }}
-                      className="flex-1 sm:flex-none whitespace-nowrap h-8.5 px-3 border border-purple-200 dark:border-purple-900/50 bg-purple-50/10 dark:bg-purple-950/10 text-purple-700 dark:text-purple-300 hover:bg-purple-50 hover:text-purple-800 dark:hover:bg-purple-900/30 font-semibold rounded-lg text-xs shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer transition-all" 
+                      }} 
+                      className="flex-1 sm:flex-none whitespace-nowrap h-11 px-3.5 sm:px-4 border border-purple-200 dark:border-purple-900/50 bg-purple-50/10 dark:bg-purple-950/10 text-purple-700 dark:text-purple-300 hover:bg-purple-50 hover:text-purple-800 dark:hover:bg-purple-900/30 font-semibold rounded-xl text-xs sm:text-sm shadow-2xs flex items-center justify-center gap-2 cursor-pointer transition-all" 
                       title="Importar Alunos"
                     >
-                      <Upload className="h-3.5 w-3.5 shrink-0 text-purple-500/80 dark:text-purple-400/80" />
+                      <Upload className="h-4 w-4 shrink-0 text-purple-500/80 dark:text-purple-400/80" />
                       <span>Importar</span>
                     </Button>
                     
                     <Dialog open={isAddStudentOpen} onOpenChange={setIsAddStudentOpen}>
                       <DialogTrigger render={
-                        <Button className="flex-grow sm:flex-none w-full sm:w-auto whitespace-nowrap h-8.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-lg text-xs shadow-sm flex items-center justify-center gap-1.5 cursor-pointer border-0 transition-all px-3 sm:px-4" />
+                        <Button className="flex-grow sm:flex-none w-full sm:w-auto whitespace-nowrap h-11 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl text-xs sm:text-sm shadow-sm flex items-center justify-center gap-2 cursor-pointer border-0 transition-all px-4" />
                       }>
-                        <UserPlus className="h-3.5 w-3.5 shrink-0 text-white/95" />
+                        <UserPlus className="h-4 w-4 shrink-0 text-white/95" />
                         <span>Adicionar Aluno</span>
                       </DialogTrigger>
                   <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
