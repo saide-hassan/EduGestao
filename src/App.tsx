@@ -2791,9 +2791,11 @@ export default function App() {
                   <div className="relative flex-1 sm:w-72 md:w-80">
                     <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4.5 w-4.5 text-muted-foreground/60 pointer-events-none" />
                     <Input
-                      type="search"
+                      type="text"
+                      role="searchbox"
+                      autoComplete="off"
                       placeholder="Procurar por nome ou nº (ex: 5, João)..."
-                      className="pl-10.5 pr-10 h-11 bg-muted/40 border-border/70 hover:border-purple-400 focus:border-purple-500 text-sm rounded-xl w-full shadow-2xs transition-all"
+                      className="pl-10.5 pr-10.5 h-11 bg-muted/40 border-border/70 hover:border-purple-400 focus:border-purple-500 text-sm rounded-xl w-full shadow-2xs transition-all [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden [&::-webkit-search-results-button]:hidden"
                       value={mediaGeralSearch}
                       onChange={(e) => setMediaGeralSearch(e.target.value)}
                       onKeyDown={(e) => {
@@ -2804,10 +2806,11 @@ export default function App() {
                       <button
                         type="button"
                         onClick={() => setMediaGeralSearch('')}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/60 hover:text-foreground cursor-pointer transition-colors p-1 rounded-full hover:bg-muted/80 flex items-center justify-center"
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 h-7.5 w-7.5 text-muted-foreground/60 hover:text-foreground active:scale-95 cursor-pointer transition-all rounded-lg hover:bg-muted/80 flex items-center justify-center"
                         title="Limpar pesquisa (Esc)"
+                        aria-label="Limpar pesquisa"
                       >
-                        <X className="h-4 w-4" />
+                        <X className="h-4 w-4 shrink-0" strokeWidth={2.2} />
                       </button>
                     )}
                   </div>
@@ -3090,9 +3093,11 @@ export default function App() {
                   <div className="relative flex-1 w-full">
                     <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4.5 w-4.5 text-muted-foreground/60 focus:text-primary pointer-events-none transition-colors" />
                     <Input 
-                      type="search"
+                      type="text"
+                      role="searchbox"
+                      autoComplete="off"
                       placeholder="Procurar por nome ou nº (ex: 5, Maria)..." 
-                      className="pl-10.5 pr-10 bg-muted/45 border-border/80 focus:border-purple-500 hover:border-purple-400 hover:bg-muted/60 h-11 rounded-xl text-sm w-full transition-all shadow-2xs"
+                      className="pl-10.5 pr-10.5 bg-muted/45 border-border/80 focus:border-purple-500 hover:border-purple-400 hover:bg-muted/60 h-11 rounded-xl text-sm w-full transition-all shadow-2xs [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden [&::-webkit-search-results-button]:hidden"
                       value={searchQuery || ''}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       onKeyDown={(e) => {
@@ -3103,10 +3108,11 @@ export default function App() {
                       <button
                         type="button"
                         onClick={() => setSearchQuery('')}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/60 hover:text-foreground cursor-pointer transition-colors p-1 rounded-full hover:bg-muted/80 flex items-center justify-center"
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 h-7.5 w-7.5 text-muted-foreground/60 hover:text-foreground active:scale-95 cursor-pointer transition-all rounded-lg hover:bg-muted/80 flex items-center justify-center"
                         title="Limpar pesquisa (Esc)"
+                        aria-label="Limpar pesquisa"
                       >
-                        <X className="h-4 w-4" />
+                        <X className="h-4 w-4 shrink-0" strokeWidth={2.2} />
                       </button>
                     )}
                   </div>
