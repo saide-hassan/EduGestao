@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Plus, Users, BookOpen, School, GraduationCap, ChevronLeft, Trash2, UserPlus, Save, Search, Download, Pencil, Home, LogOut, Star, Layers, Sun, Moon, Upload, FileSpreadsheet, FileText, UploadCloud, Check, AlertTriangle, X, ChevronDown, Cloud, Wifi, WifiOff, CloudLightning, CloudOff, CheckCircle2, Calculator, BarChart3, Sparkles } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import mammoth from 'mammoth';
@@ -17,361 +17,46 @@ import { ThemeToggle } from '@/components/theme-toggle';
 import { WelcomeScreen } from '@/components/welcome-screen';
 import { LoginScreen } from '@/components/login-screen';
 import { AproveitamentoPedagogicoView, computeAproveitamentoFromClass, buildAproveitamentoExcelData } from '@/components/AproveitamentoPedagogicoView';
+import { EvaluationStudentRow, MediaGeralRow } from '@/components/GradeTableCells';
+import {
+  type Grades,
+  type StudentNote,
+  type Student,
+  type ClassData,
+  type SubjectKey,
+  type ApoioAlertStatus,
+  MEDIA_GERAL_SUBJECTS,
+  isStudentFemale,
+  normalizeSearchText,
+  getStudentOrderNumber,
+  filterStudentByQuery,
+  getStudentGrades,
+  getStudentSubjectGrades,
+  calculateMediaGeralForStudent,
+  customRound,
+  calculateAcsAverage,
+  calculateGeneralAverage,
+  getApoioAlertStatus,
+} from '@/lib/grade-utils';
 import { auth, db, logout, getCachedAccessToken, setCachedAccessToken, signInWithGoogle } from '@/lib/firebase';
 import { onAuthStateChanged, User, GoogleAuthProvider } from 'firebase/auth';
 import { collection, onSnapshot, doc, setDoc, deleteDoc, query, where } from 'firebase/firestore';
 import { toast } from 'sonner';
 
-export type Grades = {
-  acs1: string;
-  acs2: string;
-  acs3: string;
-  ap: string;
-  exame: string;
-};
-
-export type StudentNote = {
-  id: string;
-  date: string;
-  text: string;
-};
-
-export type Student = {
-  id: string;
-  studentNumber?: string;
-  name: string;
-  gender?: 'M' | 'F';
-  grades: Grades;
-  dob?: string;
-  birthplace?: string;
-  address?: string;
-  parentName?: string;
-  parentProfession?: string;
-  parentAddress?: string;
-  parentContact?: string;
-  trimesterGrades?: {
-    1?: Grades;
-    2?: Grades;
-    3?: Grades;
-  };
-  notes?: StudentNote[];
-  subjectGrades?: Record<string, string>;
-  trimesterSubjectGrades?: {
-    1?: Record<string, string>;
-    2?: Record<string, string>;
-    3?: Record<string, string>;
-  };
-};
-
-export const isStudentFemale = (student: Student): boolean => {
-  if (student.gender === 'F') return true;
-  if (student.gender === 'M') return false;
-  const firstName = (student.name || '').trim().split(' ')[0].toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-  const knownFemale = [
-    'maria', 'ana', 'fatima', 'amina', 'luisa', 'carla', 'sofia', 'marta', 'paula', 'cristina',
-    'isabel', 'ines', 'beatriz', 'raquel', 'carmen', 'teresa', 'claudia', 'helena', 'joana',
-    'sara', 'patricia', 'jessica', 'vanessa', 'daniela', 'lucia', 'rosa', 'albertina', 'angela',
-    'elsa', 'esperanca', 'julia', 'nadia', 'zaida', 'leila', 'samira', 'mariamo', 'aida',
-    'neuza', 'yara', 'telma', 'shelsea', 'edna', 'sonia', 'natercia', 'lucinda', 'margarida',
-    'catarina', 'susana', 'ivone', 'alice', 'filomena', 'graziela', 'inacia', 'olga', 'tania'
-  ];
-  if (knownFemale.includes(firstName)) return true;
-  if (firstName.endsWith('a') && !['joshua', 'luca', 'elias', 'isaia', 'mussa', 'issa', 'mustafa', 'babua'].includes(firstName)) return true;
-  return false;
-};
-
-export const MEDIA_GERAL_SUBJECTS = [
-  { key: 'P', label: 'P', name: 'Português' },
-  { key: 'I', label: 'I', name: 'Inglês' },
-  { key: 'H', label: 'H', name: 'História' },
-  { key: 'G', label: 'G', name: 'Geografia' },
-  { key: 'M', label: 'M', name: 'Matemática' },
-  { key: 'F', label: 'F', name: 'Física' },
-  { key: 'Q', label: 'Q', name: 'Química' },
-  { key: 'B', label: 'B', name: 'Biologia' },
-  { key: 'EdV', label: 'Ed. V', name: 'Educação Visual' },
-  { key: 'AP', label: 'AP', name: 'Agropecuária' },
-  { key: 'EdMC', label: 'Ed. MC', name: 'Educação Moral e Cívica' },
-  { key: 'TICs', label: 'TICs', name: 'Tecnologias de Informação e Comunicação' },
-  { key: 'EdF', label: 'Ed. F', name: 'Educação Física' },
-] as const;
-
-export type SubjectKey = typeof MEDIA_GERAL_SUBJECTS[number]['key'];
-
-const emptyGrades = (): Grades => ({ acs1: '', acs2: '', acs3: '', ap: '', exame: '' });
-
-export const normalizeSearchText = (text: string): string => {
-  return (text || '')
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .trim();
-};
-
-export const getStudentOrderNumber = (student: Student, sortedList?: Student[]): string => {
-  if (student.studentNumber && student.studentNumber.trim()) {
-    return student.studentNumber.trim();
-  }
-  if (sortedList && sortedList.length > 0) {
-    const idx = sortedList.findIndex((s) => s.id === student.id);
-    if (idx >= 0) return String(idx + 1);
-  }
-  return '-';
-};
-
-export const filterStudentByQuery = (
-  student: Student,
-  query: string,
-  classOrderIndex: number
-): boolean => {
-  const clean = query.trim();
-  if (!clean) return true;
-
-  // 1. Check if user typed a number or prefix/suffix + number, e.g. "1", "01", "1º", "1.", "nº 1", "n 1", "n.º 1", "#1", "aluno 1", "numero 1", "número 1"
-  const numberMatch = clean.match(/^(?:n[º°.]*|no\.?|#|aluno\s+|n[úu]mero\s+)?\s*(\d+)[º°.]?$/i);
-  if (numberMatch) {
-    const targetNum = parseInt(numberMatch[1], 10);
-    const sAssignedNum =
-      student.studentNumber && student.studentNumber.trim()
-        ? parseInt(student.studentNumber.trim(), 10)
-        : NaN;
-    const sRawNumStr = (student.studentNumber || '').trim();
-    const hasAssignedNumber = !isNaN(sAssignedNum) || sRawNumStr !== '';
-
-    // Exact number match:
-    // If student has an assigned studentNumber, compare numerically or verbatim (e.g. "01" matches 1, "1" matches 1)
-    // If student has no assigned studentNumber, compare with their sequential class list order
-    const matchesExactNumber = hasAssignedNumber
-      ? (!isNaN(sAssignedNum) && sAssignedNum === targetNum) || sRawNumStr === numberMatch[1]
-      : classOrderIndex === targetNum;
-
-    // Strict number search: return immediately so numbers starting with targetNum (like 10..19 for 1) are NEVER included
-    return matchesExactNumber;
-  }
-
-  // 2. Text Search (Name, and alphanumeric studentNumber if any)
-  const normQuery = normalizeSearchText(clean);
-  const normName = normalizeSearchText(student.name);
-  const normStudentNumber = normalizeSearchText(student.studentNumber || '');
-
-  // Exact match on alphanumeric studentNumber (e.g. "A-12") - NEVER prefix/startsWith
-  if (normStudentNumber && normStudentNumber === normQuery) {
-    return true;
-  }
-
-  // Name match: all words in query must appear in student's name
-  const queryWords = normQuery.split(/\s+/).filter(Boolean);
-  if (queryWords.length > 0 && queryWords.every((word) => normName.includes(word))) {
-    return true;
-  }
-
-  return false;
-};
-
-const getStudentGrades = (student: Student, trimester: '1' | '2' | '3'): Grades => {
-  if (student.trimesterGrades && student.trimesterGrades[trimester]) {
-    return student.trimesterGrades[trimester]!;
-  }
-  if (trimester === '1') {
-    return student.grades || emptyGrades();
-  }
-  return emptyGrades();
-};
-
-export const getStudentSubjectGrades = (student: Student, trimester: '1' | '2' | '3'): Record<string, string> => {
-  if (student.trimesterSubjectGrades && student.trimesterSubjectGrades[trimester]) {
-    return student.trimesterSubjectGrades[trimester]!;
-  }
-  if (trimester === '1' && student.subjectGrades) {
-    return student.subjectGrades;
-  }
-  return {};
-};
-
-export const calculateMediaGeralForStudent = (
-  student: Student,
-  trimester: '1' | '2' | '3'
-): {
-  rounded: string;
-  raw: number | null;
-  sum: number;
-  filledCount: number;
-  hasAnyGrade: boolean;
-} => {
-  const subjectGrades = getStudentSubjectGrades(student, trimester);
-  let sum = 0;
-  let filledCount = 0;
-
-  MEDIA_GERAL_SUBJECTS.forEach((sub) => {
-    const val = subjectGrades[sub.key];
-    if (val !== undefined && val !== null && val.trim() !== '' && val.trim() !== '-') {
-      const num = parseFloat(val.replace(',', '.'));
-      if (!isNaN(num)) {
-        sum += num;
-        filledCount++;
-      }
-    }
-  });
-
-  if (filledCount === 0) {
-    return { rounded: '-', raw: null, sum: 0, filledCount: 0, hasAnyGrade: false };
-  }
-
-  // Divisão sempre por 13 (o total de disciplinas curriculares)
-  const rawAverage = sum / 13;
-  const rounded = customRound(rawAverage);
-
-  return {
-    rounded,
-    raw: rawAverage,
-    sum,
-    filledCount,
-    hasAnyGrade: true,
-  };
-};
-
-export type ClassData = {
-  id: string;
-  userId: string;
-  school: string;
-  level: string;
-  section: string;
-  subject: string;
-  academicYear: string;
-  isDirector: boolean;
-  isPlaceholder?: boolean;
-  students: Student[];
-  aproveitamentoData?: Record<string, any>;
-  createdAt?: string;
-};
-
-const customRound = (value: number): string => {
-  if (isNaN(value)) return '-';
-  const integerPart = Math.floor(value);
-  const decimalStr = value.toFixed(10);
-  const dotIndex = decimalStr.indexOf('.');
-  if (dotIndex === -1) {
-    return String(integerPart);
-  }
-  const tenthsDigit = parseInt(decimalStr.charAt(dotIndex + 1), 10);
-  if (tenthsDigit >= 5) {
-    return String(integerPart + 1);
-  } else {
-    return String(integerPart);
-  }
-};
-
-const calculateAcsAverage = (grades: Grades) => {
-  const values = [grades.acs1, grades.acs2, grades.acs3]
-    .map(v => parseFloat((v || '').replace(',', '.')))
-    .filter(v => !isNaN(v));
-  if (values.length === 0) return '-';
-  const sum = values.reduce((acc, curr) => acc + curr, 0);
-  const rawAverage = sum / values.length;
-  return customRound(rawAverage);
-};
-
-const calculateGeneralAverage = (grades: Grades) => {
-  const acsAvgStr = calculateAcsAverage(grades);
-  if (acsAvgStr === '-') return '-';
-  const acsAvg = parseFloat(acsAvgStr.replace(',', '.'));
-  const apVal = parseFloat((grades.ap || '').replace(',', '.'));
-  if (isNaN(acsAvg) || isNaN(apVal)) return '-';
-  const rawAverage = (acsAvg + apVal) / 2;
-  return customRound(rawAverage);
-};
-
-const calculateAverage = (grades: Grades) => {
-  return calculateGeneralAverage(grades);
-};
-
-type ApoioAlertStatus = 'red' | 'orange' | 'green' | 'none';
-
-const getRepresentativeGrade = (student: Student, trimester: '1' | '2' | '3'): number | null => {
-  const grades = getStudentGrades(student, trimester);
-  
-  const parseGradeVal = (v: string | undefined): number | null => {
-    if (!v || v.trim() === '' || v.trim() === '-') return null;
-    const n = parseFloat(v.replace(',', '.'));
-    return isNaN(n) ? null : n;
-  };
-
-  // 1. Try General Average first
-  const mediaGeralStr = calculateGeneralAverage(grades);
-  if (mediaGeralStr !== '-') {
-    const n = parseFloat(mediaGeralStr.replace(',', '.'));
-    if (!isNaN(n)) return n;
-  }
-
-  // 2. Try ACS Average
-  const acsAvgStr = calculateAcsAverage(grades);
-  if (acsAvgStr !== '-') {
-    const n = parseFloat(acsAvgStr.replace(',', '.'));
-    if (!isNaN(n)) return n;
-  }
-
-  // 3. Try individual grades in sequence (ACS1, ACS2, ACS3, AP, Exame)
-  const acs1 = parseGradeVal(grades.acs1);
-  if (acs1 !== null) return acs1;
-  const acs2 = parseGradeVal(grades.acs2);
-  if (acs2 !== null) return acs2;
-  const acs3 = parseGradeVal(grades.acs3);
-  if (acs3 !== null) return acs3;
-  const ap = parseGradeVal(grades.ap);
-  if (ap !== null) return ap;
-  const exame = parseGradeVal(grades.exame);
-  if (exame !== null) return exame;
-
-  return null;
-};
-
-const getApoioAlertStatus = (student: Student, trimester: '1' | '2' | '3'): ApoioAlertStatus => {
-  const representativeGrade = getRepresentativeGrade(student, trimester);
-  if (representativeGrade === null) return 'none';
-  
-  if (representativeGrade < 7) {
-    return 'red';
-  } else if (representativeGrade >= 7 && representativeGrade <= 11) {
-    return 'orange';
-  } else {
-    return 'green';
-  }
-};
-
-const getGradeColor = (val: string, isAverage = false) => {
-  const num = parseFloat(val.replace(',', '.'));
-  if (isNaN(num)) return '';
-  
-  if (num < 10) return 'text-red-500 dark:text-red-400 font-semibold';
-  if (num >= 10 && num <= 13) return 'text-yellow-500 dark:text-yellow-400 font-semibold';
-  if (num >= 14) return 'text-green-500 dark:text-green-400 font-bold';
-  
-  return '';
-};
-
-const renderGradeIndicator = (grade: string | undefined | null) => {
-  if (!grade) return null;
-  const val = parseFloat(grade.replace(',', '.'));
-  if (isNaN(val)) return null;
-  const pct = Math.min(100, Math.max(0, (val / 20) * 100));
-  
-  let barColorClass = 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]';
-  if (val >= 14) {
-    barColorClass = 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]';
-  } else if (val >= 10) {
-    barColorClass = 'bg-yellow-500 shadow-[0_0_8px_rgba(234,179,8,0.5)]';
-  }
-  
-  return (
-    <div className="flex flex-col items-center gap-1 mt-1 w-full max-w-[56px] mx-auto select-none">
-      <div className="w-full h-1 bg-border/40 rounded-full overflow-hidden">
-        <div className={`h-full ${barColorClass} transition-all duration-300`} style={{ width: `${pct}%` }} />
-      </div>
-      <span className="text-[9px] font-mono text-muted-foreground/60 leading-none">
-        {val}/20
-      </span>
-    </div>
-  );
+export type { Grades, StudentNote, Student, ClassData, SubjectKey, ApoioAlertStatus };
+export {
+  MEDIA_GERAL_SUBJECTS,
+  isStudentFemale,
+  normalizeSearchText,
+  getStudentOrderNumber,
+  filterStudentByQuery,
+  getStudentGrades,
+  getStudentSubjectGrades,
+  calculateMediaGeralForStudent,
+  customRound,
+  calculateAcsAverage,
+  calculateGeneralAverage,
+  getApoioAlertStatus,
 };
 
 function useLocalStorage<T>(key: string, initialValue: T) {
@@ -475,6 +160,119 @@ export default function App() {
 
   const [classes, setClasses] = useState<ClassData[]>([]);
   const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
+
+  const classesRef = useRef<ClassData[]>(classes);
+  classesRef.current = classes;
+  const selectedClassIdRef = useRef<string | null>(selectedClassId);
+  selectedClassIdRef.current = selectedClassId;
+  const userRef = useRef<User | any>(user);
+  userRef.current = user;
+
+  const dirtyClassIdsRef = useRef<Set<string>>(new Set());
+  const inFlightSaveIdsRef = useRef<Set<string>>(new Set());
+  const saveVersionRef = useRef<Record<string, number>>({});
+  const saveTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+
+  const flushClassSave = useCallback(async (targetClassId?: string) => {
+    const idsToSave: string[] = targetClassId
+      ? (dirtyClassIdsRef.current.has(targetClassId) ? [targetClassId] : [])
+      : Array.from(dirtyClassIdsRef.current);
+
+    await Promise.all(
+      idsToSave.map(async (id) => {
+        if (saveTimersRef.current[id]) {
+          clearTimeout(saveTimersRef.current[id]);
+          delete saveTimersRef.current[id];
+        }
+        const classToSave = classesRef.current.find((c) => c.id === id);
+        if (!classToSave) {
+          dirtyClassIdsRef.current.delete(id);
+          return;
+        }
+        const versionAtStart = saveVersionRef.current[id] || 0;
+        inFlightSaveIdsRef.current.add(id);
+        try {
+          await setDoc(doc(db, 'classes', id), classToSave);
+        } catch (error) {
+          console.error('Error persisting class grades:', error);
+        } finally {
+          inFlightSaveIdsRef.current.delete(id);
+          if ((saveVersionRef.current[id] || 0) === versionAtStart) {
+            dirtyClassIdsRef.current.delete(id);
+          }
+        }
+      })
+    );
+  }, []);
+
+  const scheduleClassSave = useCallback(
+    (classId: string) => {
+      dirtyClassIdsRef.current.add(classId);
+      saveVersionRef.current[classId] = (saveVersionRef.current[classId] || 0) + 1;
+      if (saveTimersRef.current[classId]) {
+        clearTimeout(saveTimersRef.current[classId]);
+      }
+      saveTimersRef.current[classId] = setTimeout(() => {
+        delete saveTimersRef.current[classId];
+        void flushClassSave(classId);
+      }, 600);
+    },
+    [flushClassSave]
+  );
+
+  const applyLocalClassUpdate = useCallback(
+    (targetClassId: string, updater: (cls: ClassData) => ClassData) => {
+      classesRef.current = classesRef.current.map((c) =>
+        c.id === targetClassId ? updater(c) : c
+      );
+      setClasses((prev) =>
+        prev.map((c) => (c.id === targetClassId ? updater(c) : c))
+      );
+    },
+    []
+  );
+
+  const persistClassDocNow = useCallback(async (updatedClass: ClassData) => {
+    const id = updatedClass.id;
+    if (saveTimersRef.current[id]) {
+      clearTimeout(saveTimersRef.current[id]);
+      delete saveTimersRef.current[id];
+    }
+    dirtyClassIdsRef.current.add(id);
+    const version = (saveVersionRef.current[id] || 0) + 1;
+    saveVersionRef.current[id] = version;
+    inFlightSaveIdsRef.current.add(id);
+
+    classesRef.current = classesRef.current.map((c) => (c.id === id ? updatedClass : c));
+    setClasses((prev) => prev.map((c) => (c.id === id ? updatedClass : c)));
+
+    try {
+      await setDoc(doc(db, 'classes', id), updatedClass);
+    } finally {
+      inFlightSaveIdsRef.current.delete(id);
+      if ((saveVersionRef.current[id] || 0) === version) {
+        dirtyClassIdsRef.current.delete(id);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    const handleVisibilityOrUnload = () => {
+      if (document.visibilityState === 'hidden') {
+        void flushClassSave();
+      }
+    };
+    const handleBeforeUnload = () => {
+      void flushClassSave();
+    };
+    document.addEventListener('visibilitychange', handleVisibilityOrUnload);
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityOrUnload);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      void flushClassSave();
+    };
+  }, [flushClassSave]);
   const [hasUnsyncedChanges, setHasUnsyncedChanges] = useState(false);
   const [isUnsyncedModalOpen, setIsUnsyncedModalOpen] = useState(false);
   const [isMediaGeralViewOpen, setIsMediaGeralViewOpen] = useState(false);
@@ -482,12 +280,13 @@ export default function App() {
   const [mediaGeralSearch, setMediaGeralSearch] = useState('');
 
   useEffect(() => {
+    void flushClassSave();
     setHasUnsyncedChanges(false);
     setIsUnsyncedModalOpen(false);
     setIsMediaGeralViewOpen(false);
     setIsAproveitamentoViewOpen(false);
     setMediaGeralSearch('');
-  }, [selectedClassId]);
+  }, [selectedClassId, flushClassSave]);
   const [selectedLevel, setSelectedLevel] = useState<string | null>(null);
   const [selectedLevelYear, setSelectedLevelYear] = useState<string | null>(null);
   const [selectedTrimester, setSelectedTrimester] = useState<'1' | '2' | '3'>('1');
@@ -508,6 +307,7 @@ export default function App() {
   };
 
   const handleLogout = async () => {
+    await flushClassSave();
     localStorage.removeItem('edugestao-offline-user');
     setUser(null);
     await logout();
@@ -545,10 +345,32 @@ export default function App() {
     const q = query(collection(db, 'classes'), where('userId', '==', user.uid));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const classesData: ClassData[] = [];
-      snapshot.forEach((doc) => {
-        classesData.push({ id: doc.id, ...doc.data() } as ClassData);
+      snapshot.forEach((docSnap) => {
+        classesData.push({ id: docSnap.id, ...docSnap.data() } as ClassData);
       });
-      setClasses(classesData);
+      setClasses((prev) => {
+        if (dirtyClassIdsRef.current.size === 0 && inFlightSaveIdsRef.current.size === 0) {
+          classesRef.current = classesData;
+          return classesData;
+        }
+        const prevMap = new Map<string, ClassData>(prev.map((c) => [c.id, c]));
+        const merged: ClassData[] = classesData.map((remoteClass) => {
+          if (
+            dirtyClassIdsRef.current.has(remoteClass.id) ||
+            inFlightSaveIdsRef.current.has(remoteClass.id)
+          ) {
+            return prevMap.get(remoteClass.id) ?? remoteClass;
+          }
+          return remoteClass;
+        });
+        for (const id of dirtyClassIdsRef.current) {
+          if (!merged.some((c) => c.id === id) && prevMap.has(id)) {
+            merged.push(prevMap.get(id)!);
+          }
+        }
+        classesRef.current = merged;
+        return merged;
+      });
     }, (error) => {
       console.error("Error fetching classes:", error);
     });
@@ -897,7 +719,7 @@ export default function App() {
     if (!editingClass || !editingClass.level || !editingClass.academicYear || !user) return;
 
     try {
-      await setDoc(doc(db, 'classes', editingClass.id), editingClass);
+      await persistClassDocNow(editingClass);
       setEditingClass(null);
     } catch (error) {
       console.error("Error updating class:", error);
@@ -906,13 +728,14 @@ export default function App() {
 
   const handleAddStudent = async () => {
     if (!selectedClass || !newStudent.name || !user) return;
+    const latestClass = classesRef.current.find(c => c.id === selectedClass.id) ?? selectedClass;
 
     const student: Student = {
       id: crypto.randomUUID(),
       studentNumber: newStudent.studentNumber,
       name: newStudent.name,
       grades: { acs1: '', acs2: '', acs3: '', ap: '', exame: '' },
-      ...(selectedClass.isDirector ? {
+      ...(latestClass.isDirector ? {
         dob: newStudent.dob,
         birthplace: newStudent.birthplace,
         address: newStudent.address,
@@ -923,10 +746,10 @@ export default function App() {
       } : {})
     };
 
-    const updatedClass = { ...selectedClass, students: [...selectedClass.students, student] };
+    const updatedClass = { ...latestClass, students: [...latestClass.students, student] };
 
     try {
-      await setDoc(doc(db, 'classes', selectedClass.id), updatedClass);
+      await persistClassDocNow(updatedClass);
       toast.success('Aluno guardado com sucesso!');
       setNewStudent({ studentNumber: '', name: '', dob: '', birthplace: '', address: '', parentName: '', parentProfession: '', parentAddress: '', parentContact: '' });
       setIsAddStudentOpen(false);
@@ -1162,15 +985,16 @@ export default function App() {
 
   const confirmImportStudents = async () => {
     if (!selectedClass || previewStudents.length === 0 || !user) return;
+    const latestClass = classesRef.current.find(c => c.id === selectedClass.id) ?? selectedClass;
     
     setIsImporting(true);
     const updatedClass = {
-      ...selectedClass,
-      students: [...selectedClass.students, ...previewStudents]
+      ...latestClass,
+      students: [...latestClass.students, ...previewStudents]
     };
     
     try {
-      await setDoc(doc(db, 'classes', selectedClass.id), updatedClass);
+      await persistClassDocNow(updatedClass);
       toast.success(`${previewStudents.length} alunos importados com sucesso!`);
       setIsImportOpen(false);
       setPreviewStudents([]);
@@ -1186,14 +1010,15 @@ export default function App() {
 
   const handleUpdateStudent = async () => {
     if (!selectedClass || !editingStudent || !editingStudent.name || !user) return;
+    const latestClass = classesRef.current.find(c => c.id === selectedClass.id) ?? selectedClass;
 
     const updatedClass = {
-      ...selectedClass,
-      students: selectedClass.students.map(s => s.id === editingStudent.id ? editingStudent : s)
+      ...latestClass,
+      students: latestClass.students.map(s => s.id === editingStudent.id ? editingStudent : s)
     };
 
     try {
-      await setDoc(doc(db, 'classes', selectedClass.id), updatedClass);
+      await persistClassDocNow(updatedClass);
       setEditingStudent(null);
       setHasUnsyncedChanges(true);
     } catch (error) {
@@ -1201,84 +1026,62 @@ export default function App() {
     }
   };
 
-  const updateGrade = async (studentId: string, field: keyof Grades, value: string) => {
-    if (!selectedClass || !user) return;
-    
-    const updatedClass = {
-      ...selectedClass,
-      students: selectedClass.students.map(s => {
-        if (s.id === studentId) {
-          const currentTrimesterGrades = s.trimesterGrades || {};
-          const currentTGrades = { ...getStudentGrades(s, selectedTrimester), [field]: value };
-          
-          const newTrimesterGrades = {
-            ...currentTrimesterGrades,
-            [selectedTrimester]: currentTGrades
-          };
-          
-          // Sync with old grades object for trimester 1 compatibility
-          const updatedRootGrades = selectedTrimester === '1' ? currentTGrades : s.grades;
-          
-          return { 
-            ...s, 
-            grades: updatedRootGrades,
-            trimesterGrades: newTrimesterGrades
-          };
-        }
-        return s;
-      })
-    };
-    
-    setClasses(prev => prev.map(c => c.id === selectedClass.id ? updatedClass : c));
+  const updateGrade = useCallback((studentId: string, field: keyof Grades, value: string, trimester: '1' | '2' | '3') => {
+    const targetClassId = selectedClassIdRef.current;
+    if (!targetClassId || !userRef.current) return;
 
-    try {
-      await setDoc(doc(db, 'classes', selectedClass.id), updatedClass);
-      setHasUnsyncedChanges(true);
-    } catch (error) {
-      console.error("Error updating grade:", error);
-    }
-  };
+    applyLocalClassUpdate(targetClassId, (c) => ({
+      ...c,
+      students: c.students.map((s) => {
+        if (s.id !== studentId) return s;
+        const currentTrimesterGrades = s.trimesterGrades || {};
+        const currentTGrades = { ...getStudentGrades(s, trimester), [field]: value };
+        const newTrimesterGrades = {
+          ...currentTrimesterGrades,
+          [trimester]: currentTGrades,
+        };
+        const updatedRootGrades = trimester === '1' ? currentTGrades : s.grades;
+        return {
+          ...s,
+          grades: updatedRootGrades,
+          trimesterGrades: newTrimesterGrades,
+        };
+      }),
+    }));
 
-  const updateSubjectGrade = async (studentId: string, subjectKey: string, rawValue: string) => {
-    if (!selectedClass || !user) return;
-    
+    scheduleClassSave(targetClassId);
+    setHasUnsyncedChanges((prev) => (prev ? prev : true));
+  }, [applyLocalClassUpdate, scheduleClassSave]);
+
+  const updateSubjectGrade = useCallback((studentId: string, subjectKey: string, rawValue: string, trimester: '1' | '2' | '3') => {
+    const targetClassId = selectedClassIdRef.current;
+    if (!targetClassId || !userRef.current) return;
+
     // Aceitar apenas números, pontos e vírgulas para notas escolares
     const cleanVal = rawValue.replace(/[^0-9.,]/g, '');
 
-    const updatedClass: ClassData = {
-      ...selectedClass,
-      students: selectedClass.students.map(s => {
-        if (s.id === studentId) {
-          const currentTrimesterSubjectGrades = s.trimesterSubjectGrades || {};
-          const currentTSubGrades = { ...getStudentSubjectGrades(s, selectedTrimester), [subjectKey]: cleanVal };
-          
-          const newTrimesterSubjectGrades = {
-            ...currentTrimesterSubjectGrades,
-            [selectedTrimester]: currentTSubGrades
-          };
-          
-          const updatedRootSubGrades = selectedTrimester === '1' ? currentTSubGrades : (s.subjectGrades || {});
-          
-          return {
-            ...s,
-            subjectGrades: updatedRootSubGrades,
-            trimesterSubjectGrades: newTrimesterSubjectGrades
-          };
-        }
-        return s;
-      })
-    };
+    applyLocalClassUpdate(targetClassId, (c) => ({
+      ...c,
+      students: c.students.map((s) => {
+        if (s.id !== studentId) return s;
+        const currentTrimesterSubjectGrades = s.trimesterSubjectGrades || {};
+        const currentTSubGrades = { ...getStudentSubjectGrades(s, trimester), [subjectKey]: cleanVal };
+        const newTrimesterSubjectGrades = {
+          ...currentTrimesterSubjectGrades,
+          [trimester]: currentTSubGrades,
+        };
+        const updatedRootSubGrades = trimester === '1' ? currentTSubGrades : (s.subjectGrades || {});
+        return {
+          ...s,
+          subjectGrades: updatedRootSubGrades,
+          trimesterSubjectGrades: newTrimesterSubjectGrades,
+        };
+      }),
+    }));
 
-    // Actualização de estado em memória imediata para que a Pauta e a Situação da Turma fiquem 100% síncronas
-    setClasses(prev => prev.map(c => c.id === selectedClass.id ? updatedClass : c));
-
-    try {
-      await setDoc(doc(db, 'classes', selectedClass.id), updatedClass);
-      setHasUnsyncedChanges(true);
-    } catch (error) {
-      console.error("Error updating subject grade:", error);
-    }
-  };
+    scheduleClassSave(targetClassId);
+    setHasUnsyncedChanges((prev) => (prev ? prev : true));
+  }, [applyLocalClassUpdate, scheduleClassSave]);
 
   const mapSubjectToKey = (subjectName: string): string | null => {
     if (!subjectName) return null;
@@ -1301,16 +1104,17 @@ export default function App() {
 
   const pullCurrentSubjectGrades = async () => {
     if (!selectedClass || !user) return;
-    const targetKey = mapSubjectToKey(selectedClass.subject);
+    const latestClass = classesRef.current.find(c => c.id === selectedClass.id) ?? selectedClass;
+    const targetKey = mapSubjectToKey(latestClass.subject);
     if (!targetKey) {
-      toast.error(`Não foi encontrada correspondência direta para a disciplina "${selectedClass.subject}".`);
+      toast.error(`Não foi encontrada correspondência direta para a disciplina "${latestClass.subject}".`);
       return;
     }
 
     let count = 0;
     const updatedClass: ClassData = {
-      ...selectedClass,
-      students: selectedClass.students.map(s => {
+      ...latestClass,
+      students: latestClass.students.map(s => {
         const sGrades = getStudentGrades(s, selectedTrimester);
         const avg = calculateGeneralAverage(sGrades);
         if (avg !== '-') {
@@ -1335,12 +1139,10 @@ export default function App() {
       return;
     }
 
-    setClasses(prev => prev.map(c => c.id === selectedClass.id ? updatedClass : c));
-
     try {
-      await setDoc(doc(db, 'classes', selectedClass.id), updatedClass);
+      await persistClassDocNow(updatedClass);
       setHasUnsyncedChanges(true);
-      toast.success(`${count} notas de ${selectedClass.subject} sincronizadas com sucesso!`);
+      toast.success(`${count} notas de ${latestClass.subject} sincronizadas com sucesso!`);
     } catch (err) {
       console.error("Error pulling subject grades:", err);
       toast.error("Erro ao sincronizar notas da disciplina.");
@@ -1348,11 +1150,12 @@ export default function App() {
   };
 
   const exportMediaGeralToExcel = () => {
-    if (!selectedClass) return;
+    const activeClass = classesRef.current.find(c => c.id === selectedClassIdRef.current) ?? selectedClass;
+    if (!activeClass) return;
 
     const wb = XLSX.utils.book_new();
-    const rawLevel = selectedClass.level.replace(/\s*[Cc]lasse\s*/i, '').trim();
-    const sectionName = selectedClass.section ? ` ${selectedClass.section}` : '';
+    const rawLevel = activeClass.level.replace(/\s*[Cc]lasse\s*/i, '').trim();
+    const sectionName = activeClass.section ? ` ${activeClass.section}` : '';
 
     // ==========================================
     // FOLHA 1: Pauta da Turma
@@ -1361,8 +1164,8 @@ export default function App() {
 
     const aoa: any[][] = [
       [title],
-      [`Escola: ${selectedClass.school || 'EduGestão'} | Turma: ${rawLevel}${sectionName} | Período: ${selectedTrimester}º Trimestre`],
-      [`Ano Lectivo: ${selectedClass.academicYear || '-'} | Director de Turma: Sim | Data: ${new Date().toLocaleDateString('pt-PT')}`],
+      [`Escola: ${activeClass.school || 'EduGestão'} | Turma: ${rawLevel}${sectionName} | Período: ${selectedTrimester}º Trimestre`],
+      [`Ano Lectivo: ${activeClass.academicYear || '-'} | Director de Turma: Sim | Data: ${new Date().toLocaleDateString('pt-PT')}`],
       [],
       [
         'Nº',
@@ -1386,7 +1189,7 @@ export default function App() {
       ]
     ];
 
-    const sortedStudents = [...selectedClass.students].sort((a, b) => {
+    const sortedStudents = [...activeClass.students].sort((a, b) => {
       const numA = parseInt(a.studentNumber || '999999', 10);
       const numB = parseInt(b.studentNumber || '999999', 10);
       if (!isNaN(numA) && !isNaN(numB) && numA !== numB) return numA - numB;
@@ -1431,12 +1234,12 @@ export default function App() {
     // FOLHA 2: Aproveitamento e Situação Geral
     // ==========================================
     const computedAprov = computeAproveitamentoFromClass(
-      selectedClass,
+      activeClass,
       selectedTrimester,
-      user?.displayName || selectedClass.teacherName
+      user?.displayName || activeClass.teacherName
     );
 
-    const savedAprov = selectedClass.aproveitamentoData?.[selectedTrimester];
+    const savedAprov = activeClass.aproveitamentoData?.[selectedTrimester];
     const finalT1 = savedAprov?.table1 && Array.isArray(savedAprov.table1) && savedAprov.table1.length > 0
       ? computedAprov.t1.map((cRow) => {
           const sRow = savedAprov.table1.find((r: any) => r.id === cRow.id);
@@ -1446,7 +1249,7 @@ export default function App() {
     const finalT2 = savedAprov?.table2 ? { ...computedAprov.t2, ...savedAprov.table2 } : computedAprov.t2;
 
     const aoaAproveitamento = buildAproveitamentoExcelData(
-      selectedClass,
+      activeClass,
       selectedTrimester,
       finalT1,
       finalT2
@@ -1463,20 +1266,29 @@ export default function App() {
     toast.success('Pauta da Turma e Aproveitamento Pedagógico exportados com sucesso em 2 folhas!');
   };
 
-  const confirmDeleteStudent = (studentId: string) => {
+  const confirmDeleteStudent = useCallback((studentId: string) => {
     setStudentToDelete(studentId);
-  };
+  }, []);
+
+  const handleToggleHighlightStudent = useCallback((studentId: string) => {
+    setHighlightedStudentId((prev) => (prev === studentId ? null : studentId));
+  }, []);
+
+  const handleFocusColumn = useCallback((col: string) => {
+    setHighlightedColumn((prev) => (prev === col ? prev : col));
+  }, []);
 
   const deleteStudent = async () => {
     if (!selectedClass || !studentToDelete || !user) return;
+    const latestClass = classesRef.current.find(c => c.id === selectedClass.id) ?? selectedClass;
     
     const updatedClass = {
-      ...selectedClass,
-      students: selectedClass.students.filter(s => s.id !== studentToDelete)
+      ...latestClass,
+      students: latestClass.students.filter(s => s.id !== studentToDelete)
     };
     
     try {
-      await setDoc(doc(db, 'classes', selectedClass.id), updatedClass);
+      await persistClassDocNow(updatedClass);
       setStudentToDelete(null);
       setHasUnsyncedChanges(true);
     } catch (error) {
@@ -1486,10 +1298,11 @@ export default function App() {
 
   const handleSaveNotes = async (studentId: string, updatedNotes: StudentNote[]) => {
     if (!selectedClass || !user) return;
+    const latestClass = classesRef.current.find(c => c.id === selectedClass.id) ?? selectedClass;
     
     const updatedClass = {
-      ...selectedClass,
-      students: selectedClass.students.map(s => {
+      ...latestClass,
+      students: latestClass.students.map(s => {
         if (s.id === studentId) {
           return {
             ...s,
@@ -1501,7 +1314,7 @@ export default function App() {
     };
 
     try {
-      await setDoc(doc(db, 'classes', selectedClass.id), updatedClass);
+      await persistClassDocNow(updatedClass);
       toast.success("Notas guardadas com sucesso!");
       setHasUnsyncedChanges(true);
     } catch (error) {
@@ -1524,6 +1337,14 @@ export default function App() {
     });
   }, [selectedClass?.students]);
 
+  const studentOrderMap = useMemo(() => {
+    const map = new Map<string, string>();
+    sortedClassStudents.forEach((s, idx) => {
+      map.set(s.id, (s.studentNumber && s.studentNumber.trim()) ? s.studentNumber.trim() : String(idx + 1));
+    });
+    return map;
+  }, [sortedClassStudents]);
+
   const filteredStudents = useMemo(() => {
     if (!searchQuery.trim()) return sortedClassStudents;
     return sortedClassStudents.filter((s, idx) => 
@@ -1545,9 +1366,10 @@ export default function App() {
   }, [sortedClassStudents, selectedTrimester]);
 
   const buildExcelWorkbook = () => {
-    if (!selectedClass) return null;
+    const activeClass = classesRef.current.find(c => c.id === selectedClassIdRef.current) ?? selectedClass;
+    if (!activeClass) return null;
 
-    const studentGradesList = selectedClass.students.map(s => getStudentGrades(s, selectedTrimester));
+    const studentGradesList = activeClass.students.map(s => getStudentGrades(s, selectedTrimester));
 
     const hasAcs1 = studentGradesList.some(g => (g.acs1 || '').trim() !== '');
     const hasAcs2 = studentGradesList.some(g => (g.acs2 || '').trim() !== '');
@@ -1559,19 +1381,19 @@ export default function App() {
     const hasMediaGeral = hasMedia && hasAp;
 
     const trimesterText = `${selectedTrimester}º Trimestre`;
-    let levelName = selectedClass.level || '';
+    let levelName = activeClass.level || '';
     if (!levelName.toLowerCase().includes('classe')) {
       if (levelName.includes('ª') || levelName.includes('º') || /^\d+$/.test(levelName)) {
         levelName = `${levelName} Classe`;
       }
     }
-    const sectionName = selectedClass.section ? ` ${selectedClass.section}` : '';
-    const titleText = `Pauta de ${selectedClass.subject} - ${trimesterText} - ${levelName}${sectionName}`;
+    const sectionName = activeClass.section ? ` ${activeClass.section}` : '';
+    const titleText = `Pauta de ${activeClass.subject} - ${trimesterText} - ${levelName}${sectionName}`;
 
     // 1. Build Grades data as AOA for beautiful formatting
     const aoaGrades: any[][] = [
       [titleText.toUpperCase()], // Row 0: Large Header
-      [`Escola: ${selectedClass.school || 'EduGestão'} | Ano Lectivo: ${selectedClass.academicYear || '-'}`], // Row 1: Informative Subheader
+      [`Escola: ${activeClass.school || 'EduGestão'} | Ano Lectivo: ${activeClass.academicYear || '-'}`], // Row 1: Informative Subheader
       [], // Row 2: Empty Spacer for breathing room
     ];
 
@@ -1588,7 +1410,7 @@ export default function App() {
     aoaGrades.push(gradesHeaders);
 
     // Sort students by studentNumber or name for elegant ordering
-    const sortedStudentsForExport = [...selectedClass.students].sort((a, b) => {
+    const sortedStudentsForExport = [...activeClass.students].sort((a, b) => {
       const numA = parseInt(a.studentNumber || '999999', 10);
       const numB = parseInt(b.studentNumber || '999999', 10);
       if (!isNaN(numA) && !isNaN(numB) && numA !== numB) return numA - numB;
@@ -1650,11 +1472,11 @@ export default function App() {
     XLSX.utils.book_append_sheet(wb, wsGrades, 'Avaliações');
 
     // 2. Build Personal Data sheet if user is Director
-    if (selectedClass.isDirector) {
-      const personalTitleText = `DADOS PESSOAIS - ${levelName}${sectionName} - ${selectedClass.subject}`;
+    if (activeClass.isDirector) {
+      const personalTitleText = `DADOS PESSOAIS - ${levelName}${sectionName} - ${activeClass.subject}`;
       const aoaPersonal: any[][] = [
         [personalTitleText.toUpperCase()], // Row 0: Large Header
-        [`Escola: ${selectedClass.school || 'EduGestão'} | Ano Lectivo: ${selectedClass.academicYear || '-'}`], // Row 1: Subheader
+        [`Escola: ${activeClass.school || 'EduGestão'} | Ano Lectivo: ${activeClass.academicYear || '-'}`], // Row 1: Subheader
         [], // Row 2: Spacer
       ];
 
@@ -1716,7 +1538,7 @@ export default function App() {
       ];
       const aoaMG: any[][] = [
         [`PAUTA DE MÉDIA GERAL (13 DISCIPLINAS) - ${levelName}${sectionName} - ${selectedTrimester}º TRIMESTRE`.toUpperCase()],
-        [`Escola: ${selectedClass.school || 'EduGestão'} | Ano Lectivo: ${selectedClass.academicYear || '-'} | Período: ${selectedTrimester}º Trimestre`],
+        [`Escola: ${activeClass.school || 'EduGestão'} | Ano Lectivo: ${activeClass.academicYear || '-'} | Período: ${selectedTrimester}º Trimestre`],
         [],
         mgHeaders
       ];
@@ -1756,10 +1578,10 @@ export default function App() {
     }
 
     // 3. Build Student Notes / Comments sheet (diferente da de avaliações)
-    const notesTitleText = `NOTAS E ANOTAÇÕES DOS ALUNOS - ${levelName}${sectionName} - ${selectedClass.subject}`;
+    const notesTitleText = `NOTAS E ANOTAÇÕES DOS ALUNOS - ${levelName}${sectionName} - ${activeClass.subject}`;
     const aoaNotes: any[][] = [
       [notesTitleText.toUpperCase()], // Row 0: Large Header
-      [`Escola: ${selectedClass.school || 'EduGestão'} | Ano Lectivo: ${selectedClass.academicYear || '-'}`], // Row 1: Subheader
+      [`Escola: ${activeClass.school || 'EduGestão'} | Ano Lectivo: ${activeClass.academicYear || '-'}`], // Row 1: Subheader
       [], // Row 2: Spacer
     ];
 
@@ -1823,8 +1645,8 @@ export default function App() {
     wsNotes['!cols'] = calculateNotesColWidths(aoaNotes, 3);
     XLSX.utils.book_append_sheet(wb, wsNotes, 'Notas dos Alunos');
 
-    const rawLevel = selectedClass.level || '';
-    const shortFileName = `${rawLevel}${sectionName} - ${selectedTrimester}º Trimestre - ${selectedClass.subject}`;
+    const rawLevel = activeClass.level || '';
+    const shortFileName = `${rawLevel}${sectionName} - ${selectedTrimester}º Trimestre - ${activeClass.subject}`;
     const fileNameRaw = `${shortFileName}.xlsx`;
     const fileName = fileNameRaw.replace(/\s+/g, ' ');
 
@@ -1855,12 +1677,14 @@ export default function App() {
   };
 
   const syncToGoogleDrive = async (): Promise<boolean> => {
-    if (!selectedClass) return false;
+    const activeClass = classesRef.current.find(c => c.id === selectedClassIdRef.current) ?? selectedClass;
+    if (!activeClass) return false;
     
     setIsSyncing(true);
     const toastId = toast.loading("A preparar ficheiro excel para o Google Drive...");
     
     try {
+      await flushClassSave(activeClass.id);
       let token = getCachedAccessToken();
       
       const getNewToken = async () => {
@@ -2737,8 +2561,7 @@ export default function App() {
             selectedClass={selectedClass}
             onBack={() => setIsAproveitamentoViewOpen(false)}
             onUpdateClass={async (updatedClass) => {
-              await setDoc(doc(db, 'classes', updatedClass.id), updatedClass);
-              setClasses(prev => prev.map(c => c.id === updatedClass.id ? updatedClass : c));
+              await persistClassDocNow(updatedClass);
             }}
             user={user}
             initialTrimester={selectedTrimester}
@@ -2901,125 +2724,17 @@ export default function App() {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      filteredMediaGeralStudents.map((student, idx) => {
-                        const subGrades = getStudentSubjectGrades(student, selectedTrimester);
-                        const mg = calculateMediaGeralForStudent(student, selectedTrimester);
-                        const mgNum = mg.rounded !== '-' ? parseFloat(mg.rounded) : null;
-                        const isPositive = mgNum !== null && mgNum >= 10;
-                        const isNegative = mgNum !== null && mgNum < 10;
-                        const isRowHighlighted = student.id === highlightedStudentId;
-
-                        return (
-                          <TableRow
-                            key={student.id}
-                            className={`h-12 border-b transition-all duration-150 ${
-                              isRowHighlighted
-                                ? 'bg-purple-500/20 dark:bg-purple-500/30 border-l-4 border-l-purple-600 dark:border-l-purple-400 font-medium'
-                                : 'hover:bg-muted/30 odd:bg-muted/10 even:bg-transparent border-l-4 border-l-transparent border-border/40'
-                            }`}
-                          >
-                            <TableCell 
-                              onClick={() => setHighlightedStudentId(prev => prev === student.id ? null : student.id)}
-                              className={`text-center font-semibold text-xs cursor-pointer select-none transition-colors ${
-                                isRowHighlighted 
-                                  ? 'text-purple-700 dark:text-purple-300 font-extrabold bg-purple-500/10' 
-                                  : 'text-muted-foreground hover:text-purple-600'
-                              }`}
-                              title="Clique para destacar este aluno"
-                            >
-                              <div className="flex items-center justify-center gap-1">
-                                {isRowHighlighted && (
-                                  <span className="inline-flex h-2 w-2 rounded-full bg-purple-600 dark:bg-purple-400 animate-pulse shrink-0" />
-                                )}
-                                <span>{getStudentOrderNumber(student, sortedClassStudents)}</span>
-                              </div>
-                            </TableCell>
-                            <TableCell 
-                              onClick={() => setHighlightedStudentId(prev => prev === student.id ? null : student.id)}
-                              className={`font-semibold text-xs cursor-pointer select-none transition-colors border-r border-border/40 truncate max-w-[170px] sm:max-w-[200px] md:sticky md:left-0 z-0 md:z-10 ${
-                                isRowHighlighted 
-                                  ? 'text-purple-900 dark:text-purple-200 font-extrabold bg-purple-100/95 dark:bg-purple-950/95 md:backdrop-blur-xs' 
-                                  : 'text-foreground bg-card/95 md:backdrop-blur-xs hover:text-purple-600 dark:hover:text-purple-400'
-                              }`}
-                              title="Clique para destacar este aluno"
-                            >
-                              <div className="flex items-center gap-1.5 truncate">
-                                <span className="truncate">{student.name}</span>
-                                {isRowHighlighted && (
-                                  <span className="inline-flex h-2 w-2 rounded-full bg-purple-600 dark:bg-purple-400 animate-pulse shrink-0" />
-                                )}
-                              </div>
-                            </TableCell>
-
-                            {/* 13 Subject Grade Inputs */}
-                            {MEDIA_GERAL_SUBJECTS.map((sub) => {
-                              const val = subGrades[sub.key] || '';
-                              const numVal = parseFloat(val.replace(',', '.'));
-                              const isSubPos = !isNaN(numVal) && numVal >= 10;
-                              const isSubNeg = !isNaN(numVal) && numVal < 10;
-
-                              return (
-                                <TableCell key={sub.key} className="p-1 text-center align-middle">
-                                  <Input
-                                    value={val}
-                                    onChange={(e) => updateSubjectGrade(student.id, sub.key, e.target.value)}
-                                    placeholder="-"
-                                    className={`h-8 w-14 mx-auto text-center px-1 text-xs font-bold rounded-md border transition-all ${
-                                      isRowHighlighted 
-                                        ? 'border-purple-300 dark:border-purple-700 bg-purple-50/60 dark:bg-purple-950/40' 
-                                        : 'border-border/50 bg-background/50 hover:bg-background'
-                                    } focus:border-purple-500 ${
-                                      val === '' 
-                                        ? 'text-muted-foreground' 
-                                        : isSubPos 
-                                          ? 'text-blue-600 dark:text-blue-400 font-extrabold' 
-                                          : isSubNeg 
-                                            ? 'text-red-600 dark:text-red-400 font-extrabold' 
-                                            : 'text-foreground'
-                                    }`}
-                                  />
-                                </TableCell>
-                              );
-                            })}
-
-                            {/* Sum of grades */}
-                            <TableCell className={`text-center font-bold text-xs border-l border-border/40 transition-colors ${
-                              isRowHighlighted 
-                                ? 'text-purple-900 dark:text-purple-200 bg-purple-500/20 font-extrabold' 
-                                : 'text-purple-700 dark:text-purple-300 bg-purple-500/5'
-                            }`}>
-                              {mg.hasAnyGrade ? mg.sum : '-'}
-                            </TableCell>
-
-                            {/* Média Geral (MG) with rounding - Prominently Highlighted Column */}
-                            <TableCell className={`text-center font-extrabold text-sm md:sticky md:right-0 z-0 md:z-10 border-l-2 border-r-2 border-purple-400 dark:border-purple-500 shadow-md transition-colors ${
-                              isRowHighlighted 
-                                ? 'bg-purple-200/95 dark:bg-purple-900/90 md:backdrop-blur-xs' 
-                                : 'bg-purple-100/60 dark:bg-purple-950/70 md:backdrop-blur-xs'
-                            }`}>
-                              <div className="flex flex-col items-center justify-center py-1">
-                                <span
-                                  className={`px-3 sm:px-3.5 py-1 rounded-xl text-xs sm:text-sm font-black tracking-tight transition-transform hover:scale-105 shadow-sm border-2 ${
-                                    mg.rounded === '-'
-                                      ? 'text-muted-foreground bg-muted/90 border-border/80'
-                                      : isPositive
-                                        ? 'bg-emerald-600 text-white border-emerald-500 ring-2 ring-emerald-500/25 shadow-emerald-500/20'
-                                        : 'bg-red-600 text-white border-red-500 ring-2 ring-red-500/25 shadow-red-500/20'
-                                  }`}
-                                  title={mg.raw !== null ? `Média exacta: ${mg.raw.toFixed(2)} (arredondada: ${mg.rounded})` : 'Sem notas'}
-                                >
-                                  {mg.rounded}
-                                </span>
-                                {mg.raw !== null && (
-                                  <span className="text-[10px] font-mono font-bold text-purple-950 dark:text-purple-100 mt-1 bg-purple-200/60 dark:bg-purple-900/60 px-1.5 py-0.5 rounded">
-                                    {mg.raw.toFixed(2).replace('.', ',')}
-                                  </span>
-                                )}
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })
+                      filteredMediaGeralStudents.map((student) => (
+                        <MediaGeralRow
+                          key={student.id}
+                          student={student}
+                          orderNumber={studentOrderMap.get(student.id) || '-'}
+                          trimester={selectedTrimester}
+                          isHighlighted={student.id === highlightedStudentId}
+                          onToggleHighlight={handleToggleHighlightStudent}
+                          onUpdateSubjectGrade={updateSubjectGrade}
+                        />
+                      ))
                     )}
                   </TableBody>
                 </Table>
@@ -3999,217 +3714,23 @@ export default function App() {
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {filteredStudents.map((student, idx) => {
-                              const studentGrades = getStudentGrades(student, selectedTrimester);
-                              return (
-                                <TableRow 
-                                  key={student.id} 
-                                  id={`student-row-${student.id}`}
-                                  className={`scroll-mt-36 h-16 transition-all duration-200 border-l-2 sm:border-l-4 ${
-                                    student.id === highlightedStudentId 
-                                      ? 'bg-purple-500/10 dark:bg-purple-500/20 border-l-purple-500 shadow-sm font-medium' 
-                                      : 'hover:bg-muted/40 odd:bg-muted/15 even:bg-transparent border-l-transparent'
-                                  }`}
-                                >
-                                  <TableCell className="font-medium text-muted-foreground align-middle">{getStudentOrderNumber(student, sortedClassStudents)}</TableCell>
-                                  <TableCell 
-                                    className={`font-semibold align-middle cursor-pointer transition-colors select-none ${
-                                      student.id === highlightedStudentId 
-                                        ? 'text-purple-600 dark:text-purple-400 font-extrabold' 
-                                        : 'text-foreground hover:text-purple-600 dark:hover:text-purple-400'
-                                    }`}
-                                    onClick={() => setHighlightedStudentId(prev => prev === student.id ? null : student.id)}
-                                    title="Clique para destacar este aluno"
-                                  >
-                                    <div className="flex items-center gap-1.5 flex-wrap">
-                                      <span>{student.name}</span>
-                                      {(() => {
-                                        const status = getApoioAlertStatus(student, selectedTrimester);
-                                        if (status === 'none') return null;
-                                        
-                                        let badgeColorClass = '';
-                                        let badgeLabel = 'Alerta';
-                                        let titleTooltip = '';
-
-                                        if (status === 'red') {
-                                          badgeColorClass = 'bg-red-100 dark:bg-red-950/45 text-red-600 dark:text-red-400 border-red-200/50 dark:border-red-900/20';
-                                          badgeLabel = 'Crítico';
-                                          titleTooltip = 'Nota abaixo de 7 valores';
-                                        } else if (status === 'orange') {
-                                          badgeColorClass = 'bg-amber-100 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 border-amber-200/50 dark:border-amber-900/20';
-                                          badgeLabel = 'Atenção';
-                                          titleTooltip = 'Nota entre 7 e 11 valores';
-                                        } else if (status === 'green') {
-                                          badgeColorClass = 'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border-emerald-200/50 dark:border-emerald-900/20';
-                                          badgeLabel = 'Estável';
-                                          titleTooltip = 'Nota entre 12 e 20 valores';
-                                        }
-
-                                        return (
-                                          <span 
-                                            className={`inline-flex items-center gap-0.5 text-[9px] font-extrabold px-1.5 py-0.5 rounded-sm border uppercase tracking-widest leading-none shrink-0 ${badgeColorClass}`} 
-                                            title={titleTooltip}
-                                          >
-                                            {badgeLabel}
-                                          </span>
-                                        );
-                                      })()}
-                                      {student.id === highlightedStudentId && (
-                                        <span className="inline-flex h-2 w-2 rounded-full bg-purple-500 animate-pulse shrink-0" />
-                                      )}
-                                    </div>
-                                  </TableCell>
-                                  <TableCell className={`align-middle transition-colors duration-150 ${highlightedColumn === 'acs1' ? 'bg-purple-500/5 dark:bg-purple-500/10 border-x border-purple-500/10' : ''}`}>
-                                    <div className="flex flex-col items-center justify-center">
-                                      <Input 
-                                        className={`h-8 w-16 text-center px-1 border-transparent hover:border-border focus:border-primary bg-transparent hover:bg-background/50 transition-all font-semibold ${getGradeColor(studentGrades.acs1)}`}
-                                        value={studentGrades.acs1 || ''} 
-                                        onChange={(e) => updateGrade(student.id, 'acs1', e.target.value)}
-                                        onFocus={() => setHighlightedColumn('acs1')}
-                                        onClick={() => setHighlightedColumn('acs1')}
-                                        placeholder="-"
-                                      />
-                                      {renderGradeIndicator(studentGrades.acs1)}
-                                    </div>
-                                  </TableCell>
-                                  <TableCell className={`align-middle transition-colors duration-150 ${highlightedColumn === 'acs2' ? 'bg-purple-500/5 dark:bg-purple-500/10 border-x border-purple-500/10' : ''}`}>
-                                    <div className="flex flex-col items-center justify-center">
-                                      <Input 
-                                        className={`h-8 w-16 text-center px-1 border-transparent hover:border-border focus:border-primary bg-transparent hover:bg-background/50 transition-all font-semibold ${getGradeColor(studentGrades.acs2)}`}
-                                        value={studentGrades.acs2 || ''} 
-                                        onChange={(e) => updateGrade(student.id, 'acs2', e.target.value)}
-                                        onFocus={() => setHighlightedColumn('acs2')}
-                                        onClick={() => setHighlightedColumn('acs2')}
-                                        placeholder="-"
-                                      />
-                                      {renderGradeIndicator(studentGrades.acs2)}
-                                    </div>
-                                  </TableCell>
-                                  <TableCell className={`align-middle transition-colors duration-150 ${highlightedColumn === 'acs3' ? 'bg-purple-500/5 dark:bg-purple-500/10 border-x border-purple-500/10' : ''}`}>
-                                    <div className="flex flex-col items-center justify-center">
-                                      <Input 
-                                        className={`h-8 w-16 text-center px-1 border-transparent hover:border-border focus:border-primary bg-transparent hover:bg-background/50 transition-all font-semibold ${getGradeColor(studentGrades.acs3)}`}
-                                        value={studentGrades.acs3 || ''} 
-                                        onChange={(e) => updateGrade(student.id, 'acs3', e.target.value)}
-                                        onFocus={() => setHighlightedColumn('acs3')}
-                                        onClick={() => setHighlightedColumn('acs3')}
-                                        placeholder="-"
-                                      />
-                                      {renderGradeIndicator(studentGrades.acs3)}
-                                    </div>
-                                  </TableCell>
-                                  <TableCell className="align-middle text-center bg-purple-500/5 dark:bg-purple-500/5">
-                                    <div className="flex flex-col items-center justify-center">
-                                      <span className={`font-bold text-sm ${getGradeColor(calculateAcsAverage(studentGrades), true) || 'text-foreground'}`}>
-                                        {calculateAcsAverage(studentGrades)}
-                                      </span>
-                                      {renderGradeIndicator(calculateAcsAverage(studentGrades))}
-                                    </div>
-                                  </TableCell>
-                                  <TableCell className={`align-middle transition-colors duration-150 ${highlightedColumn === 'ap' ? 'bg-purple-500/5 dark:bg-purple-500/10 border-x border-purple-500/10' : ''}`}>
-                                    <div className="flex flex-col items-center justify-center">
-                                      <Input 
-                                        className={`h-8 w-16 text-center px-1 border-transparent hover:border-border focus:border-primary bg-transparent hover:bg-background/50 transition-all font-semibold ${getGradeColor(studentGrades.ap)}`}
-                                        value={studentGrades.ap || ''} 
-                                        onChange={(e) => updateGrade(student.id, 'ap', e.target.value)}
-                                        onFocus={() => setHighlightedColumn('ap')}
-                                        onClick={() => setHighlightedColumn('ap')}
-                                        placeholder="-"
-                                      />
-                                      {renderGradeIndicator(studentGrades.ap)}
-                                    </div>
-                                  </TableCell>
-                                  <TableCell className={`align-middle transition-colors duration-150 ${highlightedColumn === 'exame' ? 'bg-purple-500/5 dark:bg-purple-500/10 border-x border-purple-500/10' : ''}`}>
-                                    <div className="flex flex-col items-center justify-center">
-                                      <Input 
-                                        className={`h-8 w-16 text-center px-1 border-transparent hover:border-border focus:border-primary bg-transparent hover:bg-background/50 transition-all font-semibold ${getGradeColor(studentGrades.exame)}`}
-                                        value={studentGrades.exame || ''} 
-                                        onChange={(e) => updateGrade(student.id, 'exame', e.target.value)}
-                                        onFocus={() => setHighlightedColumn('exame')}
-                                        onClick={() => setHighlightedColumn('exame')}
-                                        placeholder="-"
-                                      />
-                                      {renderGradeIndicator(studentGrades.exame)}
-                                    </div>
-                                  </TableCell>
-                                  <TableCell className="align-middle text-center bg-amber-500/5 dark:bg-amber-500/5">
-                                    <div className="flex flex-col items-center justify-center">
-                                      <span className={`font-bold text-sm ${getGradeColor(calculateGeneralAverage(studentGrades), true) || 'text-foreground'}`}>
-                                        {calculateGeneralAverage(studentGrades)}
-                                      </span>
-                                      {renderGradeIndicator(calculateGeneralAverage(studentGrades))}
-                                      {(() => {
-                                        const status = getApoioAlertStatus(student, selectedTrimester);
-                                        if (status === 'none') return null;
-                                        
-                                        let badgeColorClass = '';
-                                        let badgeLabel = 'Alerta';
-                                        let iconEl = null;
-
-                                        if (status === 'red') {
-                                          badgeColorClass = 'bg-red-100 dark:bg-red-950/30 border-red-200/60 dark:border-red-900/30 text-red-600 dark:text-red-400';
-                                          badgeLabel = 'Crítico';
-                                          iconEl = <AlertTriangle className="h-2.5 w-2.5 shrink-0 animate-pulse text-red-600 dark:text-red-400" />;
-                                        } else if (status === 'orange') {
-                                          badgeColorClass = 'bg-amber-100 dark:bg-amber-950/20 border-amber-200/60 dark:border-amber-900/30 text-amber-600 dark:text-amber-400';
-                                          badgeLabel = 'Atenção';
-                                          iconEl = <AlertTriangle className="h-2.5 w-2.5 shrink-0 text-amber-500 dark:text-amber-400" />;
-                                        } else if (status === 'green') {
-                                          badgeColorClass = 'bg-emerald-100 dark:bg-emerald-950/20 border-emerald-200/60 dark:border-emerald-900/30 text-emerald-600 dark:text-emerald-400';
-                                          badgeLabel = 'Estável';
-                                          iconEl = <CheckCircle2 className="h-2.5 w-2.5 shrink-0 text-emerald-500 dark:text-emerald-400" />;
-                                        }
-
-                                        return (
-                                          <div className={`flex items-center gap-1 mt-1 border px-1.5 py-0.5 rounded-full select-none text-[9px] font-bold max-w-fit mx-auto shadow-3xs ${badgeColorClass}`}>
-                                            {iconEl}
-                                            <span>{badgeLabel}</span>
-                                          </div>
-                                        );
-                                      })()}
-                                    </div>
-                                  </TableCell>
-                                  <TableCell className="align-middle text-center w-[140px]">
-                                    <div className="flex items-center justify-center gap-6">
-                                      <Button 
-                                        variant="ghost" 
-                                        size="icon" 
-                                        className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-lg cursor-pointer transition-colors"
-                                        onClick={() => setEditingStudent(student)}
-                                        title="Editar Aluno"
-                                      >
-                                        <Pencil className="h-4 w-4" />
-                                      </Button>
-                                      <Button 
-                                        variant="ghost" 
-                                        size="icon" 
-                                        className="h-8 w-8 text-purple-600 hover:text-purple-700 hover:bg-purple-50 dark:hover:bg-purple-950/20 rounded-lg cursor-pointer transition-colors"
-                                        onClick={() => setNotesStudent(student)}
-                                        title="Notas do Aluno"
-                                      >
-                                        <div className="relative">
-                                          <FileText className="h-4 w-4" />
-                                          {student.notes && student.notes.length > 0 && (
-                                            <span className="absolute -top-1.5 -right-2 bg-red-600 text-white text-[9px] font-extrabold px-1 rounded-full h-3.5 min-w-[14px] flex items-center justify-center border border-white dark:border-zinc-900 leading-none">
-                                              {student.notes.length}
-                                            </span>
-                                          )}
-                                        </div>
-                                      </Button>
-                                      <Button 
-                                        variant="ghost" 
-                                        size="icon" 
-                                        className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg cursor-pointer transition-colors"
-                                        onClick={() => confirmDeleteStudent(student.id)}
-                                        title="Remover Aluno"
-                                      >
-                                        <Trash2 className="h-4 w-4" />
-                                      </Button>
-                                    </div>
-                                  </TableCell>
-                                </TableRow>
-                              );
-                            })}
+                            {filteredStudents.map((student) => (
+                              <EvaluationStudentRow
+                                key={student.id}
+                                student={student}
+                                orderNumber={studentOrderMap.get(student.id) || '-'}
+                                trimester={selectedTrimester}
+                                isHighlighted={student.id === highlightedStudentId}
+                                highlightedColumn={highlightedColumn}
+                                isDirectorStyle={true}
+                                onToggleHighlight={handleToggleHighlightStudent}
+                                onUpdateGrade={updateGrade}
+                                onFocusColumn={handleFocusColumn}
+                                onEditStudent={setEditingStudent}
+                                onNotesStudent={setNotesStudent}
+                                onConfirmDeleteStudent={confirmDeleteStudent}
+                              />
+                            ))}
                           </TableBody>
                         </Table>
                       </div>
@@ -4328,217 +3849,23 @@ export default function App() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {filteredStudents.map((student, idx) => {
-                          const studentGrades = getStudentGrades(student, selectedTrimester);
-                          return (
-                            <TableRow 
-                              key={student.id} 
-                              id={`student-row-${student.id}`}
-                              className={`scroll-mt-36 h-16 transition-all duration-200 border-l-2 sm:border-l-4 ${
-                                student.id === highlightedStudentId 
-                                  ? 'bg-purple-500/10 dark:bg-purple-500/20 border-l-purple-500 shadow-sm font-medium' 
-                                  : 'hover:bg-muted/40 odd:bg-muted/15 even:bg-transparent border-l-transparent'
-                              }`}
-                            >
-                              <TableCell className="font-medium text-muted-foreground align-middle">{getStudentOrderNumber(student, sortedClassStudents)}</TableCell>
-                              <TableCell 
-                                className={`font-semibold align-middle cursor-pointer transition-colors select-none ${
-                                  student.id === highlightedStudentId 
-                                    ? 'text-purple-600 dark:text-purple-400 font-extrabold' 
-                                    : 'text-foreground hover:text-purple-600 dark:hover:text-purple-400'
-                                }`}
-                                onClick={() => setHighlightedStudentId(prev => prev === student.id ? null : student.id)}
-                                title="Clique para destacar este aluno"
-                              >
-                                <div className="flex items-center gap-1.5 flex-wrap">
-                                  <span>{student.name}</span>
-                                  {(() => {
-                                    const status = getApoioAlertStatus(student, selectedTrimester);
-                                    if (status === 'none') return null;
-                                    
-                                    let badgeColorClass = '';
-                                    let badgeLabel = 'Alerta';
-                                    let titleTooltip = '';
-
-                                    if (status === 'red') {
-                                      badgeColorClass = 'bg-red-100 dark:bg-red-950/45 text-red-600 dark:text-red-400 border-red-200/50 dark:border-red-900/20';
-                                      badgeLabel = 'Crítico';
-                                      titleTooltip = 'Nota abaixo de 7 valores';
-                                    } else if (status === 'orange') {
-                                      badgeColorClass = 'bg-amber-100 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 border-amber-200/50 dark:border-amber-900/20';
-                                      badgeLabel = 'Atenção';
-                                      titleTooltip = 'Nota entre 7 e 11 valores';
-                                    } else if (status === 'green') {
-                                      badgeColorClass = 'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border-emerald-200/50 dark:border-emerald-900/20';
-                                      badgeLabel = 'Estável';
-                                      titleTooltip = 'Nota entre 12 e 20 valores';
-                                    }
-
-                                    return (
-                                      <span 
-                                        className={`inline-flex items-center gap-0.5 text-[9px] font-extrabold px-1.5 py-0.5 rounded-sm border uppercase tracking-widest leading-none shrink-0 ${badgeColorClass}`} 
-                                        title={titleTooltip}
-                                      >
-                                        {badgeLabel}
-                                      </span>
-                                    );
-                                  })()}
-                                  {student.id === highlightedStudentId && (
-                                    <span className="inline-flex h-2 w-2 rounded-full bg-purple-500 animate-pulse shrink-0" />
-                                  )}
-                                </div>
-                              </TableCell>
-                              <TableCell className={`align-middle transition-colors duration-150 ${highlightedColumn === 'acs1' ? 'bg-purple-500/5 dark:bg-purple-500/10 border-x border-purple-500/10' : ''}`}>
-                                <div className="flex flex-col items-center justify-center">
-                                  <Input 
-                                    className={`h-8 w-16 text-center px-1 border-transparent hover:border-border focus:border-primary bg-transparent hover:bg-background/50 transition-all font-semibold ${getGradeColor(studentGrades.acs1)}`}
-                                    value={studentGrades.acs1 || ''} 
-                                    onChange={(e) => updateGrade(student.id, 'acs1', e.target.value)}
-                                    onFocus={() => setHighlightedColumn('acs1')}
-                                    onClick={() => setHighlightedColumn('acs1')}
-                                    placeholder="-"
-                                  />
-                                  {renderGradeIndicator(studentGrades.acs1)}
-                                </div>
-                              </TableCell>
-                              <TableCell className={`align-middle transition-colors duration-150 ${highlightedColumn === 'acs2' ? 'bg-purple-500/5 dark:bg-purple-500/10 border-x border-purple-500/10' : ''}`}>
-                                <div className="flex flex-col items-center justify-center">
-                                  <Input 
-                                    className={`h-8 w-16 text-center px-1 border-transparent hover:border-border focus:border-primary bg-transparent hover:bg-background/50 transition-all font-semibold ${getGradeColor(studentGrades.acs2)}`}
-                                    value={studentGrades.acs2 || ''} 
-                                    onChange={(e) => updateGrade(student.id, 'acs2', e.target.value)}
-                                    onFocus={() => setHighlightedColumn('acs2')}
-                                    onClick={() => setHighlightedColumn('acs2')}
-                                    placeholder="-"
-                                  />
-                                  {renderGradeIndicator(studentGrades.acs2)}
-                                </div>
-                              </TableCell>
-                              <TableCell className={`align-middle transition-colors duration-150 ${highlightedColumn === 'acs3' ? 'bg-purple-500/5 dark:bg-purple-500/10 border-x border-purple-500/10' : ''}`}>
-                                <div className="flex flex-col items-center justify-center">
-                                  <Input 
-                                    className={`h-8 w-16 text-center px-1 border-transparent hover:border-border focus:border-primary bg-transparent hover:bg-background/50 transition-all font-semibold ${getGradeColor(studentGrades.acs3)}`}
-                                    value={studentGrades.acs3 || ''} 
-                                    onChange={(e) => updateGrade(student.id, 'acs3', e.target.value)}
-                                    onFocus={() => setHighlightedColumn('acs3')}
-                                    onClick={() => setHighlightedColumn('acs3')}
-                                    placeholder="-"
-                                  />
-                                  {renderGradeIndicator(studentGrades.acs3)}
-                                </div>
-                              </TableCell>
-                              <TableCell className="align-middle text-center bg-purple-500/5 dark:bg-purple-500/5">
-                                <div className="flex flex-col items-center justify-center">
-                                  <span className={`font-bold text-sm ${getGradeColor(calculateAcsAverage(studentGrades), true) || 'text-foreground'}`}>
-                                    {calculateAcsAverage(studentGrades)}
-                                  </span>
-                                  {renderGradeIndicator(calculateAcsAverage(studentGrades))}
-                                </div>
-                              </TableCell>
-                              <TableCell className={`align-middle transition-colors duration-150 ${highlightedColumn === 'ap' ? 'bg-purple-500/5 dark:bg-purple-500/10 border-x border-purple-500/10' : ''}`}>
-                                <div className="flex flex-col items-center justify-center">
-                                  <Input 
-                                    className={`h-8 w-16 text-center px-1 border-transparent hover:border-border focus:border-primary bg-transparent hover:bg-background/50 transition-all font-semibold ${getGradeColor(studentGrades.ap)}`}
-                                    value={studentGrades.ap || ''} 
-                                    onChange={(e) => updateGrade(student.id, 'ap', e.target.value)}
-                                    onFocus={() => setHighlightedColumn('ap')}
-                                    onClick={() => setHighlightedColumn('ap')}
-                                    placeholder="-"
-                                  />
-                                  {renderGradeIndicator(studentGrades.ap)}
-                                </div>
-                              </TableCell>
-                              <TableCell className={`align-middle transition-colors duration-150 ${highlightedColumn === 'exame' ? 'bg-purple-500/5 dark:bg-purple-500/10 border-x border-purple-500/10' : ''}`}>
-                                <div className="flex flex-col items-center justify-center">
-                                  <Input 
-                                    className={`h-8 w-16 text-center px-1 border-transparent hover:border-border focus:border-primary bg-transparent hover:bg-background/50 transition-all font-semibold ${getGradeColor(studentGrades.exame)}`}
-                                    value={studentGrades.exame || ''} 
-                                    onChange={(e) => updateGrade(student.id, 'exame', e.target.value)}
-                                    onFocus={() => setHighlightedColumn('exame')}
-                                    onClick={() => setHighlightedColumn('exame')}
-                                    placeholder="-"
-                                  />
-                                  {renderGradeIndicator(studentGrades.exame)}
-                                </div>
-                              </TableCell>
-                              <TableCell className="align-middle text-center bg-amber-500/5 dark:bg-amber-500/5">
-                                <div className="flex flex-col items-center justify-center">
-                                  <span className={`font-bold text-sm ${getGradeColor(calculateGeneralAverage(studentGrades), true) || 'text-foreground'}`}>
-                                    {calculateGeneralAverage(studentGrades)}
-                                  </span>
-                                  {renderGradeIndicator(calculateGeneralAverage(studentGrades))}
-                                  {(() => {
-                                    const status = getApoioAlertStatus(student, selectedTrimester);
-                                    if (status === 'none') return null;
-                                    
-                                    let badgeColorClass = '';
-                                    let badgeLabel = 'Alerta';
-                                    let iconEl = null;
-
-                                    if (status === 'red') {
-                                      badgeColorClass = 'bg-red-100 dark:bg-red-950/30 border-red-200/60 dark:border-red-900/30 text-red-600 dark:text-red-400';
-                                      badgeLabel = 'Crítico';
-                                      iconEl = <AlertTriangle className="h-2.5 w-2.5 shrink-0 animate-pulse text-red-600 dark:text-red-400" />;
-                                    } else if (status === 'orange') {
-                                      badgeColorClass = 'bg-amber-100 dark:bg-amber-950/20 border-amber-200/60 dark:border-amber-900/30 text-amber-600 dark:text-amber-400';
-                                      badgeLabel = 'Atenção';
-                                      iconEl = <AlertTriangle className="h-2.5 w-2.5 shrink-0 text-amber-500 dark:text-amber-400" />;
-                                    } else if (status === 'green') {
-                                      badgeColorClass = 'bg-emerald-100 dark:bg-emerald-950/20 border-emerald-200/60 dark:border-emerald-900/30 text-emerald-600 dark:text-emerald-400';
-                                      badgeLabel = 'Estável';
-                                      iconEl = <CheckCircle2 className="h-2.5 w-2.5 shrink-0 text-emerald-500 dark:text-emerald-400" />;
-                                    }
-
-                                    return (
-                                      <div className={`flex items-center gap-1 mt-1 border px-1.5 py-0.5 rounded-full select-none text-[9px] font-bold max-w-fit mx-auto shadow-3xs ${badgeColorClass}`}>
-                                        {iconEl}
-                                        <span>{badgeLabel}</span>
-                                      </div>
-                                    );
-                                  })()}
-                                </div>
-                              </TableCell>
-                              <TableCell className="align-middle text-center w-[140px]">
-                                <div className="flex items-center justify-center gap-6">
-                                  <Button 
-                                    variant="ghost" 
-                                    size="icon" 
-                                    className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-lg cursor-pointer transition-colors"
-                                    onClick={() => setEditingStudent(student)}
-                                    title="Editar Aluno"
-                                  >
-                                    <Pencil className="h-4 w-4" />
-                                  </Button>
-                                  <Button 
-                                    variant="ghost" 
-                                    size="icon" 
-                                    className="h-8 w-8 text-purple-600 hover:text-purple-700 hover:bg-purple-50 dark:hover:bg-purple-950/20 rounded-lg cursor-pointer transition-colors"
-                                    onClick={() => setNotesStudent(student)}
-                                    title="Notas do Aluno"
-                                  >
-                                    <div className="relative">
-                                      <FileText className="h-4 w-4" />
-                                      {student.notes && student.notes.length > 0 && (
-                                        <span className="absolute -top-1.5 -right-2 bg-red-600 text-white text-[9px] font-extrabold px-1 rounded-full h-3.5 min-w-[14px] flex items-center justify-center border border-white dark:border-zinc-900 leading-none">
-                                          {student.notes.length}
-                                        </span>
-                                      )}
-                                    </div>
-                                  </Button>
-                                  <Button 
-                                    variant="ghost" 
-                                    size="icon" 
-                                    className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg cursor-pointer transition-colors"
-                                    onClick={() => confirmDeleteStudent(student.id)}
-                                    title="Remover Aluno"
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                </div>
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })}
+                        {filteredStudents.map((student) => (
+                          <EvaluationStudentRow
+                            key={student.id}
+                            student={student}
+                            orderNumber={studentOrderMap.get(student.id) || '-'}
+                            trimester={selectedTrimester}
+                            isHighlighted={student.id === highlightedStudentId}
+                            highlightedColumn={highlightedColumn}
+                            isDirectorStyle={false}
+                            onToggleHighlight={handleToggleHighlightStudent}
+                            onUpdateGrade={updateGrade}
+                            onFocusColumn={handleFocusColumn}
+                            onEditStudent={setEditingStudent}
+                            onNotesStudent={setNotesStudent}
+                            onConfirmDeleteStudent={confirmDeleteStudent}
+                          />
+                        ))}
                       </TableBody>
                     </Table>
                   </div>

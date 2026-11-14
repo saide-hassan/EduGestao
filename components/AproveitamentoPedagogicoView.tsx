@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   ChevronLeft,
   BarChart3,
@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { GradeInput } from '@/components/GradeTableCells';
 import type { ClassData, Student } from '@/src/App';
 import {
   calculateMediaGeralForStudent,
@@ -840,6 +841,8 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
 }) => {
   const [trimester, setTrimester] = useState<'1' | '2' | '3'>(initialTrimester);
   const [table1Data, setTable1Data] = useState<Table1RowData[]>([]);
+  const table1DataRef = useRef<Table1RowData[]>(table1Data);
+  table1DataRef.current = table1Data;
   const [table2Data, setTable2Data] = useState<Table2Data>({
     mapa33: { h: '', m: '', hm: '' },
     existentesFim1: { h: '', m: '', hm: '' },
@@ -933,15 +936,16 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
 
   // Handle cell edit in Table 1
   const handleTable1Change = (index: number, field: keyof Table1RowData, value: string) => {
-    setTable1Data((prev) => {
-      const updated = [...prev];
-      let row = { ...updated[index], [field]: value };
+    const updated = [...table1DataRef.current];
+    if (!updated[index]) return;
+    let row = { ...updated[index], [field]: value };
+    if (field !== 'professor') {
       row = applyStrictRulesTable1Row(row);
-      updated[index] = row;
-      // Also update Table 2 so it strictly observes Table 1
-      setTable2Data((prevT2) => deriveTable2FromTable1(updated, prevT2));
-      return updated;
-    });
+    }
+    updated[index] = row;
+    table1DataRef.current = updated;
+    setTable1Data(updated);
+    setTable2Data((prevT2) => deriveTable2FromTable1(updated, prevT2));
     setHasChanges(true);
   };
 
@@ -1218,10 +1222,13 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
 
                     {/* Professor */}
                     <td className="border-r border-zinc-300 dark:border-zinc-700 p-1">
-                      <input
-                        type="text"
+                      <GradeInput
+                        inputMode="text"
+                        selectOnDashFocus
+                        restoreDashOnBlur
+                        resetKey={`${row.id}-${trimester}-professor`}
                         value={row.professor}
-                        onChange={(e) => handleTable1Change(idx, 'professor', e.target.value)}
+                        onCommit={(val) => handleTable1Change(idx, 'professor', val)}
                         placeholder="-"
                         className="w-full text-center bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-purple-500 rounded text-xs print:text-[9px]"
                       />
@@ -1229,10 +1236,12 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
 
                     {/* A.A. (Alunos Avaliados) */}
                     <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 font-bold bg-muted/10">
-                      <input
-                        type="text"
+                      <GradeInput
+                        selectOnDashFocus
+                        restoreDashOnBlur
+                        resetKey={`${row.id}-${trimester}-aa`}
                         value={row.aa}
-                        onChange={(e) => handleTable1Change(idx, 'aa', e.target.value)}
+                        onCommit={(val) => handleTable1Change(idx, 'aa', val)}
                         placeholder="-"
                         className="w-full text-center bg-transparent border-0 focus:outline-none font-bold text-foreground text-xs print:text-[9px]"
                         title="Alunos Avaliados = NS + S + Bom + MB + E"
@@ -1241,10 +1250,12 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
 
                     {/* NS (0/9) */}
                     <td className="border-r border-zinc-300 dark:border-zinc-700 p-1">
-                      <input
-                        type="text"
+                      <GradeInput
+                        selectOnDashFocus
+                        restoreDashOnBlur
+                        resetKey={`${row.id}-${trimester}-ns`}
                         value={row.ns}
-                        onChange={(e) => handleTable1Change(idx, 'ns', e.target.value)}
+                        onCommit={(val) => handleTable1Change(idx, 'ns', val)}
                         placeholder="-"
                         className={`w-full text-center bg-transparent border-0 focus:outline-none text-xs print:text-[9px] ${
                           row.ns && row.ns !== '0' && row.ns !== '-' ? 'text-red-600 dark:text-red-400 font-bold' : ''
@@ -1254,10 +1265,12 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
 
                     {/* S (10/13) */}
                     <td className="border-r border-zinc-300 dark:border-zinc-700 p-1">
-                      <input
-                        type="text"
+                      <GradeInput
+                        selectOnDashFocus
+                        restoreDashOnBlur
+                        resetKey={`${row.id}-${trimester}-s`}
                         value={row.s}
-                        onChange={(e) => handleTable1Change(idx, 's', e.target.value)}
+                        onCommit={(val) => handleTable1Change(idx, 's', val)}
                         placeholder="-"
                         className="w-full text-center bg-transparent border-0 focus:outline-none text-xs print:text-[9px]"
                       />
@@ -1265,10 +1278,12 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
 
                     {/* Bom (14/16) */}
                     <td className="border-r border-zinc-300 dark:border-zinc-700 p-1">
-                      <input
-                        type="text"
+                      <GradeInput
+                        selectOnDashFocus
+                        restoreDashOnBlur
+                        resetKey={`${row.id}-${trimester}-bom`}
                         value={row.bom}
-                        onChange={(e) => handleTable1Change(idx, 'bom', e.target.value)}
+                        onCommit={(val) => handleTable1Change(idx, 'bom', val)}
                         placeholder="-"
                         className="w-full text-center bg-transparent border-0 focus:outline-none text-xs print:text-[9px]"
                       />
@@ -1276,10 +1291,12 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
 
                     {/* MB (17/18) */}
                     <td className="border-r border-zinc-300 dark:border-zinc-700 p-1">
-                      <input
-                        type="text"
+                      <GradeInput
+                        selectOnDashFocus
+                        restoreDashOnBlur
+                        resetKey={`${row.id}-${trimester}-mb`}
                         value={row.mb}
-                        onChange={(e) => handleTable1Change(idx, 'mb', e.target.value)}
+                        onCommit={(val) => handleTable1Change(idx, 'mb', val)}
                         placeholder="-"
                         className="w-full text-center bg-transparent border-0 focus:outline-none text-xs print:text-[9px]"
                       />
@@ -1287,10 +1304,12 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
 
                     {/* E (19/20) */}
                     <td className="border-r border-zinc-300 dark:border-zinc-700 p-1">
-                      <input
-                        type="text"
+                      <GradeInput
+                        selectOnDashFocus
+                        restoreDashOnBlur
+                        resetKey={`${row.id}-${trimester}-e`}
                         value={row.e}
-                        onChange={(e) => handleTable1Change(idx, 'e', e.target.value)}
+                        onCommit={(val) => handleTable1Change(idx, 'e', val)}
                         placeholder="-"
                         className="w-full text-center bg-transparent border-0 focus:outline-none text-xs print:text-[9px]"
                       />
@@ -1298,10 +1317,12 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
 
                     {/* Positivas Nº */}
                     <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 font-bold text-blue-600 dark:text-blue-400 bg-blue-50/20 dark:bg-blue-950/20 print:text-black">
-                      <input
-                        type="text"
+                      <GradeInput
+                        selectOnDashFocus
+                        restoreDashOnBlur
+                        resetKey={`${row.id}-${trimester}-posNum`}
                         value={row.positivasNum}
-                        onChange={(e) => handleTable1Change(idx, 'positivasNum', e.target.value)}
+                        onCommit={(val) => handleTable1Change(idx, 'positivasNum', val)}
                         placeholder="-"
                         className="w-full text-center bg-transparent border-0 focus:outline-none font-bold text-xs print:text-[9px]"
                         title="Positivas Nº = S + Bom + MB + E"
@@ -1310,10 +1331,12 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
 
                     {/* Positivas % */}
                     <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 text-muted-foreground print:text-black">
-                      <input
-                        type="text"
+                      <GradeInput
+                        selectOnDashFocus
+                        restoreDashOnBlur
+                        resetKey={`${row.id}-${trimester}-posPct`}
                         value={row.positivasPct}
-                        onChange={(e) => handleTable1Change(idx, 'positivasPct', e.target.value)}
+                        onCommit={(val) => handleTable1Change(idx, 'positivasPct', val)}
                         placeholder="-"
                         className="w-full text-center bg-transparent border-0 focus:outline-none text-xs print:text-[9px]"
                         title="Positivas % = (Positivas / A.A.) * 100"
@@ -1322,10 +1345,12 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
 
                     {/* Negativas Nº */}
                     <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 font-bold text-red-600 dark:text-red-400 bg-red-50/20 dark:bg-red-950/20 print:text-black">
-                      <input
-                        type="text"
+                      <GradeInput
+                        selectOnDashFocus
+                        restoreDashOnBlur
+                        resetKey={`${row.id}-${trimester}-negNum`}
                         value={row.negativasNum}
-                        onChange={(e) => handleTable1Change(idx, 'negativasNum', e.target.value)}
+                        onCommit={(val) => handleTable1Change(idx, 'negativasNum', val)}
                         placeholder="-"
                         className="w-full text-center bg-transparent border-0 focus:outline-none font-bold text-xs print:text-[9px]"
                         title="Negativas Nº = NS"
@@ -1334,10 +1359,12 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
 
                     {/* Negativas % */}
                     <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 text-muted-foreground print:text-black">
-                      <input
-                        type="text"
+                      <GradeInput
+                        selectOnDashFocus
+                        restoreDashOnBlur
+                        resetKey={`${row.id}-${trimester}-negPct`}
                         value={row.negativasPct}
-                        onChange={(e) => handleTable1Change(idx, 'negativasPct', e.target.value)}
+                        onCommit={(val) => handleTable1Change(idx, 'negativasPct', val)}
                         placeholder="-"
                         className="w-full text-center bg-transparent border-0 focus:outline-none text-xs print:text-[9px]"
                         title="Negativas % = (Negativas / A.A.) * 100"
@@ -1346,10 +1373,12 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
 
                     {/* Meninas Positivas Nº */}
                     <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 font-semibold text-emerald-600 dark:text-emerald-400 print:text-black">
-                      <input
-                        type="text"
+                      <GradeInput
+                        selectOnDashFocus
+                        restoreDashOnBlur
+                        resetKey={`${row.id}-${trimester}-mPosNum`}
                         value={row.meninasPosNum}
-                        onChange={(e) => handleTable1Change(idx, 'meninasPosNum', e.target.value)}
+                        onCommit={(val) => handleTable1Change(idx, 'meninasPosNum', val)}
                         placeholder="-"
                         className="w-full text-center bg-transparent border-0 focus:outline-none font-semibold text-xs print:text-[9px]"
                       />
@@ -1357,10 +1386,12 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
 
                     {/* Meninas Positivas % */}
                     <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 text-muted-foreground print:text-black">
-                      <input
-                        type="text"
+                      <GradeInput
+                        selectOnDashFocus
+                        restoreDashOnBlur
+                        resetKey={`${row.id}-${trimester}-mPosPct`}
                         value={row.meninasPosPct}
-                        onChange={(e) => handleTable1Change(idx, 'meninasPosPct', e.target.value)}
+                        onCommit={(val) => handleTable1Change(idx, 'meninasPosPct', val)}
                         placeholder="-"
                         className="w-full text-center bg-transparent border-0 focus:outline-none text-xs print:text-[9px]"
                         title="Meninas Positivas % = (Meninas Pos / Meninas Avaliadas) * 100"
@@ -1369,10 +1400,12 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
 
                     {/* Meninas Negativas Nº */}
                     <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 font-semibold text-red-600 dark:text-red-400 print:text-black">
-                      <input
-                        type="text"
+                      <GradeInput
+                        selectOnDashFocus
+                        restoreDashOnBlur
+                        resetKey={`${row.id}-${trimester}-mNegNum`}
                         value={row.meninasNegNum}
-                        onChange={(e) => handleTable1Change(idx, 'meninasNegNum', e.target.value)}
+                        onCommit={(val) => handleTable1Change(idx, 'meninasNegNum', val)}
                         placeholder="-"
                         className="w-full text-center bg-transparent border-0 focus:outline-none font-semibold text-xs print:text-[9px]"
                       />
@@ -1380,10 +1413,12 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
 
                     {/* Meninas Negativas % */}
                     <td className="p-1 text-muted-foreground print:text-black">
-                      <input
-                        type="text"
+                      <GradeInput
+                        selectOnDashFocus
+                        restoreDashOnBlur
+                        resetKey={`${row.id}-${trimester}-mNegPct`}
                         value={row.meninasNegPct}
-                        onChange={(e) => handleTable1Change(idx, 'meninasNegPct', e.target.value)}
+                        onCommit={(val) => handleTable1Change(idx, 'meninasNegPct', val)}
                         placeholder="-"
                         className="w-full text-center bg-transparent border-0 focus:outline-none text-xs print:text-[9px]"
                         title="Meninas Negativas % = (Meninas Neg / Meninas Avaliadas) * 100"
@@ -1490,214 +1525,214 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
                 <tr className="border-b border-zinc-400 dark:border-zinc-700 font-semibold print:border-black">
                   {/* 1. Mapa 3/3 */}
                   <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 w-[50px] min-w-[50px]">
-                    <input
-                      type="text"
+                    <GradeInput
+                      resetKey={`t2-${trimester}-mapa33-h`}
                       value={table2Data.mapa33.h}
-                      onChange={(e) => handleTable2Change('mapa33', 'h', e.target.value)}
+                      onCommit={(val) => handleTable2Change('mapa33', 'h', val)}
                       className="w-full text-center bg-transparent border-0 focus:outline-none text-xs font-semibold px-0.5 print:text-[8px]"
                     />
                   </td>
                   <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 w-[50px] min-w-[50px]">
-                    <input
-                      type="text"
+                    <GradeInput
+                      resetKey={`t2-${trimester}-mapa33-m`}
                       value={table2Data.mapa33.m}
-                      onChange={(e) => handleTable2Change('mapa33', 'm', e.target.value)}
+                      onCommit={(val) => handleTable2Change('mapa33', 'm', val)}
                       className="w-full text-center bg-transparent border-0 focus:outline-none text-xs font-semibold px-0.5 print:text-[8px]"
                     />
                   </td>
                   <td className="border-r border-zinc-400 dark:border-zinc-700 p-1 font-bold bg-muted/20 w-[58px] min-w-[58px]">
-                    <input
-                      type="text"
+                    <GradeInput
+                      resetKey={`t2-${trimester}-mapa33-hm`}
                       value={table2Data.mapa33.hm}
-                      onChange={(e) => handleTable2Change('mapa33', 'hm', e.target.value)}
+                      onCommit={(val) => handleTable2Change('mapa33', 'hm', val)}
                       className="w-full text-center bg-transparent border-0 focus:outline-none font-bold text-xs px-0.5 print:text-[8px]"
                     />
                   </td>
 
                   {/* 2. Existentes fim anterior */}
                   <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 w-[50px] min-w-[50px]">
-                    <input
-                      type="text"
+                    <GradeInput
+                      resetKey={`t2-${trimester}-ex1-h`}
                       value={table2Data.existentesFim1.h}
-                      onChange={(e) => handleTable2Change('existentesFim1', 'h', e.target.value)}
+                      onCommit={(val) => handleTable2Change('existentesFim1', 'h', val)}
                       className="w-full text-center bg-transparent border-0 focus:outline-none text-xs font-semibold px-0.5 print:text-[8px]"
                     />
                   </td>
                   <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 w-[50px] min-w-[50px]">
-                    <input
-                      type="text"
+                    <GradeInput
+                      resetKey={`t2-${trimester}-ex1-m`}
                       value={table2Data.existentesFim1.m}
-                      onChange={(e) => handleTable2Change('existentesFim1', 'm', e.target.value)}
+                      onCommit={(val) => handleTable2Change('existentesFim1', 'm', val)}
                       className="w-full text-center bg-transparent border-0 focus:outline-none text-xs font-semibold px-0.5 print:text-[8px]"
                     />
                   </td>
                   <td className="border-r border-zinc-400 dark:border-zinc-700 p-1 font-bold bg-muted/20 w-[58px] min-w-[58px]">
-                    <input
-                      type="text"
+                    <GradeInput
+                      resetKey={`t2-${trimester}-ex1-hm`}
                       value={table2Data.existentesFim1.hm}
-                      onChange={(e) => handleTable2Change('existentesFim1', 'hm', e.target.value)}
+                      onCommit={(val) => handleTable2Change('existentesFim1', 'hm', val)}
                       className="w-full text-center bg-transparent border-0 focus:outline-none font-bold text-xs px-0.5 print:text-[8px]"
                     />
                   </td>
 
                   {/* 3. Que entraram */}
                   <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 w-[50px] min-w-[50px]">
-                    <input
-                      type="text"
+                    <GradeInput
+                      resetKey={`t2-${trimester}-ent2-h`}
                       value={table2Data.entraram2.h}
-                      onChange={(e) => handleTable2Change('entraram2', 'h', e.target.value)}
+                      onCommit={(val) => handleTable2Change('entraram2', 'h', val)}
                       className="w-full text-center bg-transparent border-0 focus:outline-none text-xs font-semibold px-0.5 print:text-[8px]"
                     />
                   </td>
                   <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 w-[50px] min-w-[50px]">
-                    <input
-                      type="text"
+                    <GradeInput
+                      resetKey={`t2-${trimester}-ent2-m`}
                       value={table2Data.entraram2.m}
-                      onChange={(e) => handleTable2Change('entraram2', 'm', e.target.value)}
+                      onCommit={(val) => handleTable2Change('entraram2', 'm', val)}
                       className="w-full text-center bg-transparent border-0 focus:outline-none text-xs font-semibold px-0.5 print:text-[8px]"
                     />
                   </td>
                   <td className="border-r border-zinc-400 dark:border-zinc-700 p-1 font-bold bg-muted/20 w-[58px] min-w-[58px]">
-                    <input
-                      type="text"
+                    <GradeInput
+                      resetKey={`t2-${trimester}-ent2-hm`}
                       value={table2Data.entraram2.hm}
-                      onChange={(e) => handleTable2Change('entraram2', 'hm', e.target.value)}
+                      onCommit={(val) => handleTable2Change('entraram2', 'hm', val)}
                       className="w-full text-center bg-transparent border-0 focus:outline-none font-bold text-xs px-0.5 print:text-[8px]"
                     />
                   </td>
 
                   {/* 4. Total (Existentes + Entraram) */}
                   <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 bg-muted/10 w-[50px] min-w-[50px]">
-                    <input
-                      type="text"
+                    <GradeInput
+                      resetKey={`t2-${trimester}-total-h`}
                       value={table2Data.total.h}
-                      onChange={(e) => handleTable2Change('total', 'h', e.target.value)}
+                      onCommit={(val) => handleTable2Change('total', 'h', val)}
                       className="w-full text-center bg-transparent border-0 focus:outline-none text-xs font-semibold px-0.5 print:text-[8px]"
                       title="Total H = Existentes H + Entraram H"
                     />
                   </td>
                   <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 bg-muted/10 w-[50px] min-w-[50px]">
-                    <input
-                      type="text"
+                    <GradeInput
+                      resetKey={`t2-${trimester}-total-m`}
                       value={table2Data.total.m}
-                      onChange={(e) => handleTable2Change('total', 'm', e.target.value)}
+                      onCommit={(val) => handleTable2Change('total', 'm', val)}
                       className="w-full text-center bg-transparent border-0 focus:outline-none text-xs font-semibold px-0.5 print:text-[8px]"
                       title="Total M = Existentes M + Entraram M"
                     />
                   </td>
                   <td className="border-r border-zinc-400 dark:border-zinc-700 p-1 font-bold bg-muted/25 w-[58px] min-w-[58px]">
-                    <input
-                      type="text"
+                    <GradeInput
+                      resetKey={`t2-${trimester}-total-hm`}
                       value={table2Data.total.hm}
-                      onChange={(e) => handleTable2Change('total', 'hm', e.target.value)}
+                      onCommit={(val) => handleTable2Change('total', 'hm', val)}
                       className="w-full text-center bg-transparent border-0 focus:outline-none font-bold text-xs px-0.5 print:text-[8px]"
                     />
                   </td>
 
                   {/* 5. Transferidos */}
                   <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 w-[50px] min-w-[50px]">
-                    <input
-                      type="text"
+                    <GradeInput
+                      resetKey={`t2-${trimester}-transf-h`}
                       value={table2Data.transferidos.h}
-                      onChange={(e) => handleTable2Change('transferidos', 'h', e.target.value)}
+                      onCommit={(val) => handleTable2Change('transferidos', 'h', val)}
                       className="w-full text-center bg-transparent border-0 focus:outline-none text-xs font-semibold px-0.5 print:text-[8px]"
                     />
                   </td>
                   <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 w-[50px] min-w-[50px]">
-                    <input
-                      type="text"
+                    <GradeInput
+                      resetKey={`t2-${trimester}-transf-m`}
                       value={table2Data.transferidos.m}
-                      onChange={(e) => handleTable2Change('transferidos', 'm', e.target.value)}
+                      onCommit={(val) => handleTable2Change('transferidos', 'm', val)}
                       className="w-full text-center bg-transparent border-0 focus:outline-none text-xs font-semibold px-0.5 print:text-[8px]"
                     />
                   </td>
                   <td className="border-r border-zinc-400 dark:border-zinc-700 p-1 font-bold bg-muted/20 w-[58px] min-w-[58px]">
-                    <input
-                      type="text"
+                    <GradeInput
+                      resetKey={`t2-${trimester}-transf-hm`}
                       value={table2Data.transferidos.hm}
-                      onChange={(e) => handleTable2Change('transferidos', 'hm', e.target.value)}
+                      onCommit={(val) => handleTable2Change('transferidos', 'hm', val)}
                       className="w-full text-center bg-transparent border-0 focus:outline-none font-bold text-xs px-0.5 print:text-[8px]"
                     />
                   </td>
 
                   {/* 6. Existentes no Fim (Total - Transferidos) */}
                   <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 bg-muted/10 w-[50px] min-w-[50px]">
-                    <input
-                      type="text"
+                    <GradeInput
+                      resetKey={`t2-${trimester}-ex2-h`}
                       value={table2Data.existentesFim2.h}
-                      onChange={(e) => handleTable2Change('existentesFim2', 'h', e.target.value)}
+                      onCommit={(val) => handleTable2Change('existentesFim2', 'h', val)}
                       className="w-full text-center bg-transparent border-0 focus:outline-none text-xs font-semibold px-0.5 print:text-[8px]"
                       title="Existentes Fim H = Total H - Transferidos H"
                     />
                   </td>
                   <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 bg-muted/10 w-[50px] min-w-[50px]">
-                    <input
-                      type="text"
+                    <GradeInput
+                      resetKey={`t2-${trimester}-ex2-m`}
                       value={table2Data.existentesFim2.m}
-                      onChange={(e) => handleTable2Change('existentesFim2', 'm', e.target.value)}
+                      onCommit={(val) => handleTable2Change('existentesFim2', 'm', val)}
                       className="w-full text-center bg-transparent border-0 focus:outline-none text-xs font-semibold px-0.5 print:text-[8px]"
                       title="Existentes Fim M = Total M - Transferidos M"
                     />
                   </td>
                   <td className="border-r border-zinc-400 dark:border-zinc-700 p-1 font-bold bg-muted/25 w-[58px] min-w-[58px]">
-                    <input
-                      type="text"
+                    <GradeInput
+                      resetKey={`t2-${trimester}-ex2-hm`}
                       value={table2Data.existentesFim2.hm}
-                      onChange={(e) => handleTable2Change('existentesFim2', 'hm', e.target.value)}
+                      onCommit={(val) => handleTable2Change('existentesFim2', 'hm', val)}
                       className="w-full text-center bg-transparent border-0 focus:outline-none font-bold text-xs px-0.5 print:text-[8px]"
                     />
                   </td>
 
                   {/* 7. Situação Positiva (Número) */}
                   <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 text-blue-600 dark:text-blue-400 font-bold bg-blue-50/20 dark:bg-blue-950/20 print:text-black w-[50px] min-w-[50px]">
-                    <input
-                      type="text"
+                    <GradeInput
+                      resetKey={`t2-${trimester}-posNum-h`}
                       value={table2Data.positivasNum.h}
-                      onChange={(e) => handleTable2Change('positivasNum', 'h', e.target.value)}
+                      onCommit={(val) => handleTable2Change('positivasNum', 'h', val)}
                       className="w-full text-center bg-transparent border-0 focus:outline-none font-bold text-xs px-0.5 print:text-[8px]"
                     />
                   </td>
                   <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 text-blue-600 dark:text-blue-400 font-bold bg-blue-50/20 dark:bg-blue-950/20 print:text-black w-[50px] min-w-[50px]">
-                    <input
-                      type="text"
+                    <GradeInput
+                      resetKey={`t2-${trimester}-posNum-m`}
                       value={table2Data.positivasNum.m}
-                      onChange={(e) => handleTable2Change('positivasNum', 'm', e.target.value)}
+                      onCommit={(val) => handleTable2Change('positivasNum', 'm', val)}
                       className="w-full text-center bg-transparent border-0 focus:outline-none font-bold text-xs px-0.5 print:text-[8px]"
                     />
                   </td>
                   <td className="border-r border-zinc-400 dark:border-zinc-700 p-1 font-black text-blue-700 dark:text-blue-300 bg-blue-100/30 dark:bg-blue-950/40 print:text-black w-[58px] min-w-[58px]">
-                    <input
-                      type="text"
+                    <GradeInput
+                      resetKey={`t2-${trimester}-posNum-hm`}
                       value={table2Data.positivasNum.hm}
-                      onChange={(e) => handleTable2Change('positivasNum', 'hm', e.target.value)}
+                      onCommit={(val) => handleTable2Change('positivasNum', 'hm', val)}
                       className="w-full text-center bg-transparent border-0 focus:outline-none font-black text-xs px-0.5 print:text-[8px]"
                     />
                   </td>
 
                   {/* 8. Situação Positiva (%) */}
                   <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 text-muted-foreground print:text-black w-[62px] min-w-[62px]">
-                    <input
-                      type="text"
+                    <GradeInput
+                      resetKey={`t2-${trimester}-posPct-h`}
                       value={table2Data.positivasPct.h}
-                      onChange={(e) => handleTable2Change('positivasPct', 'h', e.target.value)}
+                      onCommit={(val) => handleTable2Change('positivasPct', 'h', val)}
                       className="w-full text-center bg-transparent border-0 focus:outline-none text-xs font-semibold px-0.5 print:text-[8px]"
                       title="Positivas % (H) = (Positivas H / Existentes Fim H) * 100"
                     />
                   </td>
                   <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 text-muted-foreground print:text-black w-[62px] min-w-[62px]">
-                    <input
-                      type="text"
+                    <GradeInput
+                      resetKey={`t2-${trimester}-posPct-m`}
                       value={table2Data.positivasPct.m}
-                      onChange={(e) => handleTable2Change('positivasPct', 'm', e.target.value)}
+                      onCommit={(val) => handleTable2Change('positivasPct', 'm', val)}
                       className="w-full text-center bg-transparent border-0 focus:outline-none text-xs font-semibold px-0.5 print:text-[8px]"
                       title="Positivas % (M) = (Positivas M / Existentes Fim M) * 100"
                     />
                   </td>
                   <td className="border-r border-zinc-400 dark:border-zinc-700 p-1 font-bold text-foreground bg-muted/20 print:text-black w-[70px] min-w-[70px]">
-                    <input
-                      type="text"
+                    <GradeInput
+                      resetKey={`t2-${trimester}-posPct-hm`}
                       value={table2Data.positivasPct.hm}
-                      onChange={(e) => handleTable2Change('positivasPct', 'hm', e.target.value)}
+                      onCommit={(val) => handleTable2Change('positivasPct', 'hm', val)}
                       className="w-full text-center bg-transparent border-0 focus:outline-none font-bold text-xs px-0.5 print:text-[8px]"
                       title="Positivas % (HM) = (Positivas HM / Existentes Fim HM) * 100"
                     />
@@ -1705,56 +1740,56 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
 
                   {/* 9. Situação Negativa (Número) */}
                   <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 text-red-600 dark:text-red-400 font-bold bg-red-50/20 dark:bg-red-950/20 print:text-black w-[50px] min-w-[50px]">
-                    <input
-                      type="text"
+                    <GradeInput
+                      resetKey={`t2-${trimester}-negNum-h`}
                       value={table2Data.negativasNum.h}
-                      onChange={(e) => handleTable2Change('negativasNum', 'h', e.target.value)}
+                      onCommit={(val) => handleTable2Change('negativasNum', 'h', val)}
                       className="w-full text-center bg-transparent border-0 focus:outline-none font-bold text-xs px-0.5 print:text-[8px]"
                       title="Negativas H = Existentes Fim H - Positivas H"
                     />
                   </td>
                   <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 text-red-600 dark:text-red-400 font-bold bg-red-50/20 dark:bg-red-950/20 print:text-black w-[50px] min-w-[50px]">
-                    <input
-                      type="text"
+                    <GradeInput
+                      resetKey={`t2-${trimester}-negNum-m`}
                       value={table2Data.negativasNum.m}
-                      onChange={(e) => handleTable2Change('negativasNum', 'm', e.target.value)}
+                      onCommit={(val) => handleTable2Change('negativasNum', 'm', val)}
                       className="w-full text-center bg-transparent border-0 focus:outline-none font-bold text-xs px-0.5 print:text-[8px]"
                       title="Negativas M = Existentes Fim M - Positivas M"
                     />
                   </td>
                   <td className="border-r border-zinc-400 dark:border-zinc-700 p-1 font-black text-red-700 dark:text-red-300 bg-red-100/30 dark:bg-red-950/40 print:text-black w-[58px] min-w-[58px]">
-                    <input
-                      type="text"
+                    <GradeInput
+                      resetKey={`t2-${trimester}-negNum-hm`}
                       value={table2Data.negativasNum.hm}
-                      onChange={(e) => handleTable2Change('negativasNum', 'hm', e.target.value)}
+                      onCommit={(val) => handleTable2Change('negativasNum', 'hm', val)}
                       className="w-full text-center bg-transparent border-0 focus:outline-none font-black text-xs px-0.5 print:text-[8px]"
                     />
                   </td>
 
                   {/* 10. Situação Negativa (%) */}
                   <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 text-muted-foreground print:text-black w-[62px] min-w-[62px]">
-                    <input
-                      type="text"
+                    <GradeInput
+                      resetKey={`t2-${trimester}-negPct-h`}
                       value={table2Data.negativasPct.h}
-                      onChange={(e) => handleTable2Change('negativasPct', 'h', e.target.value)}
+                      onCommit={(val) => handleTable2Change('negativasPct', 'h', val)}
                       className="w-full text-center bg-transparent border-0 focus:outline-none text-xs font-semibold px-0.5 print:text-[8px]"
                       title="Negativas % (H) = (Negativas H / Existentes Fim H) * 100"
                     />
                   </td>
                   <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 text-muted-foreground print:text-black w-[62px] min-w-[62px]">
-                    <input
-                      type="text"
+                    <GradeInput
+                      resetKey={`t2-${trimester}-negPct-m`}
                       value={table2Data.negativasPct.m}
-                      onChange={(e) => handleTable2Change('negativasPct', 'm', e.target.value)}
+                      onCommit={(val) => handleTable2Change('negativasPct', 'm', val)}
                       className="w-full text-center bg-transparent border-0 focus:outline-none text-xs font-semibold px-0.5 print:text-[8px]"
                       title="Negativas % (M) = (Negativas M / Existentes Fim M) * 100"
                     />
                   </td>
                   <td className="p-1 font-bold text-foreground bg-muted/20 print:text-black w-[70px] min-w-[70px]">
-                    <input
-                      type="text"
+                    <GradeInput
+                      resetKey={`t2-${trimester}-negPct-hm`}
                       value={table2Data.negativasPct.hm}
-                      onChange={(e) => handleTable2Change('negativasPct', 'hm', e.target.value)}
+                      onCommit={(val) => handleTable2Change('negativasPct', 'hm', val)}
                       className="w-full text-center bg-transparent border-0 focus:outline-none font-bold text-xs px-0.5 print:text-[8px]"
                       title="Negativas % (HM) = (Negativas HM / Existentes Fim HM) * 100"
                     />
