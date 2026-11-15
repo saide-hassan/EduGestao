@@ -381,21 +381,15 @@ export default function App() {
   // Add Class State
   const [highlightedStudentId, setHighlightedStudentId] = useState<string | null>(null);
   const [highlightedColumn, setHighlightedColumn] = useState<string | null>(null);
-  const [alertActiveForClass, setAlertActiveForClass] = useState<string | null>(null);
+  const [apoioBannerItems, setApoioBannerItems] = useState<Array<{
+    id: string;
+    studentNumber?: string;
+    name: string;
+    status: ApoioAlertStatus;
+    displayVal: string;
+  }>>([]);
   const [showApoioBanner, setShowApoioBanner] = useState<boolean>(false);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
-
-  useEffect(() => {
-    if (selectedClassId) {
-      if (alertActiveForClass !== selectedClassId) {
-        setAlertActiveForClass(selectedClassId);
-        setShowApoioBanner(true);
-      }
-    } else {
-      setAlertActiveForClass(null);
-      setShowApoioBanner(false);
-    }
-  }, [selectedClassId, alertActiveForClass]);
 
   const [isAddClassOpen, setIsAddClassOpen] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
@@ -1359,11 +1353,52 @@ export default function App() {
     );
   }, [sortedClassStudents, mediaGeralSearch]);
 
-  const studentsNeedingApoio = useMemo(() => {
-    return sortedClassStudents.filter(student => {
-      return getApoioAlertStatus(student, selectedTrimester) === 'red';
-    });
-  }, [sortedClassStudents, selectedTrimester]);
+  const sortedClassStudentsRef = useRef<Student[]>([]);
+  sortedClassStudentsRef.current = sortedClassStudents;
+  const selectedTrimesterRef = useRef<'1' | '2' | '3'>(selectedTrimester);
+  selectedTrimesterRef.current = selectedTrimester;
+
+  const isOnTablePage = Boolean(
+    selectedClassId &&
+    selectedClass &&
+    !isMediaGeralViewOpen &&
+    !isAproveitamentoViewOpen
+  );
+
+  useEffect(() => {
+    if (isOnTablePage) {
+      const trimester = selectedTrimesterRef.current;
+      const snapshot = sortedClassStudentsRef.current
+        .filter((student) => getApoioAlertStatus(student, trimester) === 'red')
+        .map((s) => {
+          const status = getApoioAlertStatus(s, trimester);
+          const sGrades = getStudentGrades(s, trimester);
+          const mediaGVal = calculateGeneralAverage(sGrades);
+          let displayVal = mediaGVal;
+          if (mediaGVal === '-') {
+            displayVal = sGrades.acs1 || sGrades.acs2 || sGrades.acs3 || sGrades.ap || '-';
+          }
+          return {
+            id: s.id,
+            studentNumber: s.studentNumber,
+            name: s.name,
+            status,
+            displayVal,
+          };
+        });
+
+      if (snapshot.length > 0) {
+        setApoioBannerItems(snapshot);
+        setShowApoioBanner(true);
+      } else {
+        setApoioBannerItems([]);
+        setShowApoioBanner(false);
+      }
+    } else {
+      setApoioBannerItems([]);
+      setShowApoioBanner(false);
+    }
+  }, [isOnTablePage, selectedClassId]);
 
   const buildExcelWorkbook = () => {
     const activeClass = classesRef.current.find(c => c.id === selectedClassIdRef.current) ?? selectedClass;
@@ -3520,16 +3555,14 @@ export default function App() {
                     </div>
                   </div>
 
-                  {showApoioBanner && studentsNeedingApoio.length > 0 && (() => {
-                    const statusCounts = studentsNeedingApoio.reduce((acc, s) => {
-                      const status = getApoioAlertStatus(s, selectedTrimester);
-                      acc[status] = (acc[status] || 0) + 1;
+                  {showApoioBanner && apoioBannerItems.length > 0 && (() => {
+                    const statusCounts = apoioBannerItems.reduce((acc, item) => {
+                      acc[item.status] = (acc[item.status] || 0) + 1;
                       return acc;
                     }, {} as Record<string, number>);
 
                     const redCount = statusCounts['red'] || 0;
                     const orangeCount = statusCounts['orange'] || 0;
-                    const greenCount = statusCounts['green'] || 0;
 
                     const totalActiveCount = redCount + orangeCount;
 
@@ -3543,7 +3576,7 @@ export default function App() {
                     if (redCount > 0) {
                       bannerClass = "border-red-200/60 dark:border-red-900/40 bg-red-500/10 dark:bg-red-500/5 text-red-700 dark:text-red-400";
                       titleText = "Alerta!";
-                      bannerTitleClass = "text-red-850 dark:text-red-350 font-extrabold";
+                      bannerTitleClass = "text-red-850 dark:text-red-300 font-extrabold";
                       bannerIcon = <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400 shrink-0 animate-pulse" />;
                       closeButtonClass = "hover:bg-red-500/20 text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300";
                     } else if (orangeCount > 0) {
@@ -3601,17 +3634,9 @@ export default function App() {
                           </p>
 
                           <div className="flex flex-wrap gap-2 mt-3">
-                            {studentsNeedingApoio.map(s => {
-                              const status = getApoioAlertStatus(s, selectedTrimester);
-                              const sGrades = getStudentGrades(s, selectedTrimester);
-                              const mediaGVal = calculateGeneralAverage(sGrades);
-                              
-                              // Determine display value
-                              let displayVal = mediaGVal;
-                              if (mediaGVal === '-') {
-                                // If no general average yet, show the current representative grade or ACS 1
-                                displayVal = sGrades.acs1 || sGrades.acs2 || sGrades.acs3 || sGrades.ap || '-';
-                              }
+                            {apoioBannerItems.map(s => {
+                              const status = s.status;
+                              const displayVal = s.displayVal;
 
                               const isRed = status === 'red';
                               const isOrange = status === 'orange';
