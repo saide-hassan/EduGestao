@@ -163,6 +163,114 @@ export const GradeInput = React.memo(function GradeInput({
         pendingValueRef.current = null;
         commitFn(valToFlush);
       }
+      return;
+    }
+
+    if (
+      e.altKey ||
+      e.ctrlKey ||
+      e.metaKey ||
+      e.shiftKey ||
+      (e.key !== 'ArrowUp' &&
+        e.key !== 'ArrowDown' &&
+        e.key !== 'ArrowLeft' &&
+        e.key !== 'ArrowRight')
+    ) {
+      return;
+    }
+
+    const inputEl = e.currentTarget;
+    const selStart = inputEl.selectionStart ?? 0;
+    const selEnd = inputEl.selectionEnd ?? 0;
+    const len = inputEl.value.length;
+    const isAllSelected = len > 0 && selStart === 0 && selEnd === len;
+
+    let shouldNavigate = false;
+    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+      shouldNavigate = true;
+    } else if (e.key === 'ArrowLeft') {
+      shouldNavigate = len === 0 || isAllSelected || (selStart === 0 && selEnd === 0);
+    } else if (e.key === 'ArrowRight') {
+      shouldNavigate = len === 0 || isAllSelected || (selStart === len && selEnd === len);
+    }
+
+    if (!shouldNavigate) return;
+
+    const currentRow = inputEl.closest('tr');
+    const tableBody = currentRow?.closest('tbody');
+    if (!currentRow || !tableBody) return;
+
+    const rows: HTMLTableRowElement[] = Array.from(
+      tableBody.querySelectorAll('tr')
+    );
+    const rowIndex = rows.indexOf(currentRow);
+    if (rowIndex === -1) return;
+
+    const rowInputs: HTMLInputElement[] = Array.from(
+      currentRow.querySelectorAll('input[data-grade-input="true"]:not(:disabled)')
+    );
+    const colIndex = rowInputs.indexOf(inputEl);
+    if (colIndex === -1) return;
+
+    let targetInput: HTMLInputElement | undefined;
+
+    if (e.key === 'ArrowRight') {
+      if (colIndex + 1 < rowInputs.length) {
+        targetInput = rowInputs[colIndex + 1];
+      } else {
+        for (let r = rowIndex + 1; r < rows.length; r++) {
+          const nextRowInputs = rows[r].querySelectorAll<HTMLInputElement>(
+            'input[data-grade-input="true"]:not(:disabled)'
+          );
+          if (nextRowInputs.length > 0) {
+            targetInput = nextRowInputs[0];
+            break;
+          }
+        }
+      }
+    } else if (e.key === 'ArrowLeft') {
+      if (colIndex - 1 >= 0) {
+        targetInput = rowInputs[colIndex - 1];
+      } else {
+        for (let r = rowIndex - 1; r >= 0; r--) {
+          const prevRowInputs = rows[r].querySelectorAll<HTMLInputElement>(
+            'input[data-grade-input="true"]:not(:disabled)'
+          );
+          if (prevRowInputs.length > 0) {
+            targetInput = prevRowInputs[prevRowInputs.length - 1];
+            break;
+          }
+        }
+      }
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      for (let r = rowIndex + 1; r < rows.length; r++) {
+        const nextRowInputs = rows[r].querySelectorAll<HTMLInputElement>(
+          'input[data-grade-input="true"]:not(:disabled)'
+        );
+        if (nextRowInputs.length > 0) {
+          targetInput = nextRowInputs[Math.min(colIndex, nextRowInputs.length - 1)];
+          break;
+        }
+      }
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      for (let r = rowIndex - 1; r >= 0; r--) {
+        const prevRowInputs = rows[r].querySelectorAll<HTMLInputElement>(
+          'input[data-grade-input="true"]:not(:disabled)'
+        );
+        if (prevRowInputs.length > 0) {
+          targetInput = prevRowInputs[Math.min(colIndex, prevRowInputs.length - 1)];
+          break;
+        }
+      }
+    }
+
+    if (targetInput) {
+      e.preventDefault();
+      targetInput.focus();
+      targetInput.select();
+      targetInput.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     }
   };
 
@@ -171,6 +279,7 @@ export const GradeInput = React.memo(function GradeInput({
   return (
     <input
       type="text"
+      data-grade-input="true"
       inputMode={inputMode}
       autoComplete="off"
       value={localValue}
