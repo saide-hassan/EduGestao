@@ -11,6 +11,7 @@ import { GradeInput } from '@/components/GradeTableCells';
 import type { ClassData, Student } from '@/src/App';
 import {
   calculateMediaGeralForStudent,
+  customRound,
   isStudentFemale,
   getStudentSubjectGrades,
   MEDIA_GERAL_SUBJECTS,
@@ -383,106 +384,111 @@ export const applyStrictRulesTable1Row = (row: Table1RowData): Table1RowData => 
 };
 
 // Strict Table 2 Rules Engine
-export const applyStrictRulesTable2 = (t2: Table2Data): Table2Data => {
+export const applyStrictRulesTable2 = (
+  t2: Table2Data,
+  editedGroup?: keyof Table2Data,
+  editedSub?: 'h' | 'm' | 'hm'
+): Table2Data => {
   const result: Table2Data = JSON.parse(JSON.stringify(t2));
 
-  // Rule 2.1: HM = H + M for all groups
+  // Rule 2.1: HM = H + M for movement groups (unless HM itself is being edited)
   const hMapa = parseVal(result.mapa33.h);
   const mMapa = parseVal(result.mapa33.m);
-  result.mapa33.hm = String(hMapa + mMapa);
+  if (!(editedGroup === 'mapa33' && editedSub === 'hm')) {
+    result.mapa33.hm = String(hMapa + mMapa);
+  }
 
   const hExist1 = parseVal(result.existentesFim1.h);
   const mExist1 = parseVal(result.existentesFim1.m);
-  result.existentesFim1.hm = String(hExist1 + mExist1);
+  if (!(editedGroup === 'existentesFim1' && editedSub === 'hm')) {
+    result.existentesFim1.hm = String(hExist1 + mExist1);
+  }
 
   const hEntr = parseVal(result.entraram2.h);
   const mEntr = parseVal(result.entraram2.m);
-  result.entraram2.hm = String(hEntr + mEntr);
+  if (!(editedGroup === 'entraram2' && editedSub === 'hm')) {
+    result.entraram2.hm = String(hEntr + mEntr);
+  }
 
   // Rule 2.2: Total = Existentes no Início + Que entraram
-  const hTotal = hExist1 + hEntr;
-  const mTotal = mExist1 + mEntr;
-  result.total.h = String(hTotal);
-  result.total.m = String(mTotal);
-  result.total.hm = String(hTotal + mTotal);
+  const hTotal = editedGroup === 'total' && editedSub === 'h' ? parseVal(result.total.h) : hExist1 + hEntr;
+  const mTotal = editedGroup === 'total' && editedSub === 'm' ? parseVal(result.total.m) : mExist1 + mEntr;
+  if (!(editedGroup === 'total' && editedSub === 'h')) {
+    result.total.h = String(hTotal);
+  }
+  if (!(editedGroup === 'total' && editedSub === 'm')) {
+    result.total.m = String(mTotal);
+  }
+  if (!(editedGroup === 'total' && editedSub === 'hm')) {
+    result.total.hm = String(hTotal + mTotal);
+  }
 
   // Rule 2.3: Transferidos
   const hTransf = parseVal(result.transferidos.h);
   const mTransf = parseVal(result.transferidos.m);
-  result.transferidos.hm = String(hTransf + mTransf);
+  if (!(editedGroup === 'transferidos' && editedSub === 'hm')) {
+    result.transferidos.hm = String(hTransf + mTransf);
+  }
 
   // Rule 2.4: Existentes no Fim = Total - Transferidos
-  const hExist2 = Math.max(0, hTotal - hTransf);
-  const mExist2 = Math.max(0, mTotal - mTransf);
-  result.existentesFim2.h = String(hExist2);
-  result.existentesFim2.m = String(mExist2);
-  result.existentesFim2.hm = String(hExist2 + mExist2);
+  const hExist2 =
+    editedGroup === 'existentesFim2' && editedSub === 'h'
+      ? parseVal(result.existentesFim2.h)
+      : Math.max(0, hTotal - hTransf);
+  const mExist2 =
+    editedGroup === 'existentesFim2' && editedSub === 'm'
+      ? parseVal(result.existentesFim2.m)
+      : Math.max(0, mTotal - mTransf);
+  if (!(editedGroup === 'existentesFim2' && editedSub === 'h')) {
+    result.existentesFim2.h = String(hExist2);
+  }
+  if (!(editedGroup === 'existentesFim2' && editedSub === 'm')) {
+    result.existentesFim2.m = String(mExist2);
+  }
+  if (!(editedGroup === 'existentesFim2' && editedSub === 'hm')) {
+    result.existentesFim2.hm = String(hExist2 + mExist2);
+  }
+  const hmExist2 = parseVal(result.existentesFim2.hm);
 
-  // Rule 2.5: Positivas e Negativas (Número)
-  const hPos = Math.min(hExist2, parseVal(result.positivasNum.h));
-  const mPos = Math.min(mExist2, parseVal(result.positivasNum.m));
-  result.positivasNum.h = String(hPos);
-  result.positivasNum.m = String(mPos);
-  result.positivasNum.hm = String(hPos + mPos);
+  // Rule 2.5: Situação Positiva (Número) — preservar contagem exacta obtida da Pauta da Turma (ou edição directa)
+  const hPos = parseVal(result.positivasNum.h);
+  const mPos = parseVal(result.positivasNum.m);
+  if (!(editedGroup === 'positivasNum' && editedSub === 'hm')) {
+    result.positivasNum.hm = String(hPos + mPos);
+  }
+  const hmPos = parseVal(result.positivasNum.hm);
 
-  // Rule 2.6: Negativas = Existentes no Fim - Positivas
-  const hNeg = Math.max(0, hExist2 - hPos);
-  const mNeg = Math.max(0, mExist2 - mPos);
-  result.negativasNum.h = String(hNeg);
-  result.negativasNum.m = String(mNeg);
-  result.negativasNum.hm = String(hNeg + mNeg);
+  // Rule 2.6: Situação Negativa (Número) — preservar contagem exacta de notas 0 a 9 da Pauta da Turma (ou edição directa)
+  const hNeg = parseVal(result.negativasNum.h);
+  const mNeg = parseVal(result.negativasNum.m);
+  if (!(editedGroup === 'negativasNum' && editedSub === 'hm')) {
+    result.negativasNum.hm = String(hNeg + mNeg);
+  }
+  const hmNeg = parseVal(result.negativasNum.hm);
 
-  // Rule 2.7: Percentagens sobre Existentes no Fim (fecham em 100%)
-  result.positivasPct.h = hExist2 > 0 ? formatPct(hPos, hExist2) : '0,0';
-  result.positivasPct.m = mExist2 > 0 ? formatPct(mPos, mExist2) : '0,0';
-  result.positivasPct.hm = (hExist2 + mExist2) > 0 ? formatPct(hPos + mPos, hExist2 + mExist2) : '0,0';
+  // Rule 2.7: Percentagens sobre Existentes no Fim (ou total avaliado se Existentes Fim for 0 ou inferior ao total avaliado)
+  const denomH = hExist2 > 0 ? Math.max(hExist2, hPos + hNeg) : hPos + hNeg;
+  const denomM = mExist2 > 0 ? Math.max(mExist2, mPos + mNeg) : mPos + mNeg;
+  const denomHM = hmExist2 > 0 ? Math.max(hmExist2, hmPos + hmNeg) : hmPos + hmNeg;
 
-  result.negativasPct.h = hExist2 > 0 ? formatPct(hNeg, hExist2) : '0,0';
-  result.negativasPct.m = mExist2 > 0 ? formatPct(mNeg, mExist2) : '0,0';
-  result.negativasPct.hm = (hExist2 + mExist2) > 0 ? formatPct(hNeg + mNeg, hExist2 + mExist2) : '0,0';
+  if (editedGroup !== 'positivasPct') {
+    result.positivasPct.h = denomH > 0 ? formatPct(hPos, denomH) : '0,0';
+    result.positivasPct.m = denomM > 0 ? formatPct(mPos, denomM) : '0,0';
+    result.positivasPct.hm = denomHM > 0 ? formatPct(hmPos, denomHM) : '0,0';
+  }
+
+  if (editedGroup !== 'negativasPct') {
+    result.negativasPct.h = denomH > 0 ? formatPct(hNeg, denomH) : '0,0';
+    result.negativasPct.m = denomM > 0 ? formatPct(mNeg, denomM) : '0,0';
+    result.negativasPct.hm = denomHM > 0 ? formatPct(hmNeg, denomHM) : '0,0';
+  }
 
   return result;
 };
 
-// Derive Table 2 from Table 1 totals when Table 1 is manually edited
-export const deriveTable2FromTable1 = (t1: Table1RowData[], currentT2: Table2Data): Table2Data => {
-  let posNumSum = 0;
-  let negNumSum = 0;
-  let mPosNumSum = 0;
-  let mNegNumSum = 0;
-
-  t1.forEach((row) => {
-    posNumSum += parseVal(row.positivasNum);
-    negNumSum += parseVal(row.negativasNum);
-    mPosNumSum += parseVal(row.meninasPosNum);
-    mNegNumSum += parseVal(row.meninasNegNum);
-  });
-
-  const totalAAT1 = posNumSum + negNumSum;
-  const totalMAAT1 = mPosNumSum + mNegNumSum;
-  const hPosNumSum = Math.max(0, posNumSum - mPosNumSum);
-  const hNegNumSum = Math.max(0, negNumSum - mNegNumSum);
-  const totalHAAT1 = hPosNumSum + hNegNumSum;
-
-  const result: Table2Data = JSON.parse(JSON.stringify(currentT2));
-  const hExist2 = parseVal(result.existentesFim2.h);
-  const mExist2 = parseVal(result.existentesFim2.m);
-
-  if (totalAAT1 > 0) {
-    const mRate = totalMAAT1 > 0 ? mPosNumSum / totalMAAT1 : 0;
-    const hRate = totalHAAT1 > 0 ? hPosNumSum / totalHAAT1 : 0;
-
-    const posH = Math.min(hExist2, Math.round(hExist2 * hRate));
-    const posM = Math.min(mExist2, Math.round(mExist2 * mRate));
-
-    result.positivasNum.h = String(posH);
-    result.positivasNum.m = String(posM);
-    result.positivasNum.hm = String(posH + posM);
-
-    return applyStrictRulesTable2(result);
-  }
-
-  return applyStrictRulesTable2(result);
+// Derive Table 2 from Table 1 totals when Table 1 is manually edited (legacy helper kept for compatibility)
+export const deriveTable2FromTable1 = (_t1: Table1RowData[], currentT2: Table2Data): Table2Data => {
+  return applyStrictRulesTable2(currentT2);
 };
 
 // Compute pedagogical balance and general situation dynamically from class data
@@ -607,7 +613,7 @@ export const computeAproveitamentoFromClass = (
     };
   });
 
-  // 2. Compute Table 2 (Situação Geral da Turma - Observando rigorosamente os dados da Pauta e da Tabela 1)
+  // 2. Compute Table 2 (Situação Geral da Turma - Verificação rigorosa na Pauta da Turma)
   let totalH = 0;
   let totalM = 0;
   selectedClass.students.forEach((student) => {
@@ -618,40 +624,47 @@ export const computeAproveitamentoFromClass = (
 
   let posH = 0;
   let posM = 0;
+  let negH = 0;
+  let negM = 0;
 
-  // Analisa cada aluno através da Pauta da Turma (Média Geral da Pauta):
+  // Verifica cada aluno directamente na Pauta da Turma (Média Geral da Pauta)
+  // Positiva: >= 10 valores | Negativa: 0 a 9 valores | Sem notas na Pauta ('-'): não contabilizado
   selectedClass.students.forEach((student) => {
-    // 1. Tentar primeiro o cálculo oficial de Média Geral da Pauta (calculateMediaGeralForStudent)
+    const isFemale = isStudentFemale(student);
     const mg = calculateMediaGeralForStudent(student, t);
+
+    let finalMgNum: number | null = null;
     if (mg.hasAnyGrade && mg.rounded !== '-') {
-      const num = parseFloat(mg.rounded);
-      if (!isNaN(num) && num >= 10) {
-        if (isStudentFemale(student)) posM++;
-        else posH++;
+      const parsed = parseFloat(mg.rounded.replace(',', '.'));
+      if (!isNaN(parsed)) {
+        finalMgNum = parsed;
       }
     } else {
-      // 2. Fallback: média de todas as disciplinas avaliadas
-      let studentSum = 0;
-      let studentCount = 0;
-      APROVEITAMENTO_DISCIPLINAS.forEach((disc) => {
-        if (!isSubjectInPauta(disc)) return;
-        const valStr = getGradeForStudentAndSubject(student, t, disc, selectedClass.subject);
-        const cat = classifyGrade(valStr);
-        if (cat !== null) {
-          const num = parseFloat(valStr.replace(',', '.'));
-          if (!isNaN(num)) {
-            studentSum += num;
-            studentCount++;
+      // Fallback estrito apenas para chaves/aliases presentes dentro da Pauta da Turma (subjectGrades)
+      let pautaSum = 0;
+      let pautaHasAny = false;
+      MEDIA_GERAL_SUBJECTS.forEach((sub) => {
+        const valStr = getGradeForStudentAndSubject(student, t, sub.key);
+        if (valStr !== '') {
+          const n = parseFloat(valStr.replace(',', '.'));
+          if (!isNaN(n)) {
+            pautaSum += n;
+            pautaHasAny = true;
           }
         }
       });
-      if (studentCount > 0) {
-        const studentAvg = studentSum / studentCount;
-        const roundedAvg = Math.round(studentAvg);
-        if (roundedAvg >= 10) {
-          if (isStudentFemale(student)) posM++;
-          else posH++;
-        }
+      if (pautaHasAny) {
+        finalMgNum = parseFloat(customRound(pautaSum / 13));
+      }
+    }
+
+    if (finalMgNum !== null) {
+      if (finalMgNum >= 10) {
+        if (isFemale) posM++;
+        else posH++;
+      } else if (finalMgNum >= 0 && finalMgNum <= 9) {
+        if (isFemale) negM++;
+        else negH++;
       }
     }
   });
@@ -659,19 +672,19 @@ export const computeAproveitamentoFromClass = (
   const hExist2 = totalH;
   const mExist2 = totalM;
   const posHM = posH + posM;
-
-  // Regra Estrita: Negativas = Existentes no Fim - Positivas
-  const negH = Math.max(0, hExist2 - posH);
-  const negM = Math.max(0, mExist2 - posM);
   const negHM = negH + negM;
 
-  const posPctH = hExist2 > 0 ? formatPct(posH, hExist2) : '0,0';
-  const posPctM = mExist2 > 0 ? formatPct(posM, mExist2) : '0,0';
-  const posPctHM = totalHM > 0 ? formatPct(posHM, totalHM) : '0,0';
+  const denomH = hExist2 > 0 ? Math.max(hExist2, posH + negH) : posH + negH;
+  const denomM = mExist2 > 0 ? Math.max(mExist2, posM + negM) : posM + negM;
+  const denomHM = totalHM > 0 ? Math.max(totalHM, posHM + negHM) : posHM + negHM;
 
-  const negPctH = hExist2 > 0 ? formatPct(negH, hExist2) : '0,0';
-  const negPctM = mExist2 > 0 ? formatPct(negM, mExist2) : '0,0';
-  const negPctHM = totalHM > 0 ? formatPct(negHM, totalHM) : '0,0';
+  const posPctH = denomH > 0 ? formatPct(posH, denomH) : '0,0';
+  const posPctM = denomM > 0 ? formatPct(posM, denomM) : '0,0';
+  const posPctHM = denomHM > 0 ? formatPct(posHM, denomHM) : '0,0';
+
+  const negPctH = denomH > 0 ? formatPct(negH, denomH) : '0,0';
+  const negPctM = denomM > 0 ? formatPct(negM, denomM) : '0,0';
+  const negPctHM = denomHM > 0 ? formatPct(negHM, denomHM) : '0,0';
 
   const computedT2: Table2Data = {
     mapa33: { h: String(totalH), m: String(totalM), hm: String(totalHM) },
@@ -945,7 +958,6 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
     updated[index] = row;
     table1DataRef.current = updated;
     setTable1Data(updated);
-    setTable2Data((prevT2) => deriveTable2FromTable1(updated, prevT2));
     setHasChanges(true);
   };
 
@@ -971,7 +983,7 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
       const updated = { ...prev };
       const currentGroup = { ...updated[group], [sub]: value };
       updated[group] = currentGroup;
-      return applyStrictRulesTable2(updated);
+      return applyStrictRulesTable2(updated, group, sub);
     });
     setHasChanges(true);
   };
@@ -1745,7 +1757,7 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
                       value={table2Data.negativasNum.h}
                       onCommit={(val) => handleTable2Change('negativasNum', 'h', val)}
                       className="w-full text-center bg-transparent border-0 focus:outline-none font-bold text-xs px-0.5 print:text-[8px]"
-                      title="Negativas H = Existentes Fim H - Positivas H"
+                      title="Negativas H = Homens com Média Geral de 0 a 9 na Pauta da Turma"
                     />
                   </td>
                   <td className="border-r border-zinc-300 dark:border-zinc-700 p-1 text-red-600 dark:text-red-400 font-bold bg-red-50/20 dark:bg-red-950/20 print:text-black w-[50px] min-w-[50px]">
@@ -1754,7 +1766,7 @@ export const AproveitamentoPedagogicoView: React.FC<AproveitamentoPedagogicoView
                       value={table2Data.negativasNum.m}
                       onCommit={(val) => handleTable2Change('negativasNum', 'm', val)}
                       className="w-full text-center bg-transparent border-0 focus:outline-none font-bold text-xs px-0.5 print:text-[8px]"
-                      title="Negativas M = Existentes Fim M - Positivas M"
+                      title="Negativas M = Mulheres com Média Geral de 0 a 9 na Pauta da Turma"
                     />
                   </td>
                   <td className="border-r border-zinc-400 dark:border-zinc-700 p-1 font-black text-red-700 dark:text-red-300 bg-red-100/30 dark:bg-red-950/40 print:text-black w-[58px] min-w-[58px]">

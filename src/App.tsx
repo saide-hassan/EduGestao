@@ -16,7 +16,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { WelcomeScreen } from '@/components/welcome-screen';
 import { LoginScreen } from '@/components/login-screen';
-import { AproveitamentoPedagogicoView, computeAproveitamentoFromClass, buildAproveitamentoExcelData } from '@/components/AproveitamentoPedagogicoView';
+import { AproveitamentoPedagogicoView, computeAproveitamentoFromClass, buildAproveitamentoExcelData, applyStrictRulesTable2 } from '@/components/AproveitamentoPedagogicoView';
 import { EvaluationStudentRow, MediaGeralRow } from '@/components/GradeTableCells';
 import {
   type Grades,
@@ -1240,7 +1240,15 @@ export default function App() {
           return sRow ? { ...cRow, ...sRow } : cRow;
         })
       : computedAprov.t1;
-    const finalT2 = savedAprov?.table2 ? { ...computedAprov.t2, ...savedAprov.table2 } : computedAprov.t2;
+    const finalT2 = savedAprov?.table2
+      ? applyStrictRulesTable2({
+          ...computedAprov.t2,
+          mapa33: savedAprov.table2.mapa33 || computedAprov.t2.mapa33,
+          existentesFim1: savedAprov.table2.existentesFim1 || computedAprov.t2.existentesFim1,
+          entraram2: savedAprov.table2.entraram2 || computedAprov.t2.entraram2,
+          transferidos: savedAprov.table2.transferidos || computedAprov.t2.transferidos,
+        })
+      : computedAprov.t2;
 
     const aoaAproveitamento = buildAproveitamentoExcelData(
       activeClass,
