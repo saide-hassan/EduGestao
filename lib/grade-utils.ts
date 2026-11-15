@@ -232,7 +232,7 @@ export const calculateAcsAverage = (grades: Grades) => {
   const values = [grades.acs1, grades.acs2, grades.acs3]
     .map(v => parseFloat((v || '').replace(',', '.')))
     .filter(v => !isNaN(v));
-  if (values.length === 0) return '-';
+  if (values.length < 2) return '-';
   const sum = values.reduce((acc, curr) => acc + curr, 0);
   const rawAverage = sum / values.length;
   return customRound(rawAverage);

@@ -1420,8 +1420,8 @@ export default function App() {
     const hasAp = studentGradesList.some(g => (g.ap || '').trim() !== '');
     const hasExame = studentGradesList.some(g => (g.exame || '').trim() !== '');
 
-    const hasMedia = hasAcs1 || hasAcs2 || hasAcs3;
-    const hasMediaGeral = hasMedia && hasAp;
+    const hasMedia = studentGradesList.some(g => calculateAcsAverage(g) !== '-');
+    const hasMediaGeral = studentGradesList.some(g => calculateGeneralAverage(g) !== '-');
 
     const trimesterText = `${selectedTrimester}º Trimestre`;
     let levelName = activeClass.level || '';

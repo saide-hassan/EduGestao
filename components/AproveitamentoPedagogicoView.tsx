@@ -257,7 +257,7 @@ export const getGradeForStudentAndSubject = (
           .map((x) => parseFloat((x || '').replace(',', '.')))
           .filter((x) => !isNaN(x));
         const apVal = parseFloat((gradesObj.ap || '').replace(',', '.'));
-        if (acsList.length > 0 && !isNaN(apVal)) {
+        if (acsList.length >= 2 && !isNaN(apVal)) {
           const rawAcs = acsList.reduce((a, b) => a + b, 0) / acsList.length;
           const acsAvg = Math.round(rawAcs);
           const avg = Math.round((acsAvg + apVal) / 2);
