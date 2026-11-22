@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { Plus, Users, BookOpen, School, GraduationCap, ChevronLeft, Trash2, UserPlus, Save, Search, Download, Pencil, Home, LogOut, Star, Layers, Sun, Moon, Upload, FileSpreadsheet, FileText, UploadCloud, Check, AlertTriangle, X, ChevronDown, Cloud, Wifi, WifiOff, CloudLightning, CloudOff, CheckCircle2, Calculator, BarChart3, Sparkles } from 'lucide-react';
+import { Plus, Users, BookOpen, School, GraduationCap, ChevronLeft, Trash2, UserPlus, Save, Search, Download, Pencil, Home, LogOut, Star, Layers, Sun, Moon, Upload, FileSpreadsheet, FileText, UploadCloud, Check, AlertTriangle, X, ChevronDown, Cloud, Wifi, WifiOff, CloudLightning, CloudOff, CheckCircle2, Calculator, BarChart3, Sparkles, ListPlus } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import mammoth from 'mammoth';
 import { motion } from 'motion/react';
@@ -17,6 +17,7 @@ import { ThemeToggle } from '@/components/theme-toggle';
 import { WelcomeScreen } from '@/components/welcome-screen';
 import { LoginScreen } from '@/components/login-screen';
 import { AproveitamentoPedagogicoView, computeAproveitamentoFromClass, buildAproveitamentoExcelData, applyStrictRulesTable2 } from '@/components/AproveitamentoPedagogicoView';
+import { AddGradesBySubjectView } from '@/components/AddGradesBySubjectView';
 import { EvaluationStudentRow, MediaGeralRow } from '@/components/GradeTableCells';
 import {
   type Grades,
@@ -277,7 +278,15 @@ export default function App() {
   const [isUnsyncedModalOpen, setIsUnsyncedModalOpen] = useState(false);
   const [isMediaGeralViewOpen, setIsMediaGeralViewOpen] = useState(false);
   const [isAproveitamentoViewOpen, setIsAproveitamentoViewOpen] = useState(false);
+  const [isAddBySubjectViewOpen, setIsAddBySubjectViewOpen] = useState(false);
   const [mediaGeralSearch, setMediaGeralSearch] = useState('');
+
+  const isMediaGeralViewOpenRef = useRef(isMediaGeralViewOpen);
+  isMediaGeralViewOpenRef.current = isMediaGeralViewOpen;
+  const isAproveitamentoViewOpenRef = useRef(isAproveitamentoViewOpen);
+  isAproveitamentoViewOpenRef.current = isAproveitamentoViewOpen;
+  const isAddBySubjectViewOpenRef = useRef(isAddBySubjectViewOpen);
+  isAddBySubjectViewOpenRef.current = isAddBySubjectViewOpen;
 
   useEffect(() => {
     void flushClassSave();
@@ -285,6 +294,7 @@ export default function App() {
     setIsUnsyncedModalOpen(false);
     setIsMediaGeralViewOpen(false);
     setIsAproveitamentoViewOpen(false);
+    setIsAddBySubjectViewOpen(false);
     setMediaGeralSearch('');
   }, [selectedClassId, flushClassSave]);
   const [selectedLevel, setSelectedLevel] = useState<string | null>(null);
@@ -513,8 +523,10 @@ export default function App() {
 
   // Sincronizar estado inicial da história do browser quando a App carrega
   useEffect(() => {
-    if (typeof window !== 'undefined' && !window.history.state) {
-      window.history.replaceState({ view: 'home' }, '');
+    if (typeof window !== 'undefined') {
+      if (!window.history.state || window.location.pathname === '/pauta/adicionar-por-disciplina') {
+        window.history.replaceState({ view: 'home' }, '', '/');
+      }
     }
   }, []);
 
@@ -526,7 +538,16 @@ export default function App() {
     }
 
     let targetState: any = { view: 'home' };
-    if (selectedClassId) {
+    let targetPath = '/';
+    if (selectedClassId && isAddBySubjectViewOpen) {
+      targetState = {
+        view: 'pauta-adicionar-por-disciplina',
+        level: selectedLevel,
+        levelYear: selectedLevelYear,
+        classId: selectedClassId,
+      };
+      targetPath = '/pauta/adicionar-por-disciplina';
+    } else if (selectedClassId) {
       targetState = {
         view: 'class',
         level: selectedLevel,
@@ -548,18 +569,25 @@ export default function App() {
       currentState.view === targetState.view &&
       currentState.level === targetState.level &&
       currentState.levelYear === targetState.levelYear &&
-      currentState.classId === targetState.classId;
+      currentState.classId === targetState.classId &&
+      window.location.pathname === targetPath;
 
     if (!isDuplicate) {
-      window.history.pushState(targetState, '');
+      window.history.pushState(targetState, '', targetPath);
     }
-  }, [selectedLevel, selectedLevelYear, selectedClassId]);
+  }, [selectedLevel, selectedLevelYear, selectedClassId, isAddBySubjectViewOpen]);
 
   // Lidar com o botão físico de voltar do telemóvel (popstate)
   useEffect(() => {
     const handlePopState = (event: PopStateEvent) => {
       const state = event.state;
       if (!state) return;
+
+      if (isAddBySubjectViewOpenRef.current) {
+        isSystemPopState.current = true;
+        setIsAddBySubjectViewOpen(false);
+        return;
+      }
 
       if (hasUnsyncedChanges && selectedClassId) {
         // Restaurar o estado na história do browser para impedir a saída
@@ -575,12 +603,12 @@ export default function App() {
 
       isSystemPopState.current = true;
 
-      if (isAproveitamentoViewOpen) {
+      if (isAproveitamentoViewOpenRef.current) {
         setIsAproveitamentoViewOpen(false);
         return;
       }
 
-      if (isMediaGeralViewOpen) {
+      if (isMediaGeralViewOpenRef.current) {
         setIsMediaGeralViewOpen(false);
         return;
       }
@@ -596,6 +624,7 @@ export default function App() {
       setIsLogoutDialogOpen(false);
       setIsDeleteDialogOpen(false);
       setIsMediaGeralViewOpen(false);
+      setIsAddBySubjectViewOpen(false);
 
       if (state.view === 'class') {
         setSelectedLevel(state.level ?? null);
@@ -1143,6 +1172,52 @@ export default function App() {
     }
   };
 
+  const handleSaveGradesBySubject = useCallback(async (
+    updatesByTrimester: Record<string, Record<string, Record<string, string>>>
+  ) => {
+    const activeClassId = selectedClassIdRef.current;
+    const activeUser = userRef.current;
+    if (!activeClassId || !activeUser) return;
+
+    const latestClass = classesRef.current.find((c) => c.id === activeClassId);
+    if (!latestClass) return;
+
+    const updatedClass: ClassData = {
+      ...latestClass,
+      students: latestClass.students.map((student) => {
+        let changed = false;
+        const nextTrimesterSubjectGrades = { ...(student.trimesterSubjectGrades || {}) };
+        let nextRootSubjectGrades = student.subjectGrades ? { ...student.subjectGrades } : undefined;
+
+        (['1', '2', '3'] as const).forEach((t) => {
+          const studentUpdates = updatesByTrimester[t]?.[student.id];
+          if (!studentUpdates) return;
+          changed = true;
+          const mergedSubGrades = {
+            ...getStudentSubjectGrades(student, t),
+            ...studentUpdates,
+          };
+          nextTrimesterSubjectGrades[t] = mergedSubGrades;
+          if (t === '1') {
+            nextRootSubjectGrades = mergedSubGrades;
+          }
+        });
+
+        if (!changed) return student;
+        return {
+          ...student,
+          subjectGrades: nextRootSubjectGrades ?? student.subjectGrades ?? {},
+          trimesterSubjectGrades: nextTrimesterSubjectGrades,
+        };
+      }),
+    };
+
+    classesRef.current = classesRef.current.map((c) => (c.id === activeClassId ? updatedClass : c));
+    setClasses((prev) => prev.map((c) => (c.id === activeClassId ? updatedClass : c)));
+    await persistClassDocNow(updatedClass);
+    setHasUnsyncedChanges(true);
+  }, [persistClassDocNow]);
+
   const exportMediaGeralToExcel = () => {
     const activeClass = classesRef.current.find(c => c.id === selectedClassIdRef.current) ?? selectedClass;
     if (!activeClass) return;
@@ -1370,7 +1445,8 @@ export default function App() {
     selectedClassId &&
     selectedClass &&
     !isMediaGeralViewOpen &&
-    !isAproveitamentoViewOpen
+    !isAproveitamentoViewOpen &&
+    !isAddBySubjectViewOpen
   );
 
   useEffect(() => {
@@ -2599,6 +2675,22 @@ export default function App() {
               </div>
             )}
           </div>
+        ) : selectedClass && selectedClass.isDirector && isAddBySubjectViewOpen ? (
+          <AddGradesBySubjectView
+            selectedClass={selectedClass}
+            students={sortedClassStudents}
+            studentOrderMap={studentOrderMap}
+            trimester={selectedTrimester}
+            onTrimesterChange={setSelectedTrimester}
+            onSaveGrades={handleSaveGradesBySubject}
+            onBack={() => {
+              if (window.history.state?.view === 'pauta-adicionar-por-disciplina') {
+                window.history.back();
+              } else {
+                setIsAddBySubjectViewOpen(false);
+              }
+            }}
+          />
         ) : selectedClass && selectedClass.isDirector && isAproveitamentoViewOpen ? (
           <AproveitamentoPedagogicoView
             selectedClass={selectedClass}
@@ -2632,10 +2724,10 @@ export default function App() {
                 </h2>
               </div>
 
-              {/* Row 2: Repositioned Controls (Trimester selector, Campo de Pesquisa, Botões Sincronizar e Exportar) */}
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mt-4 pt-3 border-t border-border/50">
+              {/* Row 2: Repositioned Controls (Trimester selector, Campo de Pesquisa, Botões Adicionar por disciplina, Sincronizar e Exportar) */}
+              <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3 mt-4 pt-3 border-t border-border/50">
                 {/* Trimester Tabs */}
-                <div className="flex p-0.5 bg-muted/70 rounded-xl border border-border/40 select-none w-full sm:w-auto">
+                <div className="flex p-0.5 bg-muted/70 rounded-xl border border-border/40 select-none w-full sm:w-auto self-start xl:self-auto">
                   {(['1', '2', '3'] as const).map((t) => (
                     <button
                       key={t}
@@ -2652,9 +2744,9 @@ export default function App() {
                 </div>
 
                 {/* Search & Actions */}
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full md:w-auto">
+                <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-2.5 w-full xl:w-auto">
                   {/* Campo de Pesquisa */}
-                  <div className="relative flex-1 sm:w-72 md:w-80">
+                  <div className="relative flex-1 lg:w-72">
                     <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4.5 w-4.5 text-muted-foreground/60 pointer-events-none" />
                     <Input
                       type="text"
@@ -2681,8 +2773,24 @@ export default function App() {
                     )}
                   </div>
 
-                  {/* Botões Sincronizar e Exportar */}
-                  <div className="flex items-center gap-2">
+                  {/* Botões Adicionar por disciplina, Sincronizar e Exportar */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={async () => {
+                        if (selectedClass) {
+                          await flushClassSave(selectedClass.id);
+                        }
+                        setIsAddBySubjectViewOpen(true);
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                      className="flex-1 sm:flex-initial h-11 px-3.5 border border-purple-200 dark:border-purple-900/50 bg-purple-50/10 dark:bg-purple-950/10 text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/30 text-xs sm:text-sm font-semibold rounded-xl shadow-2xs flex items-center justify-center gap-2 cursor-pointer transition-colors whitespace-nowrap"
+                      title="Lançar notas rapidamente por disciplina"
+                    >
+                      <ListPlus className="h-4 w-4 text-purple-600 dark:text-purple-400 shrink-0" />
+                      <span>Adicionar por disciplina</span>
+                    </Button>
+
                     <Button
                       variant="outline"
                       onClick={pullCurrentSubjectGrades}
