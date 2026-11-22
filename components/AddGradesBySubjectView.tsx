@@ -297,133 +297,104 @@ export const AddGradesBySubjectView: React.FC<AddGradesBySubjectViewProps> = ({
     onBack();
   };
 
-  const rawLevel = (selectedClass.level || '').replace(/\s*[Cc]lasse\s*/i, '').trim();
-  const classSubtitle = `${rawLevel ? `${rawLevel}ª Classe` : selectedClass.level}${
-    selectedClass.section ? ` • Turma ${selectedClass.section}` : ''
-  }`;
+  const rawLevelDigits = (selectedClass.level || '')
+    .replace(/\s*[Cc]lasse\s*/i, '')
+    .replace(/[ªº]+$/g, '')
+    .trim();
+  const formattedLevel = rawLevelDigits
+    ? `${rawLevelDigits}ª`
+    : (selectedClass.level || '').trim();
+  const rawSection = (selectedClass.section || '')
+    .replace(/^\s*[Tt]urma\s*/i, '')
+    .trim();
+  const classShortLabel = [formattedLevel, rawSection].filter(Boolean).join(' ');
 
   return (
     <div className="space-y-4 pt-4 sm:pt-6 pb-8 animate-in fade-in duration-300">
       {/* Cabeçalho e Controlos Principais */}
       <div className="bg-card rounded-2xl border border-border shadow-xs p-4 sm:p-5 space-y-4">
-        {/* Linha 1: Botão Voltar à Pauta da Turma + Título */}
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        {/* Linha 1: Título da página antes dos restantes elementos */}
+        <div className="flex items-center justify-center sm:justify-start">
+          <h2 className="text-lg sm:text-xl font-extrabold text-foreground tracking-tight flex items-center gap-2">
+            <BookOpen className="h-5 w-5 text-purple-600 dark:text-purple-400 shrink-0" />
+            <span>Adicionar por Disciplina</span>
+          </h2>
+        </div>
+
+        {/* Linha 2: Botão Voltar e identificação curta da turma (ex: 7ª C) na mesma linha */}
+        <div className="flex items-center justify-between gap-3 pt-2 border-t border-border/50">
           <Button
             variant="outline"
             onClick={handleBackClick}
             className="h-9 sm:h-10 px-3 sm:px-4 border border-purple-200 dark:border-purple-900/40 bg-purple-50/20 dark:bg-purple-950/20 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/30 rounded-xl shadow-2xs flex items-center gap-1.5 cursor-pointer transition-all shrink-0 text-xs sm:text-sm font-semibold"
           >
             <ChevronLeft className="h-4.5 w-4.5 shrink-0" />
-            <span>Voltar à Pauta da Turma</span>
+            <span>Voltar</span>
           </Button>
 
-          <div className="text-right ml-auto">
-            <h2 className="text-base sm:text-xl font-extrabold text-foreground tracking-tight flex items-center justify-end gap-2">
-              <span>Adicionar por Disciplina</span>
-              <BookOpen className="h-5 w-5 text-purple-600 dark:text-purple-400 shrink-0" />
-            </h2>
-            <p className="text-xs text-muted-foreground font-medium mt-0.5">
-              {classSubtitle}
-            </p>
-          </div>
-        </div>
-
-        {/* Linha 2: Separadores de Trimestre + Selector de Disciplina + Guardar */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pt-3 border-t border-border/50">
-          {/* Separadores de Trimestre (sincronizados com a página principal, mantendo rascunhos) */}
-          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-purple-700 dark:text-purple-300">
-              Trimestre:
+          {classShortLabel && (
+            <span className="text-sm sm:text-base font-extrabold text-purple-700 dark:text-purple-300 bg-purple-50/70 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-900/50 px-3 py-1 rounded-xl shrink-0">
+              {classShortLabel}
             </span>
-            <div className="flex p-0.5 bg-muted/70 rounded-xl border border-border/40 select-none w-full sm:w-auto">
-              {(['1', '2', '3'] as const).map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => onTrimesterChange(t)}
-                  className={`flex-1 sm:flex-initial px-3 sm:px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                    trimester === t
-                      ? 'bg-purple-600 text-white shadow-xs'
-                      : 'text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  {t}º Trimestre
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Lista Suspensa de Disciplina + Botão Guardar */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full lg:w-auto">
-            <div className="flex-1 sm:min-w-[260px]">
-              <label htmlFor="subject-selector" className="sr-only">
-                Escolher disciplina
-              </label>
-              <select
-                id="subject-selector"
-                value={selectedSubjectKey}
-                onChange={(e) => {
-                  setSelectedSubjectKey(e.target.value as SubjectKey | '');
-                }}
-                className="w-full h-11 px-3.5 rounded-xl border border-purple-200 dark:border-purple-900/50 bg-muted/40 hover:border-purple-400 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/25 text-sm font-semibold text-foreground cursor-pointer transition-all"
-              >
-                <option value="">-- Selecione uma disciplina --</option>
-                {MEDIA_GERAL_SUBJECTS.map((sub) => (
-                  <option key={sub.key} value={sub.key}>
-                    {sub.name} ({sub.label})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <Button
-              type="button"
-              onClick={executeSave}
-              disabled={isSaving || !selectedSubjectKey}
-              className="h-11 px-5 rounded-xl bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white text-sm font-bold shadow-sm flex items-center justify-center gap-2 cursor-pointer transition-all shrink-0 border-0"
-            >
-              <Save className="h-4 w-4 shrink-0" />
-              <span>{isSaving ? 'A guardar...' : 'Guardar'}</span>
-              {hasUnsavedDrafts && (
-                <span className="ml-0.5 px-1.5 py-0.5 rounded-md bg-white/20 text-[11px] font-extrabold leading-none">
-                  {pendingDraftEntries.length}
-                </span>
-              )}
-            </Button>
-          </div>
+          )}
         </div>
 
-        {/* Separadores rápidos de disciplina para desktop/tablet */}
-        <div className="flex flex-wrap gap-1.5 pt-1">
-          {MEDIA_GERAL_SUBJECTS.map((sub) => {
-            const isSelected = selectedSubjectKey === sub.key;
-            const hasDraftInSub = pendingDraftEntries.some(([k]) =>
-              k.startsWith(`${trimester}::${sub.key}::`)
-            );
-            return (
+        {/* Linha 3: Separadores de Trimestre (sincronizados, mantendo rascunhos) */}
+        <div className="flex justify-center pt-1">
+          <div className="flex p-0.5 bg-muted/70 rounded-xl border border-border/40 select-none w-full sm:w-auto">
+            {(['1', '2', '3'] as const).map((t) => (
               <button
-                key={sub.key}
+                key={t}
                 type="button"
-                onClick={() => setSelectedSubjectKey(sub.key)}
-                title={sub.name}
-                className={`relative px-2.5 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
-                  isSelected
-                    ? 'bg-purple-600 text-white border-purple-600 shadow-xs'
-                    : 'bg-muted/40 text-muted-foreground border-border/60 hover:border-purple-400 hover:text-foreground'
+                onClick={() => onTrimesterChange(t)}
+                className={`flex-1 sm:flex-initial px-3 sm:px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  trimester === t
+                    ? 'bg-purple-600 text-white shadow-xs'
+                    : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
-                <span>{sub.label}</span>
-                {hasDraftInSub && (
-                  <span
-                    className={`ml-1 inline-block h-1.5 w-1.5 rounded-full align-middle ${
-                      isSelected ? 'bg-amber-300' : 'bg-purple-500'
-                    }`}
-                    title="Tem notas por guardar"
-                  />
-                )}
+                {t}º Trimestre
               </button>
-            );
-          })}
+            ))}
+          </div>
+        </div>
+
+        {/* Orientação centralizada + Separadores rápidos de disciplina */}
+        <div className="pt-3 border-t border-border/50 space-y-2.5">
+          <p className="text-xs sm:text-sm font-bold text-purple-700 dark:text-purple-300 text-center">
+            Seleccione a Disciplina
+          </p>
+          <div className="flex flex-wrap justify-center gap-1.5">
+            {MEDIA_GERAL_SUBJECTS.map((sub) => {
+              const isSelected = selectedSubjectKey === sub.key;
+              const hasDraftInSub = pendingDraftEntries.some(([k]) =>
+                k.startsWith(`${trimester}::${sub.key}::`)
+              );
+              return (
+                <button
+                  key={sub.key}
+                  type="button"
+                  onClick={() => setSelectedSubjectKey(sub.key)}
+                  title={sub.name}
+                  className={`relative px-2.5 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
+                    isSelected
+                      ? 'bg-purple-600 text-white border-purple-600 shadow-xs'
+                      : 'bg-muted/40 text-muted-foreground border-border/60 hover:border-purple-400 hover:text-foreground'
+                  }`}
+                >
+                  <span>{sub.label}</span>
+                  {hasDraftInSub && (
+                    <span
+                      className={`ml-1 inline-block h-1.5 w-1.5 rounded-full align-middle ${
+                        isSelected ? 'bg-amber-300' : 'bg-purple-500'
+                      }`}
+                      title="Tem notas por guardar"
+                    />
+                  )}
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 
@@ -438,7 +409,7 @@ export const AddGradesBySubjectView: React.FC<AddGradesBySubjectViewProps> = ({
               Escolha uma disciplina
             </h3>
             <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
-              Selecione acima a disciplina pretendida na lista suspensa ou nos separadores rápidos para lançar as notas do{' '}
+              Selecione acima a disciplina pretendida para lançar as notas do{' '}
               <strong className="text-foreground">{trimester}º Trimestre</strong>.
             </p>
           </div>
@@ -449,23 +420,16 @@ export const AddGradesBySubjectView: React.FC<AddGradesBySubjectViewProps> = ({
           {/* Barra de Informação, Pesquisa e Contagem de Alunos sem Nota */}
           <div className="p-4 sm:p-5 border-b border-border/60 bg-muted/20 space-y-3">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="px-2.5 py-0.5 rounded-lg bg-purple-600 text-white text-xs font-extrabold">
-                    {selectedSubjectMeta.label}
-                  </span>
-                  <h3 className="text-base sm:text-lg font-extrabold text-foreground">
-                    {selectedSubjectMeta.name}
-                  </h3>
-                  <span className="text-xs font-semibold text-muted-foreground">
-                    • {trimester}º Trimestre
-                  </span>
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Escala de 0 a 20 valores. Use <kbd className="px-1.5 py-0.5 rounded bg-muted border border-border text-[10px] font-mono">Tab</kbd>,{' '}
-                  <kbd className="px-1.5 py-0.5 rounded bg-muted border border-border text-[10px] font-mono">Enter</kbd> ou{' '}
-                  <kbd className="px-1.5 py-0.5 rounded bg-muted border border-border text-[10px] font-mono">↑ ↓</kbd> para navegar entre alunos.
-                </p>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="px-2.5 py-0.5 rounded-lg bg-purple-600 text-white text-xs font-extrabold">
+                  {selectedSubjectMeta.label}
+                </span>
+                <h3 className="text-base sm:text-lg font-extrabold text-foreground">
+                  {selectedSubjectMeta.name}
+                </h3>
+                <span className="text-xs font-semibold text-muted-foreground">
+                  • {trimester}º Trimestre
+                </span>
               </div>
 
               {/* Indicador de quantos alunos ainda não têm nota nessa disciplina */}
@@ -682,22 +646,22 @@ export const AddGradesBySubjectView: React.FC<AddGradesBySubjectViewProps> = ({
             </div>
           )}
 
-          {/* Rodapé com botão Guardar acessível no final da lista (especialmente útil em telemóvel) */}
+          {/* Rodapé com botão Guardar acessível no final da lista */}
           {filteredStudents.length > 0 && (
-            <div className="p-4 border-t border-border/60 bg-muted/20 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-              <div className="text-xs text-muted-foreground">
-                Ao guardar, as notas são sincronizadas com a{' '}
-                <strong className="text-foreground">Pauta da Turma</strong> e a{' '}
-                <strong className="text-foreground">Média Geral (MG)</strong> é recalculada automaticamente.
-              </div>
+            <div className="p-4 border-t border-border/60 bg-muted/20 flex justify-end">
               <Button
                 type="button"
                 onClick={executeSave}
                 disabled={isSaving}
-                className="h-11 px-6 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-sm font-bold shadow-sm flex items-center justify-center gap-2 cursor-pointer border-0 shrink-0"
+                className="w-full sm:w-auto h-11 px-6 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-sm font-bold shadow-sm flex items-center justify-center gap-2 cursor-pointer border-0 shrink-0"
               >
                 <Save className="h-4 w-4 shrink-0" />
                 <span>{isSaving ? 'A guardar...' : 'Guardar'}</span>
+                {hasUnsavedDrafts && (
+                  <span className="ml-0.5 px-1.5 py-0.5 rounded-md bg-white/20 text-[11px] font-extrabold leading-none">
+                    {pendingDraftEntries.length}
+                  </span>
+                )}
               </Button>
             </div>
           )}
