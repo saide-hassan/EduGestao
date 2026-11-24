@@ -9,7 +9,9 @@ import {
   getStudentGrades,
   getStudentSubjectGrades,
   calculateAcsAverage,
+  calculateAutoGeneralAverage,
   calculateGeneralAverage,
+  calculateTrimesterAverage,
   calculateMediaGeralForStudent,
   getApoioAlertStatus,
   getGradeColor,
@@ -59,8 +61,10 @@ export const GradeInput = React.memo(function GradeInput({
   const onCommitRef = useRef(onCommit);
   const pendingCommitRef = useRef(onCommit);
   const prevResetKeyRef = useRef(resetKey);
+  const valueRef = useRef(value);
 
   onCommitRef.current = onCommit;
+  valueRef.current = value;
 
   useEffect(() => {
     const keyChanged = prevResetKeyRef.current !== resetKey;
@@ -148,6 +152,14 @@ export const GradeInput = React.memo(function GradeInput({
 
     if (finalVal !== value) {
       commitFn(finalVal);
+    }
+
+    if (!restoreDashOnBlur && finalVal.trim() === '') {
+      setTimeout(() => {
+        if (!isFocusedRef.current) {
+          setLocalValue(valueRef.current);
+        }
+      }, 0);
     }
   };
 
@@ -355,21 +367,34 @@ export const EvaluationStudentRow = React.memo(function EvaluationStudentRow({
   const studentGrades = getStudentGrades(student, trimester);
   const status = getApoioAlertStatus(student, trimester);
   const acsAvg = calculateAcsAverage(studentGrades);
-  const generalAvg = calculateGeneralAverage(studentGrades);
+  const autoGeneralAvg = calculateAutoGeneralAverage(studentGrades);
+  const manualMediaGeral = (studentGrades.mediaGeral || '').trim();
+  const displayGeneralAvg =
+    manualMediaGeral !== ''
+      ? (studentGrades.mediaGeral || '')
+      : autoGeneralAvg === '-'
+      ? ''
+      : autoGeneralAvg;
+  const effectiveGeneralAvgStr = calculateGeneralAverage(studentGrades);
+  const trimesterAvg = calculateTrimesterAverage(student);
 
   const commitAcs1 = useCallback((v: string) => onUpdateGrade(student.id, 'acs1', v, trimester), [student.id, trimester, onUpdateGrade]);
   const commitAcs2 = useCallback((v: string) => onUpdateGrade(student.id, 'acs2', v, trimester), [student.id, trimester, onUpdateGrade]);
   const commitAcs3 = useCallback((v: string) => onUpdateGrade(student.id, 'acs3', v, trimester), [student.id, trimester, onUpdateGrade]);
   const commitAp = useCallback((v: string) => onUpdateGrade(student.id, 'ap', v, trimester), [student.id, trimester, onUpdateGrade]);
   const commitExame = useCallback((v: string) => onUpdateGrade(student.id, 'exame', v, trimester), [student.id, trimester, onUpdateGrade]);
+  const commitMediaGeral = useCallback((v: string) => onUpdateGrade(student.id, 'mediaGeral', v, trimester), [student.id, trimester, onUpdateGrade]);
 
   const focusAcs1 = useCallback(() => onFocusColumn('acs1'), [onFocusColumn]);
   const focusAcs2 = useCallback(() => onFocusColumn('acs2'), [onFocusColumn]);
   const focusAcs3 = useCallback(() => onFocusColumn('acs3'), [onFocusColumn]);
   const focusAp = useCallback(() => onFocusColumn('ap'), [onFocusColumn]);
   const focusExame = useCallback(() => onFocusColumn('exame'), [onFocusColumn]);
+  const focusMediaGeral = useCallback(() => onFocusColumn('mediaGeral'), [onFocusColumn]);
 
   const getColor = useCallback((val: string) => getGradeColor(val), []);
+  const getAvgColor = useCallback((val: string) => getGradeColor(val, true), []);
+  const sanitizeNumericGrade = useCallback((raw: string) => raw.replace(/[^0-9.,]/g, ''), []);
 
   let nameBadge = null;
   if (status !== 'none') {
@@ -542,13 +567,41 @@ export const EvaluationStudentRow = React.memo(function EvaluationStudentRow({
         </div>
       </TableCell>
 
-      <TableCell className="align-middle text-center bg-amber-500/5 dark:bg-amber-500/5">
+      <TableCell
+        className={`align-middle text-center ${
+          highlightedColumn === 'mediaGeral'
+            ? 'bg-purple-500/5 dark:bg-purple-500/10 border-x border-purple-500/10'
+            : 'bg-amber-500/5 dark:bg-amber-500/5'
+        }`}
+      >
         <div className="flex flex-col items-center justify-center">
-          <span className={`font-bold text-sm ${getGradeColor(generalAvg, true) || 'text-foreground'}`}>
-            {generalAvg}
-          </span>
-          {renderGradeIndicator(generalAvg)}
+          <GradeInput
+            className={`${EVAL_INPUT_BASE} font-bold`}
+            getDynamicClassName={getAvgColor}
+            sanitize={sanitizeNumericGrade}
+            value={displayGeneralAvg}
+            resetKey={`${student.id}-${trimester}-mediaGeral`}
+            onCommit={commitMediaGeral}
+            onFocus={focusMediaGeral}
+            onClick={focusMediaGeral}
+            placeholder="-"
+            title={
+              manualMediaGeral !== ''
+                ? 'Média Geral inserida manualmente (limpe para voltar ao cálculo automático)'
+                : 'Média Geral (clique para introduzir manualmente)'
+            }
+          />
+          {renderGradeIndicator(effectiveGeneralAvgStr)}
           {avgBadge}
+        </div>
+      </TableCell>
+
+      <TableCell className="align-middle text-center bg-purple-500/5 dark:bg-purple-500/5">
+        <div className="flex flex-col items-center justify-center">
+          <span className={`font-bold text-sm ${getGradeColor(trimesterAvg, true) || 'text-foreground'}`}>
+            {trimesterAvg}
+          </span>
+          {renderGradeIndicator(trimesterAvg)}
         </div>
       </TableCell>
 

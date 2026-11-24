@@ -3850,7 +3850,8 @@ export default function App() {
                               <TableHead className="w-[90px] text-center font-bold text-purple-600 dark:text-purple-400 bg-muted">Média</TableHead>
                               <TableHead className={`w-[90px] text-center font-bold transition-all duration-150 ${highlightedColumn === 'ap' ? 'text-purple-600 dark:text-purple-400 bg-purple-500/10 dark:bg-purple-500/20 font-extrabold border-x border-purple-500/10' : 'text-foreground bg-muted'}`}>AP</TableHead>
                               <TableHead className={`w-[90px] text-center font-bold transition-all duration-150 ${highlightedColumn === 'exame' ? 'text-purple-600 dark:text-purple-400 bg-purple-500/10 dark:bg-purple-500/20 font-extrabold border-x border-purple-500/10' : 'text-foreground bg-muted'}`}>Exame</TableHead>
-                              <TableHead className="w-[100px] text-center font-bold text-foreground bg-muted">Média Geral</TableHead>
+                              <TableHead className={`w-[100px] text-center font-bold transition-all duration-150 ${highlightedColumn === 'mediaGeral' ? 'text-purple-600 dark:text-purple-400 bg-purple-500/10 dark:bg-purple-500/20 font-extrabold border-x border-purple-500/10' : 'text-foreground bg-muted'}`}>Média Geral</TableHead>
+                              <TableHead className="w-[115px] text-center font-bold text-purple-600 dark:text-purple-400 bg-muted leading-tight" title="Média Trimestral (1º, 2º e 3º Trimestre)">Média Trimestral (MT)</TableHead>
                               <TableHead className="w-[140px] text-center font-bold text-foreground bg-muted">Ações</TableHead>
                             </TableRow>
                           </TableHeader>
@@ -3985,7 +3986,8 @@ export default function App() {
                           <TableHead className="w-[90px] text-center font-bold text-purple-600 dark:text-purple-400 bg-muted">Média</TableHead>
                           <TableHead className={`w-[90px] text-center font-bold transition-all duration-150 ${highlightedColumn === 'ap' ? 'text-purple-600 dark:text-purple-400 bg-purple-500/10 dark:bg-purple-500/20 font-extrabold border-x border-purple-500/10' : 'text-foreground bg-muted'}`}>AP</TableHead>
                           <TableHead className={`w-[90px] text-center font-bold transition-all duration-150 ${highlightedColumn === 'exame' ? 'text-purple-600 dark:text-purple-400 bg-purple-500/10 dark:bg-purple-500/20 font-extrabold border-x border-purple-500/10' : 'text-foreground bg-muted'}`}>Exame</TableHead>
-                          <TableHead className="w-[100px] text-center font-bold text-foreground bg-muted">Média Geral</TableHead>
+                          <TableHead className={`w-[100px] text-center font-bold transition-all duration-150 ${highlightedColumn === 'mediaGeral' ? 'text-purple-600 dark:text-purple-400 bg-purple-500/10 dark:bg-purple-500/20 font-extrabold border-x border-purple-500/10' : 'text-foreground bg-muted'}`}>Média Geral</TableHead>
+                          <TableHead className="w-[115px] text-center font-bold text-purple-600 dark:text-purple-400 bg-muted leading-tight" title="Média Trimestral (1º, 2º e 3º Trimestre)">Média Trimestral (MT)</TableHead>
                           <TableHead className="w-[140px] text-center font-bold text-foreground bg-muted">Ações</TableHead>
                         </TableRow>
                       </TableHeader>

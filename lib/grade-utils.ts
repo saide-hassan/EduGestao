@@ -4,6 +4,7 @@ export type Grades = {
   acs3: string;
   ap: string;
   exame: string;
+  mediaGeral?: string;
 };
 
 export type StudentNote = {
@@ -74,7 +75,7 @@ export const MEDIA_GERAL_SUBJECTS = [
 
 export type SubjectKey = typeof MEDIA_GERAL_SUBJECTS[number]['key'];
 
-export const emptyGrades = (): Grades => ({ acs1: '', acs2: '', acs3: '', ap: '', exame: '' });
+export const emptyGrades = (): Grades => ({ acs1: '', acs2: '', acs3: '', ap: '', exame: '', mediaGeral: '' });
 
 export const normalizeSearchText = (text: string): string => {
   return (text || '')
@@ -238,13 +239,41 @@ export const calculateAcsAverage = (grades: Grades) => {
   return customRound(rawAverage);
 };
 
-export const calculateGeneralAverage = (grades: Grades) => {
+export const calculateAutoGeneralAverage = (grades: Grades): string => {
   const acsAvgStr = calculateAcsAverage(grades);
   if (acsAvgStr === '-') return '-';
   const acsAvg = parseFloat(acsAvgStr.replace(',', '.'));
   const apVal = parseFloat((grades.ap || '').replace(',', '.'));
   if (isNaN(acsAvg) || isNaN(apVal)) return '-';
   const rawAverage = (acsAvg + apVal) / 2;
+  return customRound(rawAverage);
+};
+
+export const calculateGeneralAverage = (grades: Grades): string => {
+  const manual = (grades.mediaGeral || '').trim();
+  if (manual !== '' && manual !== '-') {
+    const manualNum = parseFloat(manual.replace(',', '.'));
+    if (!isNaN(manualNum)) {
+      return manual;
+    }
+  }
+  return calculateAutoGeneralAverage(grades);
+};
+
+export const calculateTrimesterAverage = (student: Student): string => {
+  const g1 = calculateGeneralAverage(getStudentGrades(student, '1'));
+  const g2 = calculateGeneralAverage(getStudentGrades(student, '2'));
+  const g3 = calculateGeneralAverage(getStudentGrades(student, '3'));
+
+  if (g1 === '-' || g2 === '-' || g3 === '-') return '-';
+
+  const n1 = parseFloat(g1.replace(',', '.'));
+  const n2 = parseFloat(g2.replace(',', '.'));
+  const n3 = parseFloat(g3.replace(',', '.'));
+
+  if (isNaN(n1) || isNaN(n2) || isNaN(n3)) return '-';
+
+  const rawAverage = (n1 + n2 + n3) / 3;
   return customRound(rawAverage);
 };
 
